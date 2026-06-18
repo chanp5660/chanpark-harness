@@ -1,0 +1,10 @@
+# Local/runtime state — never committed
+.claude/state/
+.omc/
+*.log
+*.lock
+.DS_Store
+
+# Plugin install caches (if ever present in-tree)
+plugins/cache/
+plugins/marketplaces/

@@ -1,0 +1,41 @@
+---
+description: Coding standards (applies only when editing code files)
+paths:
+  - "**/*.{ts,tsx,js,jsx,py,rb,go,rs,java,kt,swift,c,cpp,h,hpp,cs,php}"
+_harness_template: "rules/coding-standards.md.template"
+_harness_version: "2.5.27"
+---
+
+# Coding Standards
+
+## Commit Message Convention
+
+| Prefix | Usage | Example |
+|--------|------|-----|
+| `feat:` | New feature | `feat: add user authentication` |
+| `fix:` | Bug fix | `fix: resolve login error` |
+| `docs:` | Documentation | `docs: update README` |
+| `refactor:` | Refactoring | `refactor: reorganize auth logic` |
+| `test:` | Tests | `test: add authentication tests` |
+| `chore:` | Other | `chore: update dependencies` |
+
+## Code Style
+
+- ✅ Follow the existing code style
+- ✅ Make only the minimal changes necessary for the task
+- ❌ "Improvements" to code that was not changed
+- ❌ Unrequested refactoring
+- ❌ Excessive comment additions
+
+## Pull Request
+
+- Title: Concise summary of the change (under 50 characters)
+- Description: State "what" and "why" clearly
+- Always include test instructions
+- Explicitly note any breaking changes
+
+## Error Handling
+
+- Validate only at boundaries (user input, external APIs)
+- Trust internal code
+- No error handling needed for scenarios that cannot occur

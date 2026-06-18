@@ -1,0 +1,47 @@
+---
+_harness_template: "memory/decisions.md.template"
+_harness_version: "2.5.27"
+---
+
+# Decisions (SSOT)
+
+This file is the Single Source of Truth (SSOT) for important decisions.
+Keep the discussion history brief — record the **conclusion, rationale, and trade-offs** concisely but reliably.
+
+## Index
+
+- (e.g.) {{DATE}}: Adopted Supabase Auth for authentication #auth #saas
+
+---
+
+## {{DATE}}: (Decision title in one line) #decision #tag1 #tag2
+
+### Conclusion
+
+- (What was decided. 1–3 lines)
+
+### Background
+
+- (Why a decision was needed at this point)
+
+### Options
+
+- A: (option)
+- B: (option)
+
+### Rationale for choice
+
+- (Key factors that drove the decision. Up to 3 points recommended)
+
+### Impact / Trade-offs
+
+- (Operational impact, cost, future changeability, etc.)
+
+### Conditions for revisiting
+
+- (What circumstances would trigger reconsideration — SLO changes, scale changes, requirement changes, etc.)
+
+### Related
+
+- PR/Issue:
+- References:

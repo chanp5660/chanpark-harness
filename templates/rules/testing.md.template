@@ -1,0 +1,60 @@
+---
+description: Rules for creating and editing test files
+paths:
+  - "**/*.{test,spec}.{ts,tsx,js,jsx}"
+  - "**/test/**/*.*"
+  - "**/tests/**/*.*"
+  - "**/__tests__/**/*.*"
+_harness_template: "rules/testing.md.template"
+_harness_version: "2.5.27"
+---
+
+# Testing Rules
+
+## Principles for Writing Tests
+
+1. **Boundary testing**: Always test boundary values of inputs.
+2. **Happy path and error path**: Cover both cases.
+3. **Independence**: Each test must not depend on other tests.
+4. **Clear naming**: The test name should make it clear what is being tested.
+
+## Test File Structure
+
+```
+src/
+├── feature/
+│   ├── index.ts
+│   └── index.test.ts  # Place in the same directory
+tests/
+├── integration/       # Integration tests
+└── e2e/               # E2E tests
+```
+
+## Test Naming Convention
+
+```typescript
+describe('FeatureName', () => {
+  it('should expected-behavior when condition', () => {
+    // ...
+  });
+});
+```
+
+Examples:
+- `should return user when valid ID is provided`
+- `should throw error when email is invalid`
+
+## Coverage Goals
+
+| Type | Goal |
+|------|------|
+| Unit tests | 80%+ |
+| Integration tests | Main flows |
+| E2E tests | Critical paths |
+
+## Prohibited Actions
+
+- ❌ Tests that depend on internal implementation details
+- ❌ Real connections to external services (use mocks)
+- ❌ Shared state between tests
+- ❌ Bypassing tests with `any` or `// @ts-ignore`

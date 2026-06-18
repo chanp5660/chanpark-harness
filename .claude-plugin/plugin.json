@@ -1,0 +1,26 @@
+{
+  "name": "chanpark-harness",
+  "displayName": "ChanPark Harness",
+  "version": "1.0.0",
+  "description": "Personal multi-agent harness for Claude Code. claude-code-harness base (plan-work-review cycle, pre-built Go binary) merged with selected oh-my-claudecode consult agents and skills, modernized for the current Claude Code plugin spec.",
+  "author": {
+    "name": "ChanPark",
+    "email": "chanp5660@naver.com"
+  },
+  "homepage": "https://github.com/chanp5660/chanpark-harness",
+  "repository": "https://github.com/chanp5660/chanpark-harness",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "plugin",
+    "multi-agent",
+    "harness",
+    "plan-work-review",
+    "orchestration"
+  ],
+  "defaultEnabled": true,
+  "agents": "./agents/",
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "outputStyles": "./output-styles/"
+}

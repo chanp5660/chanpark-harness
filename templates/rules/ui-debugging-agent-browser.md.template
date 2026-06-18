@@ -1,0 +1,110 @@
+---
+description: Prefer agent-browser (if installed) for UI debugging and verification
+alwaysApply: true
+_harness_template: "rules/ui-debugging-agent-browser.md.template"
+_harness_version: "2.7.13"
+---
+
+# UI Debugging Rule (Prefer Agent Browser)
+
+## Core Policy
+
+- For UI/UX issues and investigations requiring on-screen reproduction, **always prioritize agent-browser**.
+- Try agent-browser before other browser tools (MCP chrome-devtools, playwright).
+- Work back and forth between the browser and source code, cycling quickly through **reproduce → hypothesize cause → fix → re-verify**.
+
+## Advantages of agent-browser
+
+| Feature | Description |
+|------|------|
+| **AI-optimized** | Use `snapshot -i -c` to obtain element references (`@e1`, `@e2`) |
+| **Simple** | Run directly from the CLI — no MCP required |
+| **Fast** | Rust-based binary |
+| **Session management** | Manage multiple tabs in parallel with `--session` |
+
+## Recommended Workflow
+
+### 1. Pin down the reproduction conditions
+
+- Document the target URL, user state (login/permissions/data), and expected vs. actual behavior.
+
+### 2. Reproduce with agent-browser
+
+```bash
+# Open the page
+agent-browser open https://example.com/target-page
+
+# Capture an AI-optimized snapshot (interactive elements only)
+agent-browser snapshot -i -c
+
+# Example output:
+# - button "Login" [ref=e1]
+# - input "Email" [ref=e2]
+# - input "Password" [ref=e3]
+```
+
+### 3. Execute actions to reproduce the issue
+
+```bash
+# Click by element reference
+agent-browser click @e1
+
+# Fill a form
+agent-browser fill @e2 "test@example.com"
+agent-browser fill @e3 "password123"
+
+# Check state
+agent-browser snapshot -i -c
+```
+
+### 4. Observe → hypothesize → inspect source
+
+- Use snapshot, screenshot, and console log information to narrow down candidate root causes.
+- Inspect relevant sources (UI, state management, API, validation).
+
+### 5. Fix with the minimal change
+
+- Keep the scope of changes small; be able to explain the intent and any side effects.
+
+### 6. Re-verify with agent-browser
+
+```bash
+# Confirm the issue no longer reproduces with the same steps
+agent-browser open https://example.com/target-page
+agent-browser snapshot -i -c
+agent-browser click @e1
+# ...
+```
+
+## Fallback When agent-browser Is Unavailable
+
+Try the following alternatives in order:
+
+1. **MCP browser tools** (chrome-devtools, playwright)
+2. **Manual reproduction**:
+   - Reproduction steps (URL / actions / expected / actual)
+   - Screenshots or video
+   - Console logs / network logs
+3. **Automated E2E**:
+   - If feasible, add a minimal Playwright/Cypress test to prevent regressions.
+
+## Common Commands
+
+```bash
+# Basic operations
+agent-browser open <url>          # Open a page
+agent-browser snapshot -i -c      # Snapshot (AI-optimized)
+agent-browser click @e1           # Click
+agent-browser fill @e2 "text"     # Fill input
+agent-browser screenshot out.png  # Take a screenshot
+
+# Debugging
+agent-browser --headed open <url> # Show the browser window
+agent-browser console             # Display console logs
+agent-browser errors              # Display page errors
+
+# Information retrieval
+agent-browser get text @e1        # Get text
+agent-browser get html @e1        # Get HTML
+agent-browser get url             # Get current URL
+```

@@ -1,0 +1,9 @@
+# Pre-built Go binaries: treat as binary, never CRLF-normalize, preserve as-is.
+bin/harness-linux-amd64    binary
+bin/harness-darwin-amd64   binary
+bin/harness-darwin-arm64   binary
+bin/harness-windows-amd64.exe binary
+
+# Shell dispatcher and scripts: keep LF endings so they stay executable on Unix.
+bin/harness        text eol=lf
+*.sh               text eol=lf
