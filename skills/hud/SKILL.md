@@ -89,14 +89,14 @@ and tell the user to restart Claude Code.
 ## Preview
 
 ```
-minimal:  [Opus 4.8] 67% | tasks 1/4
+minimal:  [Opus 4.8] ctx:67% | tasks 1/4
 focused:  [Opus 4.8] effort:high think:on  main +2~1 ^1 ?3
-          ######....  67% | $1.23 | +120/-30 | 3m5s | tasks 1/4 > implement login flow
+          ctx:67% | $1.23 | +120/-30 | 3m5s | tasks 1/4 > implement login flow
 full:     [Opus 4.8] effort:high think:on repo:myproject  main +2~1 ^1 ?3
-          ######....  67% | $1.23 | +120/-30 | 3m5s | tasks todo:2 wip:1 done:1/4 > implement login flow
+          ctx:67% | $1.23 | +120/-30 | 3m5s | tasks todo:2 wip:1 done:1/4 > implement login flow
 ```
 
 Line-1 git: `+staged ~modified` files, then `^ahead v behind ?untracked *stash` (only nonzero).
-Line-2: context bar + `%`, session `$cost`, `+lines/-lines` this session, elapsed, task
+Line-2: context usage `ctx:%`, session `$cost`, `+lines/-lines` this session, elapsed, task
 counts, and `> <active WIP task title>` from Plans.md (truncated). `agent:`/`wt:` appear on
 line 1 only inside a subagent / git worktree.

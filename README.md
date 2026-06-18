@@ -64,7 +64,7 @@ With `version` pinned, Claude Code only updates when the version changes.
 ```
 
 Shows model, effort/thinking, git branch + diff counts + ahead/behind/untracked/stash, a
-context-window bar, session cost, lines changed this session (`+added/-removed`), elapsed
+context usage `ctx:%`, session cost, lines changed this session (`+added/-removed`), elapsed
 time, Plans.md task counts, and the active WIP task title. Requires `jq`; without it, it
 falls back to a model-only line.
 
