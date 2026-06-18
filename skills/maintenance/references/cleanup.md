@@ -21,7 +21,7 @@ If the user specifies a different threshold in free-form text, that value takes 
 ### Prerequisites
 
 1. If the `.claude/state/.ssot-synced-this-session` flag does not exist → prompt `/memory sync`.
-2. Lines tagged `cc:WIP`, `pm:pending`, `cursor:pending` **must never be moved**.
+2. Lines tagged `cc:WIP`, `pm:pending` **must never be moved**.
 
 ### Steps
 
@@ -31,11 +31,11 @@ cp "$PLANS" "$PLANS.bak.$(date +%s)"
 
 # 1. Measure current state
 wc -l "$PLANS"
-grep -c '\[x\].*pm:confirmed\|cursor:confirmed' "$PLANS" || true
+grep -c '\[x\].*pm:confirmed' "$PLANS" || true
 
 # 2. Extract lines completed 7+ days ago (handle individually with Edit tool)
-#    Target: `- [x] ... (YYYY-MM-DD) ... pm:confirmed|cursor:confirmed`
-#    Exclude: lines containing cc:WIP / pm:pending / cursor:pending
+#    Target: `- [x] ... (YYYY-MM-DD) ... pm:confirmed`
+#    Exclude: lines containing cc:WIP / pm:pending
 
 # 3. Append extracted lines to the "## 📦 Archive" section
 #    If the archive section does not exist, create it at the end of the file
@@ -49,7 +49,7 @@ grep -c '\[x\].*pm:confirmed\|cursor:confirmed' "$PLANS" || true
 ### YYYY-MM (grouped by month)
 
 - [x] Old task A (2026-04-05) pm:confirmed
-- [x] Old task B (2026-04-07) cursor:confirmed
+- [x] Old task B (2026-04-07) pm:confirmed
 ```
 
 ### Output When Nothing Is Found

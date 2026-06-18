@@ -39,7 +39,7 @@ Examples of `decision_needed`:
 - A business decision is needed on whether to preserve or remove backward compatibility
 
 Use AskUserQuestion when available.
-In Codex environments or other cases where it is unavailable, output `decision_needed.v1` to stdout and do not proceed by guessing.
+When it is unavailable, output `decision_needed.v1` to stdout and do not proceed by guessing.
 
 ## Side effects
 

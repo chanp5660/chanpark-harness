@@ -228,7 +228,7 @@ This working tree clean check is the gate for the normal release preflight.
 In a bare release where you want to commit "work so far", complete the Review Gate and Work Commit Gate before this check.
 Do not abort and stop solely because of an unreviewed dirty tree.
 
-`scripts/release-preflight.sh` also detects mirror drift in `opencode/`, `skills-codex/`, and `codex/.codex/skills/` before creating the tag. If `node scripts/build-opencode.js` produces a diff, the release is halted; commit that diff before proceeding to the tag.
+`scripts/release-preflight.sh` runs additional project-specific preflight checks before creating the tag.
 
 ### 2. Version File Auto-Detection
 
@@ -282,13 +282,12 @@ python3 "${HARNESS_PLUGIN_ROOT}/scripts/check-release-version-sync.py" --root .
 claude plugin tag .claude-plugin --dry-run
 ```
 
-`${HARNESS_PLUGIN_ROOT}/scripts/check-release-version-sync.py` reads all existing release surfaces and determines the canonical version in the order `VERSION > package.json > .claude-plugin/plugin.json > .codex-plugin/plugin.json`.
+`${HARNESS_PLUGIN_ROOT}/scripts/check-release-version-sync.py` reads all existing release surfaces and determines the canonical version in the order `VERSION > package.json > .claude-plugin/plugin.json`.
 If any of the following have a mismatch or are missing, the process does not proceed to tag / release:
 
 - `VERSION`
 - `.version` in `package.json`
 - `.version` in `.claude-plugin/plugin.json`
-- `.version` in `.codex-plugin/plugin.json`
 - `.metadata.version` in `.claude-plugin/marketplace.json`
 - `.plugins[].version` in `.claude-plugin/marketplace.json` (each plugin entry in the array)
 
@@ -444,7 +443,7 @@ The tag created by `claude plugin tag` follows the format `{plugin-name}--v{vers
 
 Execute all Pre-Gate steps and display content up to the Confirmation Gate, but **stop at the gate without proceeding to Post-Gate**.
 
-For Claude plugin projects, even in dry-run mode, run `python3 "${HARNESS_PLUGIN_ROOT}/scripts/check-release-version-sync.py" --root .` and `claude plugin tag .claude-plugin --dry-run`, and display the plugin tag name that would be created and its push target. If any version surface in `VERSION` / `package.json` / `.claude-plugin/plugin.json` / `.codex-plugin/plugin.json` / `.claude-plugin/marketplace.json` is mismatched or missing, halt at dry-run time.
+For Claude plugin projects, even in dry-run mode, run `python3 "${HARNESS_PLUGIN_ROOT}/scripts/check-release-version-sync.py" --root .` and `claude plugin tag .claude-plugin --dry-run`, and display the plugin tag name that would be created and its push target. If any version surface in `VERSION` / `package.json` / `.claude-plugin/plugin.json` / `.claude-plugin/marketplace.json` is mismatched or missing, halt at dry-run time.
 
 ## Environment Variables
 

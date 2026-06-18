@@ -1,16 +1,16 @@
 ---
 name: harness-work
-description: "HAR: Execute Plans.md tasks from single task to full parallel team run. Trigger: implement, execute, do everything, breezing, team run, parallel, composer, composer 2.5. Do NOT load for: planning, review, release, setup."
+description: "HAR: Execute Plans.md tasks from single task to full parallel team run. Trigger: implement, execute, do everything, breezing, team run, parallel. Do NOT load for: planning, review, release, setup."
 kind: workflow
 purpose: "Execute Plans.md tasks end to end"
-trigger: "implement, execute, do everything, breezing, team run, parallel, composer, composer 2.5, composer mode"
+trigger: "implement, execute, do everything, breezing, team run, parallel"
 shape: workflow
 role: executor
 pair: harness-review
 owner: harness-core
 since: "2026-05-05"
 allowed-tools: ["Read", "Write", "Edit", "Grep", "Glob", "Bash", "Task", "Monitor"]
-argument-hint: "[all] [task-number|range] [--codex] [--parallel N] [--no-commit] [--resume id] [--breezing] [--auto-mode] [--tdd-bypass]"
+argument-hint: "[all] [task-number|range] [--parallel N] [--no-commit] [--resume id] [--breezing] [--auto-mode] [--tdd-bypass]"
 user-invocable: true
 effort: high
 ---
@@ -34,14 +34,12 @@ Consolidates the following former skills:
 | `/harness-work all` | **auto** | Run all incomplete tasks in auto mode |
 | `/harness-work 3` | solo | Execute only task 3 immediately |
 | `/harness-work --parallel 5` | parallel | Force parallel execution with 5 workers |
-| `/harness-work --codex` | codex | Delegate to Codex CLI (explicit only) |
-| Cursor host (adapter candidate) | cursor | Task/subagent routing via `.cursor/AGENTS.md`; not auto-selected |
 | `/harness-work --breezing` | breezing | Force team execution |
 | `/harness-work 3 --plan roadmap` | solo | Run task 3 from the named plan `roadmap` |
 
 ## Execution Mode Auto Selection (when no explicit flag is given)
 
-When no explicit mode flag (`--parallel`, `--breezing`, `--codex`) is provided,
+When no explicit mode flag (`--parallel`, `--breezing`) is provided,
 the optimal mode is automatically selected based on the number of target tasks:
 
 | Target Task Count | Auto-Selected Mode | Reason |
@@ -55,92 +53,13 @@ the optimal mode is automatically selected based on the number of target tasks:
 1. **Explicit flags always override auto mode**
    - `--parallel N` → Parallel mode (regardless of task count)
    - `--breezing` → Breezing mode (regardless of task count)
-   - `--codex` → Codex mode (regardless of task count)
-2. **`--codex` activates only when explicitly specified**. Auto-selection is disabled because some environments do not have Codex CLI installed.
-3. `--codex` can be combined with other modes: `--codex --breezing` → Codex + Breezing
 
-## Execution Backend Selection
-
-The backend (which runtime **implements** the code) is orthogonal to the execution mode (topology: solo / parallel / breezing).
-While the execution mode determines how many workers run and how tasks are split, the backend determines who actually does the implementing.
-
-| backend | Implementation party | Delegation command |
-|---------|------------|------------|
-| `claude` (default) | Task subagent (`agents/worker.md`) | Spawn worker via Agent tool |
-| `codex` | Codex CLI | `bash "${HARNESS_PLUGIN_ROOT}/scripts/codex-companion.sh" task --write "<prompt>"` |
-| `cursor` | cursor-agent (model `composer-2.5-fast`) | `bash "${HARNESS_PLUGIN_ROOT}/scripts/cursor-companion.sh" task --write --workspace <worktree> "<prompt>"` |
-
-### Resolution Procedure
-
-Resolve once at the start of a run. Backend determination **must always go through the resolver** — do not read `HARNESS_IMPL_BACKEND` env directly for the decision:
-
-```bash
-bash "${HARNESS_PLUGIN_ROOT}/scripts/resolve-impl-backend.sh"
-```
-
-Precedence (highest to lowest): `--backend <v>` / `--cursor` / `--codex` flags > `HARNESS_IMPL_BACKEND` env var > same key in project `env.local` > same key in user `~/.config/claude-harness/impl-backend.env` > default `claude`. Project settings override user scope.
-Explicit flags (`--backend` / `--cursor` / `--codex`) always override env, file, and default.
-
-### Natural Language Backend Trigger
-
-When the user says `composer` / `Composer` / `composer 2.5` / `composer mode`, treat it as a `cursor backend` specification.
-This carries the same intent as `--cursor`, but the final backend value must always be resolved via `resolve-impl-backend.sh`.
-When resolving, pass `--backend cursor` as an explicit override so it takes priority over env, project, user file, and default.
-Lead does not interpret `composer` as an additional agent inside a Claude Worker; per the non-`claude` backend convention, it calls `cursor-companion.sh` directly without routing through a Worker agent.
-
-### Role-Scoped Constraint
-
-The backend is **role-scoped**. Only the implementation (worker) role uses the resolved backend.
-Both the Reviewer and Advisor roles are always pinned to the brain (`--host claude`, Opus).
-Do not route Reviewer to the cursor / codex backend (the backend that produced the implementation must not review its own output).
-
-```bash
-# Only the implementation role follows the resolved backend (e.g. if backend=cursor, resolves to composer-2.5-fast)
-bash "${HARNESS_PLUGIN_ROOT}/scripts/model-routing.sh" --host cursor --role worker --field model
-# review / advisor are always pinned to claude (Opus)
-bash "${HARNESS_PLUGIN_ROOT}/scripts/model-routing.sh" --host claude --role reviewer --field model
-bash "${HARNESS_PLUGIN_ROOT}/scripts/model-routing.sh" --host claude --role advisor --field model
-```
-
-> The authoritative source for model names is `model-routing.sh`. The `composer-2.5-fast` value in this document is a reference only; actual resolution follows the command above (to prevent drift).
-
-### Non-`claude` Backend Topology (No Worker Intermediary)
-
-When the backend is `codex` or `cursor`, **Lead does not spawn a Worker agent (`chanpark-harness:worker`)**.
-Instead, Lead calls `cursor-companion.sh` / `codex-companion.sh` directly.
-The Worker layer is only involved when backend=`claude`.
-
-Wiring:
-
-| backend | Route |
-|---------|------|
-| `claude` (default) | Lead → Worker (`chanpark-harness:worker` agent) → … → Lead review → cherry-pick |
-| `codex` | Lead → `codex-companion.sh task --write` → Lead review → cherry-pick |
-| `cursor` | Lead → `cursor-companion.sh task --write --workspace <isolated-wt>` → Lead review → cherry-pick |
-
-Inserting a Worker between Lead and a non-claude backend creates a double-delegation chain (Lead → Worker → companion → composer/codex), making the Worker's role meaningless — its agent contract self_review gate is vacuous because non-claude backends do not produce `worker-report.v1` or `self_review`. Lead skips the Worker and calls the companion directly.
-
-Even for non-claude backend companion calls, Lead first creates a dedicated worktree, normalizes the companion stdout into the `companion-result.v1` shape (`{baseCommit, commit, worktreePath, branch, files_changed, summary}`), and then passes it through the existing Lead review / cherry-pick path. On `REQUEST_CHANGES`, instead of using `SendMessage`, Lead re-runs `cursor-companion.sh` / `codex-companion.sh` in the same worktree, re-reviews `baseCommit..HEAD`, and performs a range cherry-pick.
-
-### Non-`claude` Backend self_review Gate
-
-When the backend is `codex` or `cursor`, neither `worker-report.v1` nor the `self_review` array is produced.
-Therefore Lead **skips** the self_review gate and treats Lead's own diff review as the sole quality gate (same treatment as the existing codex path).
-
-### cursor Backend Banner (Required Before Delegation)
-
-When the backend is `cursor`, Lead must output the following one-line banner before delegating:
-
-```
-⚠️ cursor backend: model=composer-2.5-fast / R01-R13 guardrails are not applied inside cursor-agent / output is untrusted until Lead review
-```
-
-cursor write delegation runs inside a worktree with its own `.git`, and Lead cherry-picks into main (R01-R13 is applied via the cherry-pick path).
-See `.claude/rules/cursor-cli-only.md` for governance details.
+The implementation is always carried out by a Claude Worker agent (`chanpark-harness:worker`).
+Reviewer and Advisor roles are always pinned to Claude (`--host claude`, Opus).
 
 ### Lead Pre-cherry-pick Gate (contract grep required)
 
-Before merging non-claude backend (cursor / codex) output into main, Lead must pass a **two-stage gate: visual diff + contract grep**. Do not APPROVE on visual diff alone.
+Before merging Worker output into main, Lead must pass a **two-stage gate: visual diff + contract grep**. Do not APPROVE on visual diff alone.
 
 | Gate | Command | What it detects |
 |--------|----------|----------------|
@@ -149,9 +68,7 @@ Before merging non-claude backend (cursor / codex) output into main, Lead must p
 | Contract grep | `bash scripts/ci/check-consistency.sh` | Breakage of fixed-string contracts in i18n / locale / mirror / capability matrix |
 | Contract grep | `bash tests/validate-plugin.sh` | Plugin distribution contract and hook wiring |
 
-**Cherry-pick only when all gates PASS**. If any gate fails, revert or re-delegate to composer (explicitly requiring the same string contracts to be preserved).
-
-Rationale: docs / README / locale / capability-matrix / spec.md contain **fixed-string contracts** monitored by grep. composer tends to mechanically reduce apparent linguistic redundancy, and what looks like a "clean dedup" in a visual diff can silently break fixed phrases.
+**Cherry-pick only when all gates PASS**.
 
 ## Options
 
@@ -161,9 +78,6 @@ Rationale: docs / README / locale / capability-matrix / spec.md contain **fixed-
 | `N` or `N-M` | Task number or range | - |
 | `--parallel N` | Number of parallel workers | auto |
 | `--sequential` | Force sequential execution | - |
-| `--codex` | Delegate implementation to Codex CLI (explicit only; not auto-selected) | false |
-| `--backend <claude\|codex\|cursor>` | Explicit backend selection (applies to worker role only; highest precedence) | claude |
-| `--cursor` | cursor backend (like `--codex`, explicit only; not auto-selected because some environments do not have cursor-agent installed) | false |
 | `--plan NAME` | Use the named plan from `plans/manifest.json` | active/default |
 | `--no-commit` | Suppress automatic commit | false |
 | `--resume <id\|latest>` | Resume a previous session. Combining with `/recap` is recommended after a long gap. | - |
@@ -180,8 +94,8 @@ Read the details only when they become necessary.
 
 | Detail | Reference |
 |---|---|
-| Concrete procedures for Solo / Parallel / Codex / Breezing | `references/execution-modes.md` |
-| Codex review, Reviewer fallback, AI Residuals, fix loop | `references/review-loop.md` |
+| Concrete procedures for Solo / Parallel / Breezing | `references/execution-modes.md` |
+| Reviewer fallback, AI Residuals, fix loop | `references/review-loop.md` |
 | Completion report generation for Solo / Breezing | `references/completion-report.md` |
 | Re-ticketing on test/CI failure | `references/failure-reticketing.md` |
 | Criteria for spec source-of-truth checks | `docs/plans/spec-ssot.md` |
@@ -276,79 +190,6 @@ fi
 
 All subsequent `node "${HARNESS_PLUGIN_ROOT}/scripts/..."` / `bash "${HARNESS_PLUGIN_ROOT}/scripts/..."` calls assume this resolved root.
 
-### Backend-Resolved Executor Path (Solo / Parallel / Breezing)
-
-Solo, Parallel, and Breezing all select the implementation executor from the same resolver result.
-`harness-work 3 --cursor` and a user/project `HARNESS_IMPL_BACKEND=cursor` setting must not fall through to local Read/Write/Edit/Bash, even for a single-task run.
-
-```
-resolver_backend_arg = ""
-if explicit_backend_value in ["claude", "codex", "cursor"]:
-    resolver_backend_arg = "--backend {explicit_backend_value}"
-backend = bash("bash \"${HARNESS_PLUGIN_ROOT}/scripts/resolve-impl-backend.sh\" {resolver_backend_arg}")
-if explicit_flag == "--cursor":
-    backend = "cursor"
-if explicit_flag == "--codex":
-    backend = "codex"
-
-if topology in ["solo", "parallel"] and backend in ["cursor", "codex"]:
-    BASE_REF = git("rev-parse", "HEAD")
-    WT_ID = "{task.number}-$(date +%Y%m%d-%H%M%S)-$$"
-    worktree_path = ".claude/worktrees/{backend}-{WT_ID}"
-    worktree_branch = "{backend}-work/{WT_ID}"
-    bash("mkdir -p .claude/worktrees && git worktree add -b {worktree_branch} {worktree_path} {BASE_REF}")
-    companion_prompt = "{task prompt}\n\nAfter making changes, create exactly one git commit in this worktree before returning."
-    if backend == "cursor":
-        companion_output = bash("bash \"${HARNESS_PLUGIN_ROOT}/scripts/cursor-companion.sh\" task --write --workspace {worktree_path} \"{companion_prompt}\"")
-    else:
-        companion_state_file = "{worktree_path}/.claude/state/codex-primary-environment.json"
-        companion_output = bash("HARNESS_CODEX_PRIMARY_ENV_STATE_FILE={companion_state_file} bash \"${HARNESS_PLUGIN_ROOT}/scripts/codex-companion.sh\" task --write -C {worktree_path} \"{companion_prompt}\"")
-    latest_commit = git("-C", worktree_path, "rev-parse", "HEAD")
-    if backend == "cursor" and git("-C", worktree_path, "status", "--porcelain") != "":
-        git("-C", worktree_path, "add", "-A")
-        git("-C", worktree_path, "-c", "user.name=cursor-composer", "-c", "user.email=cursor-composer@local", "commit", "--no-verify", "-m", "cursor: delegated change")
-        latest_commit = git("-C", worktree_path, "rev-parse", "HEAD")
-    if latest_commit == BASE_REF:
-        raise EscalationError("{backend} companion produced no commit")
-    worker_result = {type: "companion-result.v1", baseCommit: BASE_REF, commit: latest_commit, worktreePath: worktree_path, branch: worktree_branch, files_changed: git("-C", worktree_path, "diff", "--name-only", "{BASE_REF}..HEAD"), summary: companion_output}
-    enter_non_claude_companion_review_loop(worker_result)
-else:
-    run_native_solo_or_parallel()
-
-def enter_non_claude_companion_review_loop(worker_result):
-    # companion-result.v1 has no worker_id and no worker_result.self_review.
-    # Do not use the Worker-only SendMessage/self_review loop for cursor/codex.
-    latest_commit = worker_result.commit
-    diff_text = git("-C", worker_result.worktreePath, "diff", "{worker_result.baseCommit}..HEAD")
-    verdict = codex_exec_review(diff_text) or reviewer_agent_review(diff_text)
-    review_count = 0
-    MAX_REVIEWS = read_contract(contract_path, ".review.max_iterations") or 3
-    while verdict == "REQUEST_CHANGES" and review_count < MAX_REVIEWS:
-        previous_commit = latest_commit
-        if backend == "cursor":
-            companion_output = bash("bash \"${HARNESS_PLUGIN_ROOT}/scripts/cursor-companion.sh\" task --write --workspace {worker_result.worktreePath} \"Review findings:\n{issues}\n\nFix the findings and commit the result.\"")
-        else:
-            companion_state_file = "{worker_result.worktreePath}/.claude/state/codex-primary-environment.json"
-            companion_output = bash("HARNESS_CODEX_PRIMARY_ENV_STATE_FILE={companion_state_file} bash \"${HARNESS_PLUGIN_ROOT}/scripts/codex-companion.sh\" task --write -C {worker_result.worktreePath} \"Review findings:\n{issues}\n\nFix the findings and commit the result.\"")
-        latest_commit = git("-C", worker_result.worktreePath, "rev-parse", "HEAD")
-        if backend == "cursor" and git("-C", worker_result.worktreePath, "status", "--porcelain") != "":
-            git("-C", worker_result.worktreePath, "add", "-A")
-            git("-C", worker_result.worktreePath, "-c", "user.name=cursor-composer", "-c", "user.email=cursor-composer@local", "commit", "--no-verify", "-m", "cursor: review fix")
-            latest_commit = git("-C", worker_result.worktreePath, "rev-parse", "HEAD")
-        if latest_commit == previous_commit:
-            raise EscalationError("{backend} companion retry produced no new commit")
-        worker_result.commit = latest_commit
-        worker_result.summary = companion_output
-        diff_text = git("-C", worker_result.worktreePath, "diff", "{worker_result.baseCommit}..HEAD")
-        verdict = codex_exec_review(diff_text) or reviewer_agent_review(diff_text)
-        review_count++
-    if verdict == "APPROVE":
-        git cherry-pick --no-commit {worker_result.baseCommit}..{worker_result.commit}
-```
-
-Parallel applies this resolver path per task.
-When the backend is `cursor` / `codex`, do not use native Worker spawn; instead create an isolated companion worktree per task, normalize it into `companion-result.v1`, then enter the non-Claude companion-dedicated range review / cherry-pick loop.
-
 ### Solo Mode (auto-selected for 1 task)
 
 1. Read Plans.md and identify the target task.
@@ -383,12 +224,10 @@ When the backend is `cursor` / `codex`, do not use native Worker spawn; instead 
    - If plateau detection returns `PIVOT_REQUIRED`, consult once before escalating to the user.
    - Receive the result as `advisor-response.v1`: treat `PLAN` as restructuring the approach, `CORRECTION` as a local fix, and `STOP` as immediate escalation.
    - Consult at most once per `trigger_hash`. Maximum 3 consultations per task.
-7. Implement the code via the backend-resolved executor path (Green).
-   - backend=`claude`: implement via local / native Read/Write/Edit/Bash path.
-   - backend=`cursor` / `codex`: implement via the companion worktree path above and pass `companion-result.v1` to the shared review loop.
+7. Implement the code (Green) via the Worker agent (`chanpark-harness:worker`) or directly via native Read/Write/Edit/Bash for the parent session in solo.
 8. Auto-Refinement with `/code-review --fix` (formerly `/simplify`; skip with `--no-simplify`).
 9. **Automated Review Stage** (see "Review Loop"):
-   - Run review with Codex exec as priority, fall back to internal Reviewer agent.
+   - Run review with the internal Reviewer agent.
    - If `reviewer_profile` in `sprint-contract.json` is `runtime`, run `bash "${HARNESS_PLUGIN_ROOT}/scripts/run-contract-review-checks.sh"`.
    - On REQUEST_CHANGES: fix based on findings → re-review (`MAX_REVIEWS = read_contract(contract_path, ".review.max_iterations") or 3`).
    - On APPROVE, proceed to the next step. Do not finalize completion on self-check alone.
@@ -409,70 +248,12 @@ When the backend is `cursor` / `codex`, do not use native Worker spawn; instead 
 Run `[P]`-marked tasks in parallel with N workers.
 When `--parallel N` is explicitly specified, this mode is used regardless of task count.
 Use git worktrees to isolate tasks when writes to the same file would conflict.
-The implementation executor for each task follows the Backend-resolved executor path.
-When `--parallel N --cursor`, `--backend cursor`, or the default `HARNESS_IMPL_BACKEND=cursor` is set, Parallel also uses a per-task Cursor companion worktree instead of native Worker spawn.
-
-### Codex Mode (`--codex` explicit only)
-
-Delegate tasks to Codex CLI via the official plugin `codex-plugin-cc` companion.
-
-```bash
-# Task delegation (writable, worktree-isolated)
-BASE_REF="$(git rev-parse HEAD)"
-WT_ID="codex-$(date +%Y%m%d-%H%M%S)-$$"
-WORKTREE_PATH=".claude/worktrees/${WT_ID}"
-git worktree add -b "codex-work/${WT_ID}" "$WORKTREE_PATH" "$BASE_REF"
-HARNESS_CODEX_PRIMARY_ENV_STATE_FILE="$WORKTREE_PATH/.claude/state/codex-primary-environment.json" \
-  bash "${HARNESS_PLUGIN_ROOT}/scripts/codex-companion.sh" task --write -C "$WORKTREE_PATH" \
-  "Task content. Before finishing, create exactly one git commit in this worktree."
-
-# Via stdin (for large prompts)
-CODEX_PROMPT=$(mktemp /tmp/codex-prompt-XXXXXX.md)
-# Write task content to the file
-cat "$CODEX_PROMPT" | HARNESS_CODEX_PRIMARY_ENV_STATE_FILE="$WORKTREE_PATH/.claude/state/codex-primary-environment.json" \
-  bash "${HARNESS_PLUGIN_ROOT}/scripts/codex-companion.sh" task --write -C "$WORKTREE_PATH"
-rm -f "$CODEX_PROMPT"
-
-# After Lead review approves, incorporate the range
-git -C "$WORKTREE_PATH" diff "$BASE_REF..HEAD"
-WORKTREE_HEAD="$(git -C "$WORKTREE_PATH" rev-parse HEAD)"
-git cherry-pick --no-commit "$BASE_REF..$WORKTREE_HEAD"
-```
-
-The companion communicates with Codex via the App Server Protocol,
-providing job management, thread resume, and structured output.
-Validate the result and fix it yourself if it does not meet quality standards.
-
-### Cursor Mode (adapter candidate; not auto-selected)
-
-In a Cursor host, `.cursor/AGENTS.md` and `.cursor-plugin/plugin.json` are
-the bootstrap route. Cursor remains a `candidate` — making supported claims is prohibited.
-
-- **Solo / Parallel**: Task tool or `.cursor/agents/worker.md` subagent
-- **Breezing**: Worker parallelism for non-overlapping file groups only;
-  Reviewer / cherry-pick / Advisor run serially as in the core
-- **Multitask / background agents**: Smoke target only. Do not claim Claude Agent Teams parity.
-
-Model routing:
-
-```bash
-bash scripts/model-routing.sh --host cursor --role worker --format json
-```
-
-Explicit Task/subagent `model` takes priority over the routed default.
-
-Validation:
-
-```bash
-bash tests/test-cursor-adapter-candidate.sh
-```
+Lead spawns a Worker agent per task and owns final integration and status updates.
 
 ### Breezing Mode (auto-selected for 4+ tasks / forced with `--breezing`)
 
 Team execution with separated Lead / Worker / Advisor / Reviewer roles.
-Assumes native subagent orchestration using `spawn_agent`, `wait`, `send_input`, `resume_agent`, `close_agent` in Codex;
-does not follow the old TeamCreate / TaskCreate-based description.
-In Cursor, maps to Task/subagent/background agents, but the serial responsibility for review/cherry-pick remains on the core side (adapter smoke target).
+Lead uses the Claude Code `Agent` / `SendMessage` API to orchestrate Workers.
 
 **Permission Policy**:
 - The current shipped default is `bypassPermissions`.
@@ -498,10 +279,6 @@ Lead (this agent)
 **Phase B: Delegate (Worker spawn → Advisor when needed → review → cherry-pick)**:
 
 Execute the following **sequentially** for each task (in dependency order):
-
-> **API Note**: The following is written in Claude Code API syntax.
-> In Codex environments, replace `Agent(...)` with `spawn_agent(...)` and `SendMessage(...)` with `send_input(...)`.
-> See the API mapping table in `team-composition.md` for details.
 
 ```
 for task in execution_order:
@@ -568,9 +345,9 @@ for task in execution_order:
         )
         worker_result = wait_for_response(worker_id)
 
-    # B-4. Lead runs review (Codex exec preferred)
+    # B-4. Lead runs review (Reviewer agent)
     diff_text = git("-C", worker_result.worktreePath, "show", worker_result.commit)
-    verdict = codex_exec_review(diff_text) or reviewer_agent_review(diff_text)
+    verdict = reviewer_agent_review(diff_text)
     profile = jq(contract_path, ".review.reviewer_profile")
     review_input = "review-output.json"
     if profile == "runtime":
@@ -598,7 +375,7 @@ for task in execution_order:
 
     # B-5. Fix loop (on REQUEST_CHANGES, up to contract's max_iterations)
     # Worker has already completed in foreground, but can be resumed with SendMessage
-    # (CC: SendMessage(to: agentId) / Codex: resume_agent(agent_id) + send_input)
+    # Resume with SendMessage(to: agentId)
     review_count = 0
     # Read max_iterations only when sprint-contract exists. Default to 3 (backward-compatible)
     MAX_REVIEWS = read_contract(contract_path, ".review.max_iterations") or 3
@@ -609,7 +386,7 @@ for task in execution_order:
         updated_result = wait_for_response(worker_id)
         latest_commit = updated_result.commit
         diff_text = git("-C", worker_result.worktreePath, "show", latest_commit)
-        verdict = codex_exec_review(diff_text) or reviewer_agent_review(diff_text)
+        verdict = reviewer_agent_review(diff_text)
         review_count++
 
     # B-6. APPROVE → cherry-pick into trunk (via feature branch)
@@ -730,9 +507,9 @@ In Parallel mode, each Worker runs the same loop as step 10 (accepting external 
 ### Review Execution Priority
 
 ```
-1. Codex exec (preferred)
-   ↓ codex command not found or timeout (120s)
-2. Internal Reviewer agent (fallback)
+1. Internal Reviewer agent (preferred)
+   ↓ on timeout or unavailability
+2. Lead diff review (fallback)
 ```
 
 ### APPROVE / REQUEST_CHANGES Criteria
@@ -750,46 +527,16 @@ Improvement suggestions outside these criteria are returned as `recommendations`
 > **Important**: When there are only minor / recommendation findings, **always return APPROVE**.
 > "Nice to have" improvements are not grounds for REQUEST_CHANGES.
 
-### Codex Exec Review (via official plugin)
+### Reviewer Agent
 
 Retain the HEAD at task start as `BASE_REF` and review the diff against that ref.
-Use the companion review of the official plugin `codex-plugin-cc`.
 
 ```bash
 # Record base ref at task start (run before cc:WIP update in Step 2)
 BASE_REF=$(git rev-parse HEAD)
-
-# ... after implementation is complete ...
-
-# Run the official plugin's structured review
-bash "${HARNESS_PLUGIN_ROOT}/scripts/codex-companion.sh" review --base "${BASE_REF}"
-REVIEW_EXIT=$?
 ```
 
-**Verdict mapping** (official plugin → Harness format):
-
-The official plugin returns structured output conforming to `review-output.schema.json`.
-Conversion rules to Harness verdict format:
-
-| Official plugin | Harness | Verdict impact |
-|---|---|---|
-| `approve` | `APPROVE` | - |
-| `needs-attention` | `REQUEST_CHANGES` | - |
-| `findings[].severity: critical` | `critical_issues[]` | 1 finding → REQUEST_CHANGES |
-| `findings[].severity: high` | `major_issues[]` | 1 finding → REQUEST_CHANGES |
-| `findings[].severity: medium/low` | `recommendations[]` | No impact on verdict |
-
-AI Residuals scanning continues to run via `bash "${HARNESS_PLUGIN_ROOT}/scripts/review-ai-residuals.sh"`,
-and the final verdict is determined by combining it with the companion review result.
-
-```bash
-# AI Residuals scan (can run in parallel with companion review)
-AI_RESIDUALS_JSON="$(bash "${HARNESS_PLUGIN_ROOT}/scripts/review-ai-residuals.sh" --base-ref "${BASE_REF}" --include-untracked 2>/dev/null || echo '{"tool":"review-ai-residuals","scan_mode":"diff","base_ref":null,"include_untracked":true,"files_scanned":[],"untracked_files_scanned":[],"summary":{"verdict":"APPROVE","major":0,"minor":0,"recommendation":0,"total":0},"observations":[]}')"
-```
-
-### Internal Reviewer Agent Fallback
-
-When Codex exec is unavailable (`command -v codex` fails or exit code ≠ 0):
+Spawn the internal Reviewer agent with the diff:
 
 ```
 Agent tool: subagent_type="reviewer"
@@ -797,6 +544,24 @@ prompt: "Please review the following changes. Criteria: critical/major → REQUE
 ```
 
 The Reviewer agent runs safely in read-only mode (Write/Edit/Bash disabled).
+
+**Verdict mapping** (Reviewer → Harness format):
+
+| Reviewer finding | Harness | Verdict impact |
+|---|---|---|
+| `approve` | `APPROVE` | - |
+| `needs-attention` | `REQUEST_CHANGES` | - |
+| `findings[].severity: critical` | `critical_issues[]` | 1 finding → REQUEST_CHANGES |
+| `findings[].severity: high` | `major_issues[]` | 1 finding → REQUEST_CHANGES |
+| `findings[].severity: medium/low` | `recommendations[]` | No impact on verdict |
+
+AI Residuals scanning runs via `bash "${HARNESS_PLUGIN_ROOT}/scripts/review-ai-residuals.sh"`,
+and the final verdict is determined by combining it with the Reviewer result.
+
+```bash
+# AI Residuals scan (can run in parallel with Reviewer)
+AI_RESIDUALS_JSON="$(bash "${HARNESS_PLUGIN_ROOT}/scripts/review-ai-residuals.sh" --base-ref "${BASE_REF}" --include-untracked 2>/dev/null || echo '{"tool":"review-ai-residuals","scan_mode":"diff","base_ref":null,"include_untracked":true,"files_scanned":[],"untracked_files_scanned":[],"summary":{"verdict":"APPROVE","major":0,"minor":0,"recommendation":0,"total":0},"observations":[]}')"
+```
 
 ### Fix Loop (on REQUEST_CHANGES)
 
@@ -823,7 +588,7 @@ if review_count >= MAX_REVIEWS and verdict != "APPROVE":
 In Breezing mode, **Lead** runs the review loop (see Phase B above):
 
 1. Worker implements and commits in the worktree → returns result to Lead.
-2. Lead reviews with Codex exec (preferred) / Reviewer agent (fallback).
+2. Lead reviews with the Reviewer agent.
 3. REQUEST_CHANGES → Lead sends fix instructions to Worker via SendMessage → Worker amends.
 4. After fix, re-review (up to `MAX_REVIEWS = read_contract(contract_path, ".review.max_iterations") or 3` times).
 5. APPROVE → Lead cherry-picks into trunk (default branch) → updates Plans.md to `cc:Done [{hash}]`.

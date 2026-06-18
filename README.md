@@ -18,8 +18,8 @@ plugin works straight from `git` with **no Node/Go build required**.
 - **13 agents** — harness core (`worker`, `reviewer`, `advisor`) plus oh-my-claudecode
   consult agents (`architect`, `analyst`, `debugger`, `security-reviewer`,
   `document-specialist`, `test-engineer`, `explore`, `git-master`, `writer`, `qa-tester`).
-- **31 skills** — the full harness `harness-*` workflow set (plan, work, review, sync,
-  setup, progress, accept, release, loop, orchestration), `breezing`, `ci`, `maintenance`,
+- **30 skills** — the full harness `harness-*` workflow set (plan, work, review, sync,
+  setup, progress, accept, release, loop), `breezing`, `ci`, `maintenance`,
   the `memory`/`session` stacks, guides, plus ported `ai-slop-cleaner`, `deep-interview`,
   `trace`, `skill`, `skillify`, and a portable `hud`.
 - **Automation hooks** (`hooks/hooks.json`) — file-lease, secret scanning, a quality gate,

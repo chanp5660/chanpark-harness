@@ -4,15 +4,14 @@ The review loop is shared by Solo, Parallel, and Breezing.
 
 ## Order
 
-1. Prefer Codex companion structured review when available.
-2. Fall back to the internal `reviewer` agent.
-3. Run AI Residuals with:
+1. Spawn the internal `reviewer` agent with the diff.
+2. Run AI Residuals with:
 
 ```bash
 bash "${HARNESS_PLUGIN_ROOT}/scripts/review-ai-residuals.sh" --base-ref "${BASE_REF}" --include-untracked
 ```
 
-4. Normalize the review artifact with `write-review-result.sh`.
+3. Normalize the review artifact with `write-review-result.sh`.
 
 ## Verdict Threshold
 
@@ -33,6 +32,4 @@ Repeat fix and review until either:
 - `review.max_iterations` from the sprint contract is reached
 - default maximum of 3 reviews is reached
 
-Breezing repair instructions go back to the same Worker. In Codex, resume the
-Worker and use `send_input`; in Claude Code, send the equivalent teammate
-message.
+Breezing repair instructions go back to the same Worker via `SendMessage`.

@@ -43,8 +43,7 @@ Final judgment is delegated to the Reviewer or Lead's review artifact.
   "task_id": "43.3.1",
   "context": "Project context",
   "files": ["Files allowed to be modified"],
-  "mode": "solo | codex | breezing",
-  "backend": "claude | codex | cursor",
+  "mode": "solo | breezing",
   "contract_path": ".claude/state/contracts/<task>.sprint-contract.json",
   "spec_path": "docs/spec/00-project-spec.md|null",
   "spec_skip_reason": "docs-only|mechanical-change|existing-spec-sufficient|null",
@@ -52,7 +51,7 @@ Final judgment is delegated to the Reviewer or Lead's review artifact.
 }
 ```
 
-When `backend=claude`, this agent (worker.md) implements directly. When `backend=codex` / `backend=cursor`, Lead delegates via a companion script (`scripts/codex-companion.sh` / `scripts/cursor-companion.sh`) and does not spawn this agent. Therefore, for non-`claude` backends the self_review gate is N/A, and Lead's diff review is the sole judgment.
+Lead spawns this Worker agent to implement the task directly. The self_review gate is always active; Lead's diff review is the final judgment.
 
 ## Checks at Session Start
 
@@ -93,7 +92,6 @@ When `backend=claude`, this agent (worker.md) implements directly. When `backend
    - Accepted Red evidence: a FAIL record in `.claude/state/tdd-red-log/<task-id>.jsonl`, or a literal failing test output attached to the briefing / worker-report
 3. Implementation
    - `mode: solo` -> use `Write` / `Edit` / `Bash` directly
-   - `mode: codex` -> use `bash scripts/codex-companion.sh task --write "..."`
    - `mode: breezing` -> use `Write` / `Edit` / `Bash` directly
 4. Preflight self-check
 5. Validation
@@ -120,9 +118,9 @@ Confirm the following 7 items before running the validation commands.
 
 **NG-1: Worker in breezing mode must not overwrite cc:* markers in Plans.md** (Issue #85 scope)
 
-> **By design**: The behavior where solo / codex / loop mode Workers self-update `cc:done` is retained as an existing contract in `skills/harness-work/SKILL.md` step 12 and `scripts/codex-loop.sh`. Making NG-1 universal would prevent these flows from executing their completion steps. The scope of Issue #85 is limited to "the confusion where Workers intervene during breezing, where Lead governs Phase C."
+> **By design**: The behavior where solo / loop mode Workers self-update `cc:done` is retained as an existing contract in `skills/harness-work/SKILL.md` step 12. Making NG-1 universal would prevent these flows from executing their completion steps. The scope of Issue #85 is limited to "the confusion where Workers intervene during breezing, where Lead governs Phase C."
 
-- This rule applies only when `mode == breezing`. Plans.md update steps for other modes (`solo` / `codex` / `loop`) are maintained as per existing contracts.
+- This rule applies only when `mode == breezing`. Plans.md update steps for other modes (`solo` / `loop`) are maintained as per existing contracts.
 - Path matching for Plans.md is compared against the path returned by `get_plans_file_path` in `scripts/config-utils.sh`:
   ```bash
   PLANS_PATH="$(bash scripts/config-utils.sh >/dev/null 2>&1; . scripts/config-utils.sh && get_plans_file_path)"
@@ -252,24 +250,12 @@ Worker itself does not perform stall detection (Lead's responsibility). Worker r
 
 ## Mode-Specific Rules
 
-> **Note**: Embedded git repo detection (NG-2) and nested teammate spawn prohibition (NG-3) are universal NG rules that apply to all modes. Plans.md cc:* marker rewrite prohibition (NG-1) is limited to `mode == breezing`; Plans.md update contracts for other modes are maintained.
+> **Note**: Embedded git repo detection (NG-2) and nested teammate spawn prohibition (NG-3) are universal NG rules that apply to all modes. Plans.md cc:* marker rewrite prohibition (NG-1) is limited to `mode == breezing`; Plans.md update contracts for solo and loop modes are maintained.
 
 ### `mode: solo`
 
 1. Update cc:* markers in Plans.md only when the review artifact is `APPROVE` (existing solo mode contract, acting on behalf of Lead)
 2. `git commit` is allowed even on main
-
-### `mode: codex`
-
-1. Use only the wrapper command for Codex calls
-2. Standard commands are only the following 2:
-
-```bash
-bash scripts/codex-companion.sh task --write "task content"
-bash scripts/codex-companion.sh review --base "${TASK_BASE_REF}"
-```
-
-3. Do not call raw `codex exec` directly
 
 ### `mode: breezing`
 
@@ -356,8 +342,3 @@ Per-project additional rules are overridden via `[worker.self_review]` in `harne
 }
 ```
 
-## Codex CLI Environment Notes
-
-- `memory: project` and `skills:` are for Claude Code frontmatter. They do not work as-is with the Codex CLI.
-- Persistent instructions for Codex should be placed in `AGENTS.md` or `.codex/agents/*.toml`.
-- On the Codex side, do not use raw `codex exec` as the standard approach either; use `scripts/codex-companion.sh` from the Harness.

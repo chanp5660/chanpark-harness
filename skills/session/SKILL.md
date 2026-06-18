@@ -113,12 +113,6 @@ claude --resume "add tests"
 
 > 💡 With significantly improved memory efficiency, make active use of session resume.
 
-### Codex 0.123.0 Session Shell / Terminal Fixes
-
-In Codex 0.123.0, stale proxy env variables are less likely to be restored from shell snapshots, and Unicode / dead-key input in VS Code WSL terminal along with keyboard input have been fixed in the core.
-The harness does not add a proxy snapshot scrubber or key input wrapper — it automatically inherits the core fixes.
-
----
 
 ## When to Use
 

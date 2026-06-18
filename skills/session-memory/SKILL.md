@@ -61,8 +61,7 @@ It also clarifies **where important information should be stored** (details: `do
 ### session-log.md
 
 Each session record is assigned a session ID obtained from the runtime environment.
-In Claude Code, `${CLAUDE_SESSION_ID}` is preferred; in Codex, the session / thread ID provided by the Codex runtime takes precedence.
-If neither is available, the `.session_id` from `.claude/state/session.json` is read, with a datetime-based ID generated as a last fallback.
+`${CLAUDE_SESSION_ID}` is preferred; if unavailable, the `.session_id` from `.claude/state/session.json` is read, with a datetime-based ID generated as a last fallback.
 This improves traceability across sessions.
 
 ```markdown
@@ -85,7 +84,7 @@ This improves traceability across sessions.
 ```
 
 > **Note**: `${CLAUDE_SESSION_ID}` is an environment variable automatically set by Claude Code.
-> Since this variable may not exist in Codex, do not assume it is always present — use the Codex runtime's session / thread ID or `.claude/state/session.json` instead.
+> If it is not present, fall back to `.claude/state/session.json`.
 
 ### decisions.md
 

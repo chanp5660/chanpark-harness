@@ -8,37 +8,35 @@ _harness_version: "2.5.27"
 # 2-Agent Workflow Rules
 
 This project uses a **PM ↔ Impl** two-role workflow.
-The PM role can be filled by either **Cursor** or **PM Claude** (PM Claude is recommended for solo operation).
+The PM role is filled by **PM Claude** (recommended for solo operation).
 
 ## Responsibilities
 
 | Agent | Responsibilities |
 |-------------|------|
-| **PM (Cursor / PM Claude)** | Planning, review, decision-making, and production deployment (when required) |
+| **PM (PM Claude)** | Planning, review, decision-making, and production deployment (when required) |
 | **Impl (Claude Code / Impl Claude)** | Implementation, testing, commits, and staging (when required) |
 
 ## Task Management
 
 - All tasks are managed centrally in `Plans.md`.
 - Track status with markers:
-  - `pm:requested` → Requested by PM (compat: `cursor:requested`)
+  - `pm:requested` → Requested by PM
   - `cc:WIP` → Claude Code working
   - `cc:done` → Claude Code completed
-  - `pm:reviewed` → PM review complete (compat: `cursor:reviewed`)
+  - `pm:reviewed` → PM review complete
 
 ## Handoff Protocol
 
 ### PM → Impl
-1. Add the task to Plans.md with the `pm:requested` marker (compat: `cursor:requested`).
-2. **If using PM Claude**: Generate the handoff message with `/handoff-to-impl-claude`.
-3. **If using Cursor**: Generate the handoff message with `/handoff-to-claude` (Cursor-side command).
-4. Paste into Impl Claude (Claude Code).
+1. Add the task to Plans.md with the `pm:requested` marker.
+2. Generate the handoff message with `/handoff-to-impl-claude`.
+3. Paste into Impl Claude (Claude Code).
 
 ### Impl → PM
 1. Apply the `cc:done` marker after completing the work.
-2. **If using PM Claude**: Generate the completion report with `/handoff-to-pm-claude`.
-3. **If using Cursor**: Generate the completion report with `/handoff-to-cursor`.
-4. Paste into PM and request review (PM applies `pm:reviewed` after reviewing).
+2. Generate the completion report with `/handoff-to-pm-claude`.
+3. Paste into PM and request review (PM applies `pm:reviewed` after reviewing).
 
 ## Prohibited Actions
 

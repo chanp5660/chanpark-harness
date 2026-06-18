@@ -1,6 +1,6 @@
 ---
 name: vibecoder-guide
-description: "Explicit helper for non-technical VibeCoder coaching: what to ask next, how to describe work, and how to stay safe. Do NOT load for: direct implementation, technical review, or Cursor/PM workflow."
+description: "Explicit helper for non-technical VibeCoder coaching: what to ask next, how to describe work, and how to stay safe. Do NOT load for: direct implementation, technical review, or PM workflow."
 allowed-tools: ["Read"]
 user-invocable: false
 disable-model-invocation: true
