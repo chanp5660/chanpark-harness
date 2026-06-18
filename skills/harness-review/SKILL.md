@@ -10,7 +10,7 @@ pair: harness-work
 owner: harness-core
 since: "2026-05-05"
 allowed-tools: ["Read", "Grep", "Glob", "Bash", "Task", "Monitor", "AskUserQuestion"]
-argument-hint: "[code|plan|scope|--quick|--codex-closeout|--dual|--team-debate|--security|--ui-rubric]"
+argument-hint: "[code|plan|scope|--quick|--team-debate|--security|--ui-rubric]"
 context: fork
 effort: high
 user-invocable: true
@@ -51,10 +51,6 @@ It does not perform commit / push / release by default.
 |---|---|---|
 | `/harness-review` | `code` | Auto-detect work done so far and review |
 | `/harness-review --quick` | `quick` | Lightweight closeout for small dirty changes |
-| `/harness-review --codex-closeout` | `codex-closeout` | Codex advisory + focused tests for closeout |
-| `/harness-review --dual` | `dual` | Claude + Codex second opinion |
-| `/harness-review --cursor` | `code+cursor-second-opinion` | Add cursor (composer-2.5-fast) second-opinion to core review gates (read = lean, Opus reviewer must run alongside) |
-| `HARNESS_IMPL_BACKEND=cursor harness-review` | `code+cursor-second-opinion` | Even when default ON, automatically add cursor second-opinion to core review gates. Primary verdict is fixed to Opus/brain. |
 | `/harness-review --team-debate` | `team-debate` | Force TeamAgent Debate |
 | `/harness-review --security` | `security` | Security-dedicated review |
 | `/harness-review plan` | `plan` | Review the plan in `Plans.md` |
@@ -67,32 +63,16 @@ Determine the execution mode from arguments and selectively load the required `r
 | Input | mode | References to read |
 |---|---|---|
 | No args / `code` | `code` | `references/code-review.md`, `references/governance.md` |
-| `--quick` | `quick` | `references/codex-closeout.md`, `references/code-review.md` |
-| `--codex-closeout` | `codex-closeout` | `references/codex-closeout.md` |
-| `--dual` | `dual` | `references/dual-review.md`, `references/team-debate.md` |
+| `--quick` | `quick` | `references/code-review.md`, `references/governance.md` |
 | `--team-debate` | `team-debate` | `references/team-debate.md`, `references/governance.md` |
 | `--security` | `security` | `references/security-profile.md`, `references/governance.md` |
 | `--ui-rubric` | `ui-rubric` | `references/ui-rubric.md` |
 | `plan` | `plan` | `references/plan-review.md`, `references/governance.md` |
 | `scope` | `scope` | `references/scope-review.md`, `references/governance.md` |
-| `--cursor` or resolver result `cursor` for no-arg / `code` review only | `code+cursor-second-opinion` | `references/code-review.md`, `references/governance.md`, `references/cursor-review.md`, `references/dual-review.md` |
-| `full` | `full` | `references/code-review.md`, `references/team-debate.md`, `references/dual-review.md` |
+| `full` | `full` | `references/code-review.md`, `references/team-debate.md`, `references/governance.md` |
 
-`quick` and `codex-closeout` are lightweight paths.
-They quickly review small dirty changes, single commits, and PR branch closeouts.
-They do not abandon quality gates.
-
-### Cursor Default ON
-
-When determining mode, first resolve explicit mode words (`plan`, `scope`, `full`) and explicit flags. Only for no-arg / `code` review, resolve the helper root and run the resolver once; if the resolver is absent, treat it as `claude`.
-
-```bash
-HARNESS_PLUGIN_ROOT="${HARNESS_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-}}"; if [ -z "$HARNESS_PLUGIN_ROOT" ] && [ -n "${CLAUDE_SKILL_DIR:-}" ]; then probe="$(cd "${CLAUDE_SKILL_DIR}" && pwd)"; while [ "$probe" != "/" ] && [ ! -d "$probe/scripts" ]; do probe="$(cd "$probe/.." && pwd)"; done; [ -d "$probe/scripts" ] && HARNESS_PLUGIN_ROOT="$probe"; fi
-if [ -x "${HARNESS_PLUGIN_ROOT:-}/scripts/resolve-impl-backend.sh" ]; then resolved_backend="$(bash "${HARNESS_PLUGIN_ROOT}/scripts/resolve-impl-backend.sh" --role reviewer)"; else resolved_backend="claude"; fi
-```
-
-For no-arg / `code` review where the result is `cursor`, add `cursor-second-opinion` the same as `--cursor`, but always read the core review gates (`references/code-review.md`, `references/governance.md`) first and treat the Cursor reference as additive only. The primary verdict stays on the Opus/brain side; cursor is limited to advisory in `dual_review.cursor_verdict`. Explicit mode words such as `plan` / `scope` take precedence over the resolver result, and cursor default does not replace plan/scope references or code/governance references.
-When the result is `claude` / `codex`, proceed as before without changing the primary review determination.
+`quick` is a lightweight path for small dirty changes, single commits, and PR branch closeouts.
+It does not abandon quality gates.
 
 ## Review Target Detection
 
@@ -156,8 +136,8 @@ TeamAgent Debate is a read-only review pass that deliberately collides differing
 | Regression Agent | Detect regressions in existing behavior, tests, distribution mirror, CLI/skill UX |
 | Skeptic Agent | Find major risks overlooked under the assumption that approval is desired |
 
-Even in a Codex environment where native TeamAgent is unavailable, this gate must not be skipped.
-Reproduce the same 2–4 viewpoints using `codex-companion.sh review`, an available reviewer subagent, or an explicitly separated read-only manual-pass, and record `native` / `codex-companion` / `manual-pass` / `unavailable` in `team_agent_mode`.
+Even when native TeamAgent is unavailable, this gate must not be skipped.
+Reproduce the same 2–4 viewpoints using an available reviewer subagent or an explicitly separated read-only manual-pass, and record `native` / `manual-pass` / `unavailable` in `team_agent_mode`.
 
 ## Code Review Summary
 
@@ -188,25 +168,16 @@ The finding stage prioritizes coverage. Even minor findings must be retained in 
 For tasks where TDD is required, verify evidence of `skip_tdd_reason`, a red log, and focused tests.
 Do not `APPROVE` without evidence.
 
-## Quick / Codex Closeout Summary
-
-See `references/codex-closeout.md` for details.
+## Quick Summary
 
 Principles for the lightweight path:
 
 - Fix the target selection first
-- Treat Codex findings as advisory; verify in real code before accepting or rejecting
 - The final report must include: review command / tests / accepted findings / rejected findings / clean result
 - stop-on-clean: Do not add further reviews just for appearance after a clean result
-- If Codex is unavailable, fall back to a full manual pass; do not treat failures as successes
 
-helper:
-
-```bash
-bash scripts/harness-review-closeout.sh --dry-run --uncommitted
-bash scripts/harness-review-closeout.sh --base origin/main --parallel-tests --test "bash tests/test-harness-review-governance.sh"
-bash scripts/harness-review-closeout.sh --commit HEAD
-```
+The Reviewer agent (`chanpark-harness:reviewer`) runs the review and closeout — review
+command, tests, accepted/rejected findings — and returns a `review-result.v1`.
 
 ## Plan Review Summary
 
@@ -220,12 +191,11 @@ See `references/scope-review.md` for details.
 Scope Review checks whether the boundaries of requirements, diff, tests, and docs have expanded beyond what is needed.
 If scope changes are required, do not proceed by guessing — return to `AskUserQuestion` or plan updates.
 
-## Security / UI / Dual
+## Security / UI
 
 - Security: `references/security-profile.md`
 - UI rubric: `references/ui-rubric.md`
 - high-res vision flow: `references/vision-high-res-flow.md`
-- Dual review: `references/dual-review.md`
 
 `/ultrareview` is not called by default within the Harness flow.
 This prevents replacing the connections to review-result.v1, commit guard, and sprint-contract in the Harness flow.
@@ -284,8 +254,8 @@ Details:
   },
   "team_debate": {
     "required": false,
-    "mode": "native | codex-companion | manual-pass | unavailable",
-    "team_agent_mode": "native | codex-companion | manual-pass | unavailable",
+    "mode": "native | manual-pass | unavailable",
+    "team_agent_mode": "native | manual-pass | unavailable",
     "agents": [],
     "disagreements": []
   },
@@ -297,15 +267,14 @@ Details:
 ```
 ~~~
 
-## Codex Environment
+## Tool Availability
 
-Available tools differ in a Codex environment.
-Regardless, the contracts for the acceptance bar, spec source of truth, `Plans.md`, regression checks, post-fix re-review, and AskUserQuestion / `decision_needed.v1` remain the same.
+The contracts for the acceptance bar, spec source of truth, `Plans.md`, regression checks, post-fix re-review, and AskUserQuestion / `decision_needed.v1` are always in effect.
 
-| Standard environment | Codex fallback |
+| Tool | Fallback when unavailable |
 |---|---|
-| TeamAgent Debate via Task tool | reviewer subagent / `codex-companion.sh review` / manual-pass |
-| AskUserQuestion | When unavailable, output `decision_needed.v1` to stdout; do not proceed by guessing |
+| TeamAgent Debate via Task tool | reviewer subagent / manual-pass |
+| AskUserQuestion | Output `decision_needed.v1` to stdout; do not proceed by guessing |
 | TaskList | Read `Plans.md` directly |
 
 ## Related Skills

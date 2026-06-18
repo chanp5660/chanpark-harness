@@ -33,7 +33,7 @@ _harness_version: "4.3.3"
 
 <!-- Add tasks with cc:done or pm:approved here. -->
 
-- [x] Introduce the 2-Agent / 2-Claude workflow `pm:approved` ({{DATE}})
+- [x] Introduce the PM / Claude Code workflow `pm:approved` ({{DATE}})
 
 ---
 
@@ -55,12 +55,8 @@ unless the project has tested parser aliases.
 | `cc:wip` | Claude Code is working |
 | `cc:done` | Claude Code completed the task and is awaiting confirmation |
 | `pm:approved` | PM confirmed completion |
-| `pm:requested` | Compatibility alias for `pm:requested` |
 | `cc:TODO` | Compatibility alias for `cc:todo` |
 | `cc:WIP` | Compatibility alias for `cc:wip` |
-| `pm:approved` | Compatibility alias for `pm:approved` |
-| `cursor:requested` | Compatibility alias for `pm:requested` |
-| `cursor:approved` | Compatibility alias for `pm:approved` |
 | `blocked` | Blocked; include the reason next to the task |
 
 ---

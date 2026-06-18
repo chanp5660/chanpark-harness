@@ -58,11 +58,9 @@
   <div class="hero">
     <div class="label">Cumulative (project lifetime total)</div>
     <div class="figures">
-      <div class="figure"><div class="num">{{lifetime_codex}}</div><div class="cap">Codex Delegations</div></div>
-      <div class="figure"><div class="num">{{lifetime_cursor}}</div><div class="cap">Cursor Delegations</div></div>
-      <div class="figure"><div class="num">{{lifetime_non_claude}}</div><div class="cap">Non-Claude Delegations Total</div></div>
+      <div class="figure"><div class="num">{{lifetime_worker}}</div><div class="cap">Worker Delegations</div></div>
     </div>
-    <div class="engaged">This session: Codex <strong>{{session_codex}}</strong> / Cursor <strong>{{session_cursor}}</strong> · engaged <strong>{{backends_engaged}}</strong>/3 backends</div>
+    <div class="engaged">This session: Worker agents <strong>{{session_worker}}</strong> · <strong>{{backends_engaged}}</strong> agent(s) engaged</div>
   </div>
 
   <div class="cards">{{#backends}}

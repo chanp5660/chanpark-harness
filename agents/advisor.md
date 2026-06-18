@@ -37,7 +37,7 @@ This agent does not implement or review.
   "trigger_hash": "43.3.1:retry-threshold:abc123",
   "question": "The same failure has occurred twice in a row. What should be changed next?",
   "attempt": 2,
-  "last_error": "tests/test-codex-loop-cli.sh failed due to a diff in the status JSON",
+  "last_error": "tests/test-loop-cli.sh failed due to a diff in the status JSON",
   "context_summary": ["advisor state has been added to the loop side", "duplicate suppression is not yet implemented"]
 }
 ```

@@ -12,7 +12,6 @@ Run when any of the following apply:
 - The change touches security / auth / release / distribution / mirror
 - Alignment with the spec source of truth or `Plans.md` is unclear
 - Regression risk is high
-- Claude and Codex verdicts diverge
 - Per-perspective evaluation diverges within the reviewer
 - The same issue has been failed on re-review twice in a row
 
@@ -28,20 +27,18 @@ Run when any of the following apply:
 Minimum 2 perspectives, up to 4 when needed.
 All agents are read-only.
 
-## Codex fallback
+## Fallback
 
-Do not skip this step even when native TeamAgent is unavailable in a Codex environment.
+Do not skip this step even when native TeamAgent is unavailable.
 
 Available fallbacks:
 
-- `codex-companion.sh review`
 - reviewer subagent
 - explicitly separated manual-pass
 
 Record one of the following in `team_agent_mode`:
 
 - `native`
-- `codex-companion`
 - `manual-pass`
 - `unavailable`
 
@@ -53,8 +50,8 @@ When `unavailable` and a manual-pass is also impossible, stop with `decision_nee
 {
   "team_debate": {
     "required": true,
-    "mode": "manual-pass",
-    "team_agent_mode": "manual-pass",
+    "mode": "native | manual-pass | unavailable",
+    "team_agent_mode": "native | manual-pass | unavailable",
     "agents": ["Spec Agent", "Plans Agent", "Regression Agent"],
     "disagreements": [],
     "acceptance_bar": {

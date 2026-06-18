@@ -38,7 +38,6 @@
       "Bash(mysql:*)",
       "Bash(mongod:*)",
       "Bash(mongo:*)",
-      "mcp__codex__*",
       "Edit(.claude/settings*)",
       "Write(.claude/settings*)",
       "MultiEdit(.claude/settings*)",
@@ -139,8 +138,7 @@
       "Bash(rm -fr:*)",
       "Bash(git push -f:*)",
       "Bash(git push --force:*)",
-      "Bash(git reset --hard:*)",
-      "mcp__codex__*"
+      "Bash(git reset --hard:*)"
     ]
   }
 }

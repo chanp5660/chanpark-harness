@@ -21,7 +21,7 @@ The only compiled artifact is the committed harness Go binary in `bin/`.
 | `.claude-plugin/marketplace.json` | Self-marketplace catalog entry |
 | `.claude-plugin/settings.json` | Permission allowlist/denylist shipped with the plugin |
 | `agents/` | 13 agents (harness `worker`/`reviewer`/`advisor` + 10 OMC consults) |
-| `skills/` | 31 skills (`harness-*`, sessions, memory, guides, `hud`, OMC gap skills) |
+| `skills/` | 30 skills (`harness-*`, sessions, memory, guides, `hud`, OMC gap skills) |
 | `hooks/hooks.json` | Automation hooks; exec the Go binary, no-op if absent |
 | `bin/` | `harness` shim + pre-built Go binaries (4 platforms) |
 | `hud/statusline.sh` | Portable HUD renderer (bash + jq) |

@@ -32,7 +32,7 @@ Output must always include `team_validation_mode`.
 | `not_required_lightweight` | Lightweight tasks: typo / format / README / CHANGELOG / marker update / status sync |
 | `native` | Used TeamAgent or equivalent runtime-native multi-perspective verification |
 | `subagent` | Used Task sub-agents per perspective |
-| `manual-pass` | Runtime where Task is unavailable (e.g. OpenCode); evaluated same perspectives separately |
+| `manual-pass` | Runtime where Task is unavailable; evaluated same perspectives separately |
 | `unavailable` | Cannot verify. Must not mark non-trivial work as Required |
 
 The following may be treated lightly:
@@ -91,7 +91,7 @@ Review perspectives:
 - Does it contradict existing product promises?
 - Does it contradict existing skill role / trigger / allowed-tools?
 - Does it conflict with incomplete tasks in Plans.md?
-- Does it affect distribution mirrors, Codex mirrors, OpenCode mirrors, i18n?
+- Does it affect distribution mirrors, i18n?
 - If a spec authoritative source exists, should it be updated before Plans.md?
 - Are root `spec.md` product contract and Plans.md task contract kept separate?
 - For plans with source code changes, is there a lint / formatter baseline? If not, is a setup task needed before implementation?

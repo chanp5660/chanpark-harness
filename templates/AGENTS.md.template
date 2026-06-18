@@ -17,13 +17,13 @@ _harness_version: "4.3.3"
 
 | Agent | Role | Main responsibilities |
 |-------|------|-----------------------|
-| **Cursor** | PM (project manager) | Task management, review, and production release decisions |
+| **PM** | Project manager | Task management, review, and production release decisions |
 | **Claude Code** | Worker | Implementation, tests, CI fixes, and staging deploys |
 
 ### Workflow
 
 ```
-Cursor (PM)          Claude Code (Worker)
+PM                   Claude Code (Worker)
     |                       |
     |  1. Request work      |
     |  (/handoff-to-claude) |
@@ -33,7 +33,6 @@ Cursor (PM)          Claude Code (Worker)
     |                       |    (/sync-status -> /work)
     |                       |
     |  3. Completion report |
-    |  (/handoff-to-cursor) |
     |<----------------------|
     |                       |
     | 4. Review and release |
@@ -55,7 +54,7 @@ Cursor (PM)          Claude Code (Worker)
 
 ## 2. Responsibilities
 
-### Cursor (PM)
+### PM
 
 - [ ] Define tasks and add them to `Plans.md`
 - [ ] Hand work to Claude Code
@@ -82,13 +81,11 @@ project explicitly adds tested aliases.
 
 | Marker | Meaning | Set by |
 |--------|---------|--------|
-| `pm:requested` | PM requested work (compatible with `cursor:requested`) | PM (Cursor / PM Claude) |
+| `pm:requested` | PM requested work | PM |
 | `cc:TODO` | Not started by Claude Code | Either agent |
 | `cc:WIP` | Claude Code is working | Claude Code |
 | `cc:done` | Claude Code completed the work | Claude Code |
-| `pm:approved` | PM confirmed completion (compatible with `cursor:approved`) | PM (Cursor / PM Claude) |
-| `cursor:requested` | Compatibility alias for `pm:requested` | Cursor |
-| `cursor:approved` | Compatibility alias for `pm:approved` | Cursor |
+| `pm:approved` | PM confirmed completion | PM |
 | `blocked` | Blocked | Either agent |
 
 ### State Flow
@@ -105,7 +102,7 @@ pm:requested -> cc:WIP -> cc:done -> pm:approved
 
 - CI error fixes up to 3 attempts
 - Staging deploys
-- Production deploys are owned by Cursor / PM
+- Production deploys are owned by PM
 
 ### Three-Attempt Rule
 
@@ -113,7 +110,7 @@ If CI fails 3 times in a row:
 
 1. Stop automatic fixes.
 2. Create an escalation report.
-3. Ask Cursor / PM for a decision.
+3. Ask PM for a decision.
 
 ---
 
@@ -155,10 +152,10 @@ Example: `feat: add user authentication`
 
 | Symptom | Action |
 |---------|--------|
-| CI keeps failing | Try 3 fixes, then escalate to Cursor / PM |
-| Task scope is unclear | Ask Cursor / PM for clarification |
+| CI keeps failing | Try 3 fixes, then escalate to PM |
+| Task scope is unclear | Ask PM for clarification |
 | `Plans.md` is out of date | Run `/sync-status` and inspect the current state |
 
 ---
 
-*Both Cursor and Claude Code may read this document.*
+*Both PM and Claude Code may read this document.*

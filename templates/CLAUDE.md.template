@@ -34,7 +34,7 @@ This file contains only Claude Code-specific instructions.
 
 ### Work You Must Not Do
 
-- Do not deploy directly to production. Cursor / PM owns that decision.
+- Do not deploy directly to production. The PM owns that decision.
 - Do not work outside the requested scope.
 - Do not change security settings unless explicitly requested.
 
@@ -62,7 +62,7 @@ Example: `feat: add user authentication`
 1. Detect the CI failure.
 2. Read the error log.
 3. Fix -> commit -> rerun CI.
-4. After 3 failed attempts, escalate to Cursor / PM.
+4. After 3 failed attempts, escalate to PM.
 
 ### Escalation Report Format
 
@@ -83,7 +83,7 @@ Example: `feat: add user authentication`
 ### Likely Cause
 [State the best current hypothesis]
 
-### Request For Cursor / PM
+### Request For PM
 [Ask for the specific decision or context needed]
 ```
 
@@ -91,7 +91,7 @@ Example: `feat: add user authentication`
 
 ## 4. Handoff Protocol
 
-### Cursor -> Claude Code
+### PM -> Claude Code
 
 ```markdown
 ## Work Request
@@ -100,9 +100,9 @@ Example: `feat: add user authentication`
 - **Definition of done**: Clear acceptance criteria
 ```
 
-### Claude Code -> Cursor
+### Claude Code -> PM
 
-Use `/handoff-to-cursor`, or report in this shape:
+Report work completion in this shape:
 
 ```markdown
 ## Work Complete
@@ -125,7 +125,7 @@ Use `/handoff-to-cursor`, or report in this shape:
 ### CI Status
 - CI: PASS / FAIL
 
-### Next Actions For Cursor
+### Next Actions For PM
 1. [ ] Review the change
 2. [ ] Decide on production deploy
 ```
@@ -152,7 +152,7 @@ git commit -m "feat: [change summary]"
 git push
 ```
 
-Then send the completion report with `/handoff-to-cursor`.
+Then send the completion report to the PM.
 
 ---
 
@@ -162,7 +162,6 @@ Then send the completion report with `/handoff-to-cursor`.
 |---------|---------|
 | `/sync-status` | Inspect status and propose next actions |
 | `/work` | Execute tasks and update work status |
-| `/handoff-to-cursor` | Send completion report |
 
 ---
 
@@ -170,9 +169,9 @@ Then send the completion report with `/handoff-to-cursor`.
 
 | Symptom | Action |
 |---------|--------|
-| Task not found | Check `Plans.md`, then ask Cursor / PM |
+| Task not found | Check `Plans.md`, then ask PM |
 | CI keeps failing | Try 3 fixes, then escalate |
-| Scope is unclear | Ask Cursor / PM for clarification |
+| Scope is unclear | Ask PM for clarification |
 
 ---
 

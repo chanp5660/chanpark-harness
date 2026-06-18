@@ -30,27 +30,13 @@ review loop, commits unless `--no-commit` is set, and marks `Plans.md`
 ## Parallel
 
 Use for two or three independent tasks, or when `--parallel N` is explicit.
-Workers may use isolated worktrees when file ownership can conflict. The Lead
-still owns final integration and status updates.
-
-## Codex
-
-Use only when `--codex` is explicit. Delegate implementation to the Codex
-companion entrypoint:
-
-```bash
-bash "${HARNESS_PLUGIN_ROOT}/scripts/codex-companion.sh" task --write "task"
-```
-
-Validate the result locally. Codex output is not accepted until the normal
-review loop approves it.
+Lead spawns a Worker agent per task. Workers may use isolated worktrees when
+file ownership can conflict. Lead still owns final integration and status
+updates.
 
 ## Breezing
 
 Use for four or more tasks, or when `--breezing` is explicit. Lead coordinates
 Workers, Advisor, and Reviewer while preserving the implementation/review
-boundary.
-
-Codex-native Breezing reads this flow through `spawn_agent`, `send_input`,
-`wait_agent`, and `close_agent` rather than Claude Code `Agent` /
-`SendMessage` pseudo-code.
+boundary. Lead uses the Claude Code `Agent` / `SendMessage` API to orchestrate
+Workers.

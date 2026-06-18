@@ -23,7 +23,7 @@ Skills responsible for memory and SSOT management.
 
 ## Unified Harness Memory (Shared DB)
 
-For recording and searching across Claude Code / Codex / OpenCode, prefer the `harness_mem_*` MCP.
+For recording and searching across sessions, prefer the `harness_mem_*` MCP.
 
 - Search: `harness_mem_search`, `harness_mem_timeline`, `harness_mem_get_observations`
 - Injection: `harness_mem_resume_pack`

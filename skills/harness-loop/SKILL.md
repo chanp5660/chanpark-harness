@@ -31,11 +31,6 @@ forming a re-entrant loop where 1 cycle = 1 completed task.
 > If the session is expected to exceed 30 minutes, after resolving the plugin bundle root,
 > run `bash "${HARNESS_PLUGIN_ROOT}/scripts/enable-1h-cache.sh"` to opt in to 1-hour prompt caching.
 
-> **Codex 0.123.0 automatic bug fix inheritance**:
-> The manual shell follow-up queue and `/copy` after rollback are automatically inherited as TUI fixes in Codex itself.
-> The loop runner does not add extra input queues, copy wrappers, or rollback workarounds.
-> Queueing of follow-ups sent to the manual shell during long-running work is delegated to the Codex runtime.
-
 ## Quick Reference
 
 | Input | Behavior |
@@ -147,7 +142,7 @@ wake-up
   ▼
 [Step 5.5] Lead review
   diff_text = git show worker_result.commit
-  verdict = codex_exec_review(diff_text) or reviewer_agent_review(diff_text)
+  verdict = reviewer_agent_review(diff_text)
   See flow.md for details
   │
   ▼
@@ -198,7 +193,7 @@ With the default (`--max-cycles 8`), it stops after 8 cycles.
 ## Progress Reports / Silence Policy
 
 In a long-running loop, interim reports are treated as "notifications when a decision changes," not as heartbeats for reassurance.
-In environments where the Codex `0.123.0` background agent can receive transcript deltas, do not reply merely because a delta arrived — remain explicitly silent when nothing needs to be said.
+Remain explicitly silent when nothing needs to be said.
 
 Report when:
 

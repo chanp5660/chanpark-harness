@@ -129,7 +129,7 @@ echo "  Archive: $ARCHIVE_COUNT"
 
 ## 🟡 Pending Tasks
 
-<!-- List cc:TODO, pm:requested (compatible: cursor:requested) tasks here -->
+<!-- List cc:TODO, pm:requested tasks here -->
 
 {{TASKS_TODO}}
 
@@ -137,7 +137,7 @@ echo "  Archive: $ARCHIVE_COUNT"
 
 ## 🟢 Completed Tasks
 
-<!-- List cc:done, pm:approved (compatible: cursor:approved) tasks here -->
+<!-- List cc:done, pm:approved tasks here -->
 
 {{TASKS_DONE}}
 
@@ -155,13 +155,11 @@ echo "  Archive: $ARCHIVE_COUNT"
 
 | Marker | Meaning |
 |---------|------|
-| `pm:requested` | Task requested by PM (compatible: cursor:requested) |
+| `pm:requested` | Task requested by PM |
 | `cc:TODO` | Claude Code not started |
 | `cc:WIP` | Claude Code in progress |
 | `cc:done` | Claude Code done (awaiting confirmation) |
-| `pm:approved` | PM confirmed (compatible: cursor:approved) |
-| `cursor:requested` | (compatible) synonym for pm:requested |
-| `cursor:approved` | (compatible) synonym for pm:approved |
+| `pm:approved` | PM confirmed |
 | `blocked` | Blocked (include reason) |
 
 ---

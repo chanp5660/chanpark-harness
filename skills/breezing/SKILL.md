@@ -1,9 +1,9 @@
 ---
 name: breezing
-description: "Team execution mode — backward-compatible alias for harness-work with team orchestration. Composer/composer 2.5 maps to the cursor backend."
+description: "Team execution mode — backward-compatible alias for harness-work with team orchestration."
 kind: workflow
 purpose: "Wrap harness-work with team execution orchestration"
-trigger: "breezing, team execution, do everything, composer, composer 2.5, composer mode"
+trigger: "breezing, team execution, do everything"
 shape: wrap
 role: orchestrator
 base: harness-work
@@ -11,7 +11,7 @@ pair: harness-review
 owner: harness-core
 since: "2026-05-05"
 allowed-tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "Task", "WebSearch", "Monitor"]
-argument-hint: "[all|N-M|--codex|--cursor|--reviewer-only|--parallel N|--no-commit|--no-discuss|--auto-mode]"
+argument-hint: "[all|N-M|--reviewer-only|--parallel N|--no-commit|--no-discuss|--auto-mode]"
 user-invocable: true
 ---
 
@@ -28,18 +28,18 @@ The enemy is **verbosity**, not progress reporting. **At startup, briefly state 
 In the first response, show what will be done and in what order before making any tool calls:
 
 ```
-🚀 cursor / composer-2.5-fast / feat/hah-11-golden-rule-lint / Reviewer
+🚀 claude / <model> / feat/hah-11-golden-rule-lint / Reviewer
 Next steps:
-1. Resolve backend/model
-2. Delegate diff review to composer (read-only)
+1. Resolve model
+2. Delegate diff review to Worker (read-only)
 3. Summarize verdict in 3-5 lines → update Plans.md
 ```
 
-Banner line (`🚀 <backend> / <model> / <branch> / <task>`) + plan in 2-4 lines. Output within 1 second, then proceed immediately to Step 1.
+Banner line (`🚀 claude / <model> / <branch> / <task>`) + plan in 2-4 lines. Output within 1 second, then proceed immediately to Step 1.
 
 ### Progress reporting is allowed (within readable bounds)
 
-- One-line status for each step start and completion (`✓ backend=cursor / model=composer-2.5-fast`)
+- One-line status for each step start and completion (`✓ model=claude-opus / branch=feat/hah-11`)
 - Intermediate results needed for decisions (pre-check key points, resolved model, detected branch, etc.)
 - One-line reason for each branching decision (e.g., "Reviewer-only delegation: Worker already completed on separate track")
 
@@ -52,27 +52,23 @@ Banner line (`🚀 <backend> / <model> / <branch> / <task>`) + plan in 2-4 lines
 
 Violation examples (verbose):
 ```
-× "composer 2.5 mode" = cursor backend delegating to Composer, right? (restating the interpretation)
 × "Since the Reviewer stopped last time, routing to a separate track makes sense." (3+ line backstory)
 × "Checking usage" → bash → "It can be called." (empty preamble + restating the same fact)
 ```
 
 Correct examples (concise + plan stated):
 ```
-🚀 cursor / composer-2.5-fast / feat/hah-11-golden-rule-lint / Reviewer
-Next: resolve backend → delegate diff review to composer (read-only) → summarize verdict
+🚀 claude / opus / feat/hah-11-golden-rule-lint / Reviewer
+Next: resolve model → delegate diff review to Worker (read-only) → summarize verdict
 ```
 
 ## Quick Reference
 
 ```bash
-/breezing                       # Ask for scope (claude backend)
-/breezing all                   # Run all tasks (claude backend)
+/breezing                       # Ask for scope
+/breezing all                   # Run all tasks
 /breezing 3-6                   # Run tasks 3–6
-/breezing --codex all           # Delegate all tasks via Codex CLI
-/breezing --cursor              # cursor backend lean path (--no-discuss all by default)
-/breezing --cursor --reviewer-only  # Delegate Reviewer only to cursor (Worker already complete on separate track)
-/breezing composer 2.5 all      # Natural language trigger: treated as cursor backend
+/breezing --reviewer-only       # Delegate Reviewer only (Worker already complete on separate track)
 /breezing --parallel 2 all      # Run all tasks with 2-way parallelism
 /breezing --no-discuss all      # Skip planning discussion, run all tasks
 /breezing --auto-mode all       # Attempt Auto Mode rollout on compatible parent session
@@ -84,28 +80,11 @@ Next: resolve backend → delegate diff review to composer (read-only) → summa
 |--------|-------------|---------|
 | `all` | Target all incomplete tasks | - |
 | `N` or `N-M` | Specify task number or range | - |
-| `--codex` | Delegate implementation via Codex CLI | false |
-| `--cursor` | cursor backend lean path (equivalent to `HARNESS_IMPL_BACKEND=cursor`). Skips Worker agent spawn / self_review / sprint-contract 3-stage chain / Phase 0, and begins delegation within 3 seconds of startup | false |
-| `--reviewer-only` | Delegate only the Reviewer to an independent track (assumes Worker implementation is already complete). Combine with `--cursor` to route to Composer | false |
+| `--reviewer-only` | Delegate only the Reviewer to an independent track (assumes Worker implementation is already complete) | false |
 | `--parallel N` | Number of parallel Implementers | auto |
 | `--no-commit` | Suppress automatic commits | false |
-| `--no-discuss` | Skip planning discussion | true when `--cursor` |
+| `--no-discuss` | Skip planning discussion | false |
 | `--auto-mode` | Explicitly request Auto Mode rollout on the harness side. Distinct from `--enable-auto-mode` which became unnecessary in CC 2.1.111 | false |
-
-## Natural Language Backend Triggers
-
-`composer` / `Composer` / `composer 2.5` / `composer mode` are officially treated as triggers for the `cursor backend`.
-This is equivalent intent to `--cursor`, and Lead resolves the backend via `resolve-impl-backend.sh`.
-At resolution, pass as an explicit override `--backend cursor`, taking priority over env / project / user file / default.
-
-| Input example | Interpretation | Execution path |
-|---|---|---|
-| `composer 2.5` | `cursor backend` | Lead → `cursor-companion.sh task --write --workspace <wt>` |
-| `composer, run everything` | `cursor backend` | Lead → `cursor-companion.sh task --write --workspace <wt>` |
-| `composer mode` | `cursor backend` | Lead → `cursor-companion.sh task --write --workspace <wt>` |
-
-`composer` is not an additional agent spawned inside the Claude Worker.
-Following the non-`claude` backend topology, Lead calls `cursor-companion.sh` directly without interposing a Worker agent.
 
 > **CC 2.1.111 note**:
 > In Opus 4.7, `/effort xhigh` can be used literally.
@@ -117,10 +96,7 @@ Following the non-`claude` backend topology, Lead calls `cursor-companion.sh` di
 > This script appends `export ENABLE_PROMPT_CACHING_1H=1` to `env.local` (idempotent).
 > With the default 5-minute TTL cache, sessions exceeding 1 hour in breezing can accumulate cache misses
 > and increase input token costs by up to 12×, so opt in explicitly for long team runs.
-> Codex CLI child processes (`scripts/codex-companion.sh task --write`, etc.) normally inherit the env and
-> read `ENABLE_PROMPT_CACHING_1H`, but if `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` is active, a shell wrapper
-> that explicitly maintains the export is required. See
-> [`docs/long-running-harness.md`](../../docs/long-running-harness.md) for details.
+> See [`docs/long-running-harness.md`](../../docs/long-running-harness.md) for details.
 
 ## Execution
 
@@ -152,92 +128,23 @@ Following the non-`claude` backend topology, Lead calls `cursor-companion.sh` di
 
 > *If the parent session or frontmatter specifies `bypassPermissions`, that takes precedence. Distribution templates currently use `bypassPermissions`, so Auto Mode is a follow-up rollout target and not the default behavior.
 
-### Codex Mode (`--codex`)
+### Reviewer-only mode (`--reviewer-only`)
 
-Mode that delegates all implementation to Codex CLI via the official plugin `codex-plugin-cc`:
+Worker implementation is already complete (finished on a separate track), and only the Reviewer needs to run on an independent track. This is a read-only delegation, so **no worktree, no cherry-pick, no Lead diff review** required:
 
-```bash
-# Delegate task (write-enabled)
-bash "${HARNESS_PLUGIN_ROOT}/scripts/codex-companion.sh" task --write "task content"
-
-# Via stdin (for large prompts)
-CODEX_PROMPT=$(mktemp /tmp/codex-prompt-XXXXXX.md)
-# Write out task content
-cat "$CODEX_PROMPT" | bash "${HARNESS_PLUGIN_ROOT}/scripts/codex-companion.sh" task --write
-rm -f "$CODEX_PROMPT"
-```
-
-### Execution Backend (persistent)
-
-Setting `HARNESS_IMPL_BACKEND=cursor` (via `bash "${HARNESS_PLUGIN_ROOT}/scripts/set-impl-backend.sh" cursor`)
-makes cursor the default worker backend without per-run flags. The review / advisor roles remain fixed to Opus.
-The authoritative reference for backend selection (precedence, role-scope, self_review skip, cursor banner) is
-the "Execution Backend Selection" section in `harness-work`.
-
-The Cursor Backend Fast Path below is a separate axis that enables the same lean path via a per-run flag (`--cursor`); read both sections together.
-
-### Cursor Backend Fast Path (`--cursor` / lean mode)
-
-Active when `--cursor` is specified or when env `HARNESS_IMPL_BACKEND=cursor` is set. Lead calls `cursor-companion.sh` directly without interposing a Worker layer (Phase 85 SSOT, `.claude/rules/cursor-cli-only.md` Topology section).
-
-#### Steps removed (savings vs. claude backend)
-
-| Step | Reason removed | Time saved |
-|---|---|---|
-| `chanpark-harness:worker` agent spawn | cursor backend has no Worker intermediary | 5-30s |
-| self_review 5-item gate | `worker-report.v1` is not generated with cursor, so unnecessary | 10-60s × retry |
-| sprint-contract 3-stage chain (generate→enrich→ensure) | No contract needed if no Worker contract | 2-5s × N |
-| Phase 0 Q1-Q3 interactive | `--no-discuss all` by default (Lead reads Plans/Depends directly) | 15-30s |
-| Effort scoring | No ultrathink injection needed for cursor backend | 0.5-1s × N |
-| Plans.md re-parse (per task) | In-session cache (short-circuits on mtime+hash) | 3-8s |
-
-Total: baseline `15-35s` → target `3-7s` reduction in time to first cursor delegation for task 1.
-
-#### Default flow (cursor backend)
-
-1. **Banner + execution plan** (`🚀 cursor / <model> / <branch> / <task>` + 2-4 next steps, 5 lines or fewer, within 1 second)
-2. **1 bash for parallel pre-check**: `git branch --show-current` + `cat VERSION` + `Plans.md tail` + `cursor-agent --version`
-3. **1 bash for resolve**: `bash "${HARNESS_PLUGIN_ROOT}/scripts/resolve-impl-backend.sh"` + `bash "${HARNESS_PLUGIN_ROOT}/scripts/model-routing.sh" --host cursor --role worker --field model`
-4. **Delegate immediately**: `bash "${HARNESS_PLUGIN_ROOT}/scripts/cursor-companion.sh" task --write --workspace <wt> "<task>"`
-5. Lead diff-reviews cursor output → cherry-pick → update Plans.md `cc:done [hash]`
-
-#### Reviewer-only mode (`--cursor --reviewer-only`) — read = lean
-
-Worker implementation is already complete (finished on a separate track via claude / Codex), and only the Reviewer needs to run on an independent track (Composer). This is a read-only delegation, so **no worktree, no cherry-pick, no Lead diff review** required:
-
-1. Banner + plan: `🚀 cursor / composer-2.5-fast / review` + "Next: delegate diff review to composer → summarize verdict"
-2. `bash "${HARNESS_PLUGIN_ROOT}/scripts/cursor-companion.sh" task "diff review: <base_ref>..HEAD"` — **no `--write` or `--workspace`**
-   - Without `--write`, companion defaults to `--mode ask` (hard read-only stop)
-   - On the cursor side, file writes and command execution are disabled; worktree isolation is not needed
-3. Lead interprets cursor output (REQUEST_CHANGES / APPROVE equivalent) and stores it as advisory in `dual_review.cursor_verdict`
-4. **Primary verdict comes from the Opus reviewer.** cursor alone cannot confirm APPROVE (consistent with the immutable rule in harness-work/SKILL.md: "the backend that implemented the work must not review its own output")
-5. If APPROVE, Lead updates Plans.md `cc:done [hash]`
-
-Items omitted in read mode: dedicated `.git` worktree / Lead diff review / cherry-pick / `worker-report.v1` / self_review 5-item gate.
-Items still required in read mode: `.cursorignore` / egress allowlist (`*.cursor.sh`) / permissions.json (best-effort). See `.claude/rules/cursor-cli-only.md` "Read mode delegation (lean path)" section for details.
+1. Banner + plan: `🚀 claude / opus / review` + "Next: delegate diff review to Reviewer → summarize verdict"
+2. Lead spawns a `chanpark-harness:reviewer` agent for `"diff review: <base_ref>..HEAD"`
+3. Lead interprets Reviewer output (REQUEST_CHANGES / APPROVE) 
+4. If APPROVE, Lead updates Plans.md `cc:done [hash]`
 
 **Use cases**:
-- Escape route when the Reviewer is stopped by Anthropic-side server rate limits
 - Worker complete; distribute only the Reviewer to a separate track
-- Manual fallback when Codex review auth fails
-
-#### Cursor adapter support claim
-
-Cursor remains at the `internal-compatible` tier (Phase 87 / PR #174 promotion). A `supported` public claim continues to be gated until CI-gated workflow smoke requirements are met. The `--cursor` lean path does not promote the support tier.
-
-Bootstrap route: `.cursor/AGENTS.md` + `.cursor-plugin/plugin.json`.
-
-Verification:
-
-```bash
-bash tests/test-cursor-adapter-candidate.sh
-bash tests/test-support-claim-wording.sh
-```
+- Escape route when parallel execution left Reviewer work pending
 
 ## Flow Summary
 
 ```
-breezing [scope] [--codex] [--parallel N] [--no-discuss] [--auto-mode]
+breezing [scope] [--parallel N] [--no-discuss] [--auto-mode]
     │
     ↓ Load harness-work with team mode
     │
@@ -286,8 +193,7 @@ Lead outputs progress in the following format after each Worker task completion:
 
 ### Silence Policy (notification management for long runs)
 
-In Codex `0.123.0` realtime handoff, background agents receive transcript deltas and can explicitly go silent when not needed.
-Breezing's progress feed is aligned with this premise, limiting notifications to "meaningful milestones".
+Breezing limits notifications to "meaningful milestones" to avoid noise during long runs.
 
 Report:
 
@@ -315,7 +221,6 @@ When monitoring long-running commands, use the **Monitor tool** rather than poll
 - Monitoring `go test ./... -v` progress during execution
 - Tracking GitHub Actions progress with `gh run watch`
 - Immediate build error detection for `npm run build --watch` / `vite build --watch`
-- Detecting Codex job completion with `codex-companion.sh status <job-id>`
 - Tracking deployment logs with `docker-compose logs -f` / `kubectl logs -f`
 
 **Decision criteria**:
@@ -341,12 +246,11 @@ This allows Lead to improve reaction speed in the "Worker complete → CI failur
 
 ### Review Policy (unified across all modes)
 
-Even in breezing mode, review follows the unified policy of **Codex exec preferred → internal Reviewer fallback**.
-See the "Review Loop" section in `harness-work` for details.
+Even in breezing mode, review follows the unified policy described in the "Review Loop" section in `harness-work`.
 
 - Worker implements and commits inside worktree → returns `worker-report.v1` (self_review 5 items) to Lead
 - **self_review gate (before Reviewer spawn)**: Lead mechanically verifies `self_review[].verified` and `evidence`. If even one item has `verified:false` or `evidence:""`, Lead auto-returns to Worker without spawning Reviewer (maximum 2 times within the same session; escalate on the 3rd)
-- Lead reviews via Codex exec (120s timeout, fallback: Reviewer agent)
+- Lead reviews via the Reviewer agent (120s timeout)
 - REQUEST_CHANGES → Lead sends correction instructions to Worker via SendMessage; Worker amends (up to `MAX_REVIEWS` times. `MAX_REVIEWS = read_contract(contract_path, ".review.max_iterations") or 3`)
 - APPROVE → **Lead** cherry-picks to main → updates Plans.md to `cc:done [{hash}]`
 
@@ -424,17 +328,6 @@ When Plans.md has a Depends column (v2 format), execute tasks following the depe
 
 > **Note**: "Worker complete → review → cherry-pick" for each task is sequential.
 > Parallelization applies only to the Worker spawn phase for independent tasks (Depends = `-`).
-
-## Codex Native Orchestration
-
-Codex uses native subagents.
-Representative control primitives are `spawn_agent`, `wait`, `send_input`, `resume_agent`, `close_agent`.
-
-> **Claude Code vs Codex communication API** (SSOT: API mapping table in `team-composition.md`):
-> - Claude Code: `SendMessage(to: agentId, message: "...")` to send correction instructions to Worker
-> - Codex: `resume_agent(agent_id)` to resume Worker → `send_input(agent_id, "...")` to send instructions
->
-> Pseudo-code in harness-work is written in Claude Code syntax. Translate to the above when running in a Codex environment.
 
 ## Related Skills
 

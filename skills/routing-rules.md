@@ -7,11 +7,11 @@ Reference document for routing rules between skills.
 >
 > **Important**: The description of each skill and the "Do NOT Load For" table in the body must match exactly.
 
-## Codex-Related Routing
+## Review Routing
 
-### harness-review (includes Codex review functionality)
+### harness-review
 
-**Purpose**: Provides second-opinion reviews via Codex CLI (`codex exec`) (integrated from `codex-review` in v3)
+**Purpose**: Provides second-opinion reviews via Claude Worker agent review pass.
 
 **Trigger keywords** (quoted from description):
 - "review", "code review", "plan review"
@@ -23,20 +23,20 @@ Reference document for routing rules between skills.
 - "implementation", "new features", "bug fixes"
 - "setup", "release"
 
-### harness-work --codex (includes Codex implementation functionality)
+## Work Routing
 
-**Purpose**: Uses Codex as the implementation engine (integrated in v3)
+### harness-work
+
+**Purpose**: Executes Plans.md tasks using Claude Worker agents (solo, parallel, or breezing mode).
 
 **Trigger keywords**:
 - "implement", "execute", "/work"
 - "breezing", "team run"
-- "--codex", "--parallel"
+- "--parallel"
 
 **Exclusion keywords** (quoted from description):
 - "planning", "code review", "release"
 - "setup", "initialization"
-
-**Usage**: Run with `/harness-work --codex`
 
 ## Routing Decision Flow (Reference)
 

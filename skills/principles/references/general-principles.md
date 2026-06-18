@@ -68,10 +68,9 @@ To ensure non-technical users can understand:
 - **Present the next action**: e.g., "Next, say ___"
 - **Visualize progress**: Make clear what has been completed and what remains
 
-### Coordination with PM (Cursor)
+### Coordination with PM
 
 - **Share state via Plans.md**: Maintain it as the single source of truth
-- **Completion reports go through `/handoff-to-cursor`**: Follow the prescribed format
 - **Stay in scope**: Confirm before doing any work outside the requested scope
 
 ---

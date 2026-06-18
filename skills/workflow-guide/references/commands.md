@@ -1,6 +1,6 @@
 # Command Reference
 
-Details of the commands used in the two-agent workflow.
+Details of the commands used in the PM ↔ Claude Code workflow.
 
 ---
 
@@ -19,26 +19,6 @@ Initial project setup (formerly `/harness-init`).
 - AGENTS.md - Role division definition
 - CLAUDE.md - Claude Code settings
 - .claude/rules/ - Project rules
-
----
-
-### /setup codex
-
-Install and update Harness settings for Codex CLI on a **user-base** (`${CODEX_HOME:-~/.codex}`).
-
-```
-/setup codex
-```
-
-**Generated files (default)**:
-- ${CODEX_HOME:-~/.codex}/skills/
-- ${CODEX_HOME:-~/.codex}/rules/
-- (optional) ${CODEX_HOME:-~/.codex}/config.toml
-
-**Only in project mode**:
-- .codex/skills/
-- .codex/rules/
-- AGENTS.md
 
 ---
 
@@ -92,12 +72,12 @@ Output a summary of the current status.
 
 ---
 
-### /handoff-to-cursor
+### /handoff-to-pm
 
-Completion report to Cursor PM.
+Completion report to PM.
 
 ```
-/handoff-to-cursor
+/handoff-to-pm
 ```
 
 **Information included**:
@@ -108,11 +88,11 @@ Completion report to Cursor PM.
 
 ---
 
-## Cursor Commands (reference)
+## PM Commands (reference)
 
 ### /handoff-to-claude
 
-Request tasks from Claude Code.
+Request tasks from Claude Code. Lead spawns a Worker agent to carry out the assigned work.
 
 ### /review-cc-work
 
@@ -149,7 +129,7 @@ Formats a task request from PM → Worker.
 /work  ←── Execute tasks
     │
     ▼
-/handoff-to-cursor  ←── Completion report
+/handoff-to-pm  ←── Completion report
     │
     ▼
 [Session end]

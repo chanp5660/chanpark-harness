@@ -195,12 +195,9 @@ Consultation timing is fixed at the following 3 points:
 TRIGGER_HASH="${task_id}:${reason_code}:$(normalize_error_signature "${summary_or_risk}")"
 
 if ! advisor_trigger_seen "${TRIGGER_HASH}"; then
-    RESPONSE_FILE=$(
-        bash "${HARNESS_PLUGIN_ROOT}/scripts/run-advisor-consultation.sh" \
-          --request-file ".claude/state/codex-loop/${task_id}.${reason_code}.advisor-request.json" \
-          --response-file ".claude/state/codex-loop/${task_id}.${reason_code}.advisor-response.json"
-    )
-    DECISION=$(jq -r '.decision' "${RESPONSE_FILE}")
+    # Consult the advisor agent (chanpark-harness:advisor) via the Agent tool,
+    # passing the advisor-request.v1 payload; it writes advisor-response.v1 to the path below.
+    DECISION=$(jq -r '.decision' ".claude/state/loop/${task_id}.${reason_code}.advisor-response.json")
 fi
 ```
 
@@ -238,9 +235,6 @@ Because Worker operates in `mode: breezing`:
 - Changes are stored in `worktreePath`
 - Lead (harness-loop) handles review → cherry-pick in Steps 5.5/5.6
 
-> **Codex loop implementation difference**: In the Codex version, `${HARNESS_PLUGIN_ROOT}/scripts/codex-loop.sh` launches a background task
-> and prepends advisor-returned guidance to the next prompt to re-run the same task.
-
 > **Implementation note**: `Bash("harness-work --breezing")` can also serve as an alternative,
 > but using the Agent tool provides cleaner context isolation and is easier to debug.
 
@@ -252,28 +246,29 @@ Lead performs a review on the commit returned by Worker:
 # Get diff (targeting the commit inside the worktree)
 diff_text=$(git -C "${worker_result.worktreePath}" show "${worker_result.commit}")
 
-# ── (a) Codex companion review: run in Worker's worktree directory ──────────────
-# If Lead is in the main repo dir, diff will be empty (risk of unconditional APPROVE).
-# By cd-ing into Worker's worktreePath before calling review, the correct diff is passed.
+# ── (a) Reviewer agent review ──────────────────────────────────────────────────
+# Lead spawns a reviewer agent, passing the diff and contract path.
+# The reviewer agent writes its verdict to review-output.json in the worktree dir.
 #
-# If worktreePath is empty or identical to the main repo (environment where worktree isolation doesn't work),
-# run in Lead dir (fallback equivalent to existing behavior).
+# If worktreePath is empty or identical to the main repo (environment where worktree
+# isolation doesn't work), fall back to the Lead dir.
 
 MAIN_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 WORKER_PATH="${worker_result.worktreePath:-}"
 
 if [ -n "${WORKER_PATH}" ] && [ "${WORKER_PATH}" != "${MAIN_REPO_ROOT}" ]; then
-    # Run review inside Worker's worktree → see the actual diff on the Worker feature branch
-    ( cd "${WORKER_PATH}" && bash "${HARNESS_PLUGIN_ROOT}/scripts/codex-companion.sh" review --base "${BASE_REF}" )
-    REVIEW_EXIT=$?
-    # review-output.json is created in the Worker worktree dir, so manage it as an absolute path
     REVIEW_OUTPUT_PATH="${WORKER_PATH}/review-output.json"
 else
-    # Fallback: run in Lead dir (environment where worktree isolation doesn't work)
-    bash "${HARNESS_PLUGIN_ROOT}/scripts/codex-companion.sh" review --base "${BASE_REF}"
-    REVIEW_EXIT=$?
     REVIEW_OUTPUT_PATH="$(pwd)/review-output.json"
 fi
+
+# Spawn reviewer agent to evaluate the diff and produce review-output.json
+reviewer_result = Agent(
+    subagent_type="chanpark-harness:reviewer",
+    prompt="Review the diff for task ${task_id}.\ndiff: ${diff_text}\ncontract: ${CONTRACT_PATH}\nWrite verdict (APPROVE or REQUEST_CHANGES) to ${REVIEW_OUTPUT_PATH}.",
+    run_in_background=false
+)
+REVIEW_EXIT=$?
 # → verdict is written to the file indicated by REVIEW_OUTPUT_PATH
 # All subsequent steps must use $REVIEW_OUTPUT_PATH (do not directly reference the relative path "review-output.json")
 
@@ -345,7 +340,7 @@ case "${REVIEWER_PROFILE}" in
         REVIEW_RESULT_INPUT="${REVIEW_OUTPUT_PATH}"
         ;;
     *)
-        # static (default): use verdict from Codex companion review as-is
+        # static (default): use verdict from reviewer agent review as-is
         EFFECTIVE_VERDICT=""
         REVIEW_RESULT_INPUT="${REVIEW_OUTPUT_PATH}"
         ;;
@@ -388,7 +383,7 @@ while verdict == "REQUEST_CHANGES" and review_count < MAX_REVIEWS:
     updated_result = wait_for_response(worker_id)
     latest_commit = updated_result.commit
     diff_text = git("-C", worker_result.worktreePath, "show", latest_commit)
-    verdict = codex_exec_review(diff_text) or reviewer_agent_review(diff_text)
+    verdict = reviewer_agent_review(diff_text)
     review_count += 1
 
 if review_count >= MAX_REVIEWS and verdict != "APPROVE":

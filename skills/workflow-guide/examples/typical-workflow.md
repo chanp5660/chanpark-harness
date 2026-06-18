@@ -1,12 +1,12 @@
 # Typical Workflow Examples
 
-Real-world flow of the two-agent workflow.
+Real-world flow of the PM ↔ Claude Code workflow.
 
 ---
 
 ## Example 1: New Feature Development
 
-### Phase 1: PM (Cursor) Creates Tasks
+### Phase 1: PM Creates Tasks
 
 ```markdown
 # Plans.md
@@ -57,13 +57,13 @@ Real-world flow of the two-agent workflow.
 
 ### Phase 3: Claude Code Reports Completion (2-Agent only)
 
-After Review OK and Auto-commit, in 2-Agent mode run `/handoff-to-cursor` to report to PM.
+After Review OK and Auto-commit, in 2-Agent mode run `/handoff-to-pm` to report to PM.
 
 > **In Solo mode, handoff is not needed** — Review OK → Auto-commit completes /work.
 
 ```bash
 # Run in Claude Code (2-Agent mode only)
-/handoff-to-cursor
+/handoff-to-pm
 ```
 
 **Generated report**:
@@ -129,7 +129,7 @@ After Review OK and Auto-commit, in 2-Agent mode run `/handoff-to-cursor` to rep
 4. Add tests
 5. Review with `/harness-review` (fix issues then re-review if flagged)
 6. Review OK → Auto-commit
-7. Completion report with `/handoff-to-cursor` (2-Agent only; omit in Solo mode)
+7. Completion report with `/handoff-to-pm` (2-Agent only; omit in Solo mode)
 
 ---
 
