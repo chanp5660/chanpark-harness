@@ -1,0 +1,48 @@
+---
+description: Core rules for the 2-agent workflow
+alwaysApply: true
+_harness_template: "rules/workflow.md.template"
+_harness_version: "2.5.27"
+---
+
+# 2-Agent Workflow Rules
+
+This project uses a **PM ↔ Impl** two-role workflow.
+The PM role can be filled by either **Cursor** or **PM Claude** (PM Claude is recommended for solo operation).
+
+## Responsibilities
+
+| Agent | Responsibilities |
+|-------------|------|
+| **PM (Cursor / PM Claude)** | Planning, review, decision-making, and production deployment (when required) |
+| **Impl (Claude Code / Impl Claude)** | Implementation, testing, commits, and staging (when required) |
+
+## Task Management
+
+- All tasks are managed centrally in `Plans.md`.
+- Track status with markers:
+  - `pm:requested` → Requested by PM (compat: `cursor:requested`)
+  - `cc:WIP` → Claude Code working
+  - `cc:done` → Claude Code completed
+  - `pm:reviewed` → PM review complete (compat: `cursor:reviewed`)
+
+## Handoff Protocol
+
+### PM → Impl
+1. Add the task to Plans.md with the `pm:requested` marker (compat: `cursor:requested`).
+2. **If using PM Claude**: Generate the handoff message with `/handoff-to-impl-claude`.
+3. **If using Cursor**: Generate the handoff message with `/handoff-to-claude` (Cursor-side command).
+4. Paste into Impl Claude (Claude Code).
+
+### Impl → PM
+1. Apply the `cc:done` marker after completing the work.
+2. **If using PM Claude**: Generate the completion report with `/handoff-to-pm-claude`.
+3. **If using Cursor**: Generate the completion report with `/handoff-to-cursor`.
+4. Paste into PM and request review (PM applies `pm:reviewed` after reviewing).
+
+## Prohibited Actions
+
+- ❌ Exposing development files externally (CLAUDE.md, AGENTS.md, Plans.md)
+- ❌ Large-scale refactoring without an explicit request
+- ❌ Adding features without tests
+- ❌ Deploying directly to production (PM approval required)

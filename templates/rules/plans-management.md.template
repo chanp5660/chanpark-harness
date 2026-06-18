@@ -1,0 +1,78 @@
+---
+description: Plans.md task management rules (applies only when editing Plans.md)
+paths:
+  - "**/Plans.md"
+_harness_template: "rules/plans-management.md.template"
+_harness_version: "2.5.27"
+---
+
+# Plans.md Management Rules
+
+## Task Description Format
+
+```markdown
+- [ ] Task description `marker`
+  - Subtask 1
+  - Subtask 2
+```
+
+## Marker Usage
+
+| Marker | Set by | Meaning |
+|---------|--------|------|
+| `pm:requested` | PM (Cursor / PM Claude) | Task requested |
+| `cc:TODO` | Claude Code | Not started |
+| `cc:WIP` | Claude Code | In progress |
+| `cc:done` | Claude Code | Completed |
+| `pm:reviewed` | PM (Cursor / PM Claude) | Review complete |
+| `cursor:requested` | Cursor | (Compat) Equivalent to `pm:requested` |
+| `cursor:reviewed` | Cursor | (Compat) Equivalent to `pm:reviewed` |
+
+## Section Structure
+
+```markdown
+## 🔴 In Progress
+(Tasks with cc:WIP)
+
+## 🟡 Not Started
+(Tasks with cc:TODO, pm:requested (compat: cursor:requested))
+
+## 🟢 Completed
+(Tasks with cc:done, pm:reviewed (compat: cursor:reviewed))
+
+## 📦 Archive
+(Older completed tasks)
+```
+
+## Update Rules
+
+1. **Immediate update**: Apply `cc:WIP` when starting a task, and `cc:done` immediately upon completion.
+2. **Add a summary**: Append a summary of the work done when marking a task complete.
+3. **Record the date**: Include a date in the completed section `(YYYY-MM-DD)`.
+4. **Archive**: Move completed tasks older than 7 days to the 📦 Archive.
+
+## Prohibited Actions
+
+- ❌ Changing another party's markers without permission
+- ❌ Deleting in-progress tasks
+- ❌ Marking complete without a summary
+
+---
+
+## Extended Notation (Optional)
+
+For large-scale projects, the following notation may be used **optionally**:
+
+```markdown
+- [ ] T001: Authentication feature `cc:TODO`
+- [ ] T002: User API `cc:TODO` depends:T001
+- [ ] T003: Product API `cc:TODO` [P]
+```
+
+| Notation | Meaning |
+|------|------|
+| `T001:` | Task ID (used for dependency specification) |
+| `depends:ID` | Dependent task (comma-separated) |
+| `[P]` | Parallelizable |
+
+**Backward compatible**: The system continues to work without these additions.

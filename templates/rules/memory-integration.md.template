@@ -1,0 +1,183 @@
+---
+description: Memory Integration rule - cross-session quality enhancement through Claude-mem integration
+paths:
+  - "**"
+_harness_template: "rules/memory-integration.md.template"
+_harness_version: "{{VERSION}}"
+_harness_condition: "claude_mem.enabled"
+---
+
+# Memory Integration
+
+This project has **Claude-mem integration** enabled.
+
+Cross-session quality and context preservation features allow past learnings to be leveraged.
+
+---
+
+## Feature Overview
+
+| Feature | Description |
+|------|------|
+| Past memory search | Search past work history with the `mem-search` skill |
+| Guardrail history | Reference past records of test tampering prevention |
+| Context continuity | Resume immediately from the state of the previous session |
+| Pattern learning | Reuse past bug fixes and design decisions |
+
+---
+
+## How to Use Skills
+
+### 1. At session start (session-init)
+
+Past context is automatically displayed when a session starts:
+
+```
+🚀 Session started
+
+📚 Past context:
+- Last session: Design of Feature X completed (RBAC adopted)
+- Guardrail triggered: Test tampering prevented 2 times in the past
+
+📋 Ongoing tasks:
+- Feature X implementation phase
+```
+
+### 2. During implementation (impl skill)
+
+Past related patterns are automatically searched before implementation:
+
+```
+# Example: Implementing an API endpoint
+mem-search: "API endpoint pattern" "error handling"
+
+# Past implementation patterns and gotchas are displayed
+```
+
+### 3. During review (harness-review skill)
+
+Reference past similar review findings:
+
+```
+# Example: Reviewing authentication code
+mem-search: "authentication review" "security"
+
+# Past authentication-related issue patterns that were flagged are displayed
+```
+
+### 4. During verification (verify skill)
+
+Reference past build errors and their solutions:
+
+```
+# Example: When a build error occurs
+mem-search: "build error" "CORS" "solution"
+
+# Past similar errors and their resolutions are displayed
+```
+
+---
+
+## What Gets Recorded
+
+### Automatically recorded in harness mode
+
+| Observation Type | Description | Example |
+|-----------|------|-----|
+| `plan` | Task additions/updates to Plans.md | "Feature X split into 3 tasks" |
+| `guard` | Guardrail triggered | "Blocked addition of it.skip() (payment test)" |
+| `decision` | Design decisions and rationale | "Adopted RBAC: scalability-focused" |
+| `bugfix` | Bug fix details | "CORS error: Added Allow-Origin header" |
+| `handoff` | PM ↔ Impl role transitions | "PM → Impl: Request to implement auth feature" |
+
+### Observation concepts
+
+| Concept | Example search keywords |
+|-----------|-----------------|
+| `user-intent` | "what the user was trying to achieve" |
+| `gotcha` | "pitfall" "things to watch out for" |
+| `pattern` | "reusable pattern" |
+| `test-quality` | "test tampering" "quality" |
+
+---
+
+## Manual Search
+
+To manually search past memories:
+
+```
+# Use the mem-search skill
+Invoke 'mem-search' via the Skill tool
+
+# Example search queries
+"authentication implementation pattern"
+"CORS error solution"
+"test tampering prevention"
+"what did we do in the last session?"
+```
+
+---
+
+## Guardrail Enhancement
+
+Past guardrail trigger history is accumulated as cumulative learning:
+
+### Example: Test tampering prevention
+
+```
+⚠️ The following have been prevented in this project in the past:
+
+- 2024-01-15: Prevented addition of it.skip() (payment test)
+- 2024-01-20: Prevented relaxation of expect.toEqual()
+
+💡 Test tampering is prohibited.
+   Fix the implementation to make the tests pass.
+```
+
+---
+
+## Integration with SSOT
+
+Important observations can be promoted to SSOT (decisions.md / patterns.md):
+
+```bash
+# Promote an important decision to SSOT
+/memory sync
+
+# Promotion targets:
+# - decision-type observations → decisions.md
+# - pattern-concept observations → patterns.md
+```
+
+---
+
+## Token Cost
+
+Claude-mem integration adds approximately **+500–1,000 tokens** of additional cost per session.
+
+### Cost-effectiveness
+
+| Aspect | Benefit |
+|------|---------|
+| Warm start | Reduces overhead of rebuilding context (saves thousands of tokens) |
+| Duplicate prevention | Avoids repeating the same research |
+| Cumulative quality | Prevents repeating past mistakes |
+
+---
+
+## Disabling
+
+To temporarily disable Claude-mem integration:
+
+```bash
+# Edit settings.json
+# Change "CLAUDE_MEM_MODE" to "code"
+```
+
+---
+
+## Related
+
+- `/setup harness-mem` - Claude-mem integration setup
+- `mem-search` skill - Search past memories
+- `/memory sync` - Promote observations to SSOT

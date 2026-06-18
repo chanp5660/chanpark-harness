@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "orchestration-totals.v1",
+  "title": "Orchestration Lifetime Totals (v1)",
+  "description": "Project-scoped cumulative per-backend delegation totals, accumulated across sessions by scripts/orchestration-rollup.sh. Each rollup reconciles a session's contribution by the delta between its current ledger count and the amount already folded in (session_counts), so completion + session-end + re-runs — even mid-session — add each delegation exactly once: no new delegations is a no-op, a grown ledger adds only the tail. Record-only; the scorecard reads this for the lifetime figure.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "totals", "rolled_up_sessions", "first_seen", "last_seen"],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version."
+    },
+    "totals": {
+      "type": "object",
+      "description": "Cumulative count of counted delegations per backend across all rolled-up sessions.",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "rolled_up_sessions": {
+      "type": "array",
+      "description": "Session ids that have been folded into totals at least once. Used together with session_counts to reconcile a session by delta on re-rollup; for a pre-reconciliation file a member with no session_counts entry is treated as already fully counted (delta 0).",
+      "items": { "type": "string" }
+    },
+    "session_counts": {
+      "type": "object",
+      "description": "Per-session snapshot of the per-backend amounts already folded into totals. On re-rollup the script adds only (current ledger count − this snapshot) per backend, then overwrites the snapshot with the current count — so a session whose ledger grew after an earlier (e.g. mid-session) rollup is reconciled without double-counting. Additive in v1: absent in pre-reconciliation files and read as {}; not required.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "first_seen": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "UTC timestamp of the first rollup (ISO 8601). Null before any rollup."
+    },
+    "last_seen": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "UTC timestamp of the most recent rollup (ISO 8601)."
+    }
+  }
+}

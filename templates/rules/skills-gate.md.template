@@ -1,0 +1,161 @@
+---
+description: Skills Gate rule - prompts skill usage before editing code
+paths:
+  - "**/*.{ts,tsx,js,jsx,py,rb,go,rs,java,kt,swift,c,cpp,h,hpp,cs,php}"
+_harness_template: "rules/skills-gate.md.template"
+_harness_version: "{{VERSION}}"
+_harness_condition: "skills_gate.enabled"
+---
+
+# Skills Gate
+
+This project has **Skills Gate** enabled.
+
+## Principle
+
+**Before making code edits (Write/Edit), use the appropriate skill.**
+
+Skills provide guidelines that improve the quality of your work.
+
+---
+
+## When to Use a Skill
+
+| Task | Skill | How to invoke |
+|------|--------|-----------|
+| Implement a feature | `impl` | Invoke "impl" via the Skill tool |
+| Review code | `harness-review` | Invoke "harness-review" via the Skill tool |
+| Create UI | `ui` | Invoke "ui" via the Skill tool |
+| Implement authentication or payments | `auth` | Invoke "auth" via the Skill tool |
+| Configure deployment | `deploy` | Invoke "deploy" via the Skill tool |
+
+---
+
+## Why Use Skills?
+
+### 1. Improved Quality
+
+Skills contain the checklists and best practices required for each type of task.
+They prevent oversights and help maintain consistent quality.
+
+### 2. Efficient Work
+
+Skills provide a standard workflow for each task.
+They make it clear where to start and what to verify.
+
+### 3. Knowledge Accumulation
+
+Skills give you access to project-specific patterns and decisions.
+
+---
+
+## Exclusions (Skills Not Required)
+
+The following files are exempt from the Skills Gate:
+
+| Pattern | Reason |
+|---------|------|
+| `*.md`, `*.txt` | Documentation |
+| `*.json` | Configuration files |
+| `.claude/*` | Harness internal files |
+| `docs/*`, `templates/*` | Documentation and templates |
+
+---
+
+## How It Works
+
+```
+Attempt to edit code
+    ↓
+Has a skill been used in this session?
+    ├── YES → Pass (editing allowed)
+    └── NO  → Blocked (prompted to use a skill)
+```
+
+- **Using a skill even once** unlocks editing for the remainder of the session.
+- Skill usage is tracked in `session-skills-used.json`.
+
+---
+
+## When Blocked
+
+If you attempt to edit code without using a skill first, the following message is displayed:
+
+```
+[Skills Gate] Please use a skill before editing code.
+
+Available skills: impl, review, ui, ...
+
+Example: Invoke 'impl' or 'review' via the Skill tool
+```
+
+In this case, invoke the appropriate skill via the Skill tool, then try editing again.
+
+---
+
+## Choosing a Skill
+
+### When in doubt, use `impl`
+
+The `impl` skill provides general-purpose implementation guidance.
+If you are unsure which skill to use, start with `impl`.
+
+### Using multiple skills
+
+You can use more than one skill for a single task.
+Example: To implement a UI component → `impl` + `ui`
+
+---
+
+## Changing the Configuration
+
+The Skills Gate enabled/disabled state is managed in `.claude/state/skills-config.json`.
+
+Edit `.claude/state/skills-config.json` directly, or reconfigure via the `/setup` skill.
+
+```json
+// Disable (not recommended)
+{ "skills_gate_enabled": false }
+
+// Add skills
+{ "active_skills": ["impl", "auth"] }
+```
+
+---
+
+## Memory-Enhanced Skills (when Claude-mem is integrated)
+
+When Claude-mem is enabled, skills leverage past memories to improve quality.
+
+### Skills with enhanced capabilities
+
+| Skill | Enhancement |
+|--------|---------|
+| `impl` | Automatically references past implementation patterns and gotchas |
+| `harness-review` | References past similar review findings |
+| `verify` | References past build error solutions |
+| `session-init` | Displays guardrail trigger history and work summaries |
+
+### Usage example
+
+```
+# When using the impl skill
+📚 Related past patterns:
+- API endpoint: RESTful design pattern adopted
+- Error handling: Unified exception handler in use
+
+💡 Past gotchas:
+- CORS configuration: Allow-Origin header required
+```
+
+### Without Claude-mem
+
+If Claude-mem is not configured, each skill operates as normal.
+Memory-Enhanced features are automatically skipped.
+
+### Setup
+
+```bash
+# Enable Claude-mem integration
+/setup harness-mem
+```
