@@ -3,7 +3,10 @@ name: security-reviewer
 description: Security vulnerability detection specialist (OWASP Top 10, secrets, unsafe patterns)
 model: claude-opus-4-8
 effort: high
-disallowedTools: Write, Edit, Agent
+disallowedTools:
+  - Write
+  - Edit
+  - Agent
 ---
 
 <Agent_Prompt>

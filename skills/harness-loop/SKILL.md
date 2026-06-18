@@ -137,7 +137,7 @@ wake-up
   ▼
 [Step 5] Execute 1 task cycle
   worker_result = Agent(
-      subagent_type="claude-code-harness:worker",  # worker agent (not harness-work)
+      subagent_type="chanpark-harness:worker",  # worker agent (not harness-work)
       prompt="Task: ${task_id}\nDoD: <extracted from Plans.md>\ncontract_path: ${CONTRACT_PATH}\nmode: breezing",
       isolation="worktree",
       run_in_background=false

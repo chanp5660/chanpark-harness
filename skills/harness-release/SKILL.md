@@ -478,7 +478,7 @@ This skill parses these headings mechanically. Heading variations such as `### F
 
 ## Related Skills
 
-- `harness-release-internal` - Additional harness-specific preflight/finalization run when releasing claude-code-harness itself (not distributed)
+- `harness-release-internal` - Additional harness-specific preflight/finalization run when releasing chanpark-harness itself (not distributed)
 - `harness-plan` - Plans.md management
 - `harness-review` - Code review before release
 

@@ -211,15 +211,15 @@ fi
 
 ### Step 5: Execute 1 Task Cycle
 
-Spawn `claude-code-harness:worker` via the Agent tool:
+Spawn `chanpark-harness:worker` via the Agent tool:
 
-> **Important**: Specify `"claude-code-harness:worker"` for `subagent_type`, not `"harness-work"`.
+> **Important**: Specify `"chanpark-harness:worker"` for `subagent_type`, not `"harness-work"`.
 > `harness-work` is a skill, not an agent. The existing agents are `worker` / `reviewer`.
 > Specifying `"harness-work"` will cause Agent spawn to fail, stopping the loop on the first Worker launch.
 
 ```python
 worker_result = Agent(
-    subagent_type="claude-code-harness:worker",  # ← worker agent (not a skill)
+    subagent_type="chanpark-harness:worker",  # ← worker agent (not a skill)
     prompt="""
     Task: ${task_id}
     DoD: <extracted from Plans.md>

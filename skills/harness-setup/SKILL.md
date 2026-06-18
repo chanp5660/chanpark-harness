@@ -338,11 +338,11 @@ Configure Unified Harness Memory.
 
 ```bash
 # Create memory directories
-mkdir -p .claude/agent-memory/claude-code-harness-worker
-mkdir -p .claude/agent-memory/claude-code-harness-reviewer
+mkdir -p .claude/agent-memory/chanpark-harness-worker
+mkdir -p .claude/agent-memory/chanpark-harness-reviewer
 
 # Place MEMORY.md template
-cat > .claude/agent-memory/claude-code-harness-worker/MEMORY.md << 'EOF'
+cat > .claude/agent-memory/chanpark-harness-worker/MEMORY.md << 'EOF'
 # Worker Agent Memory
 
 ## Project Context

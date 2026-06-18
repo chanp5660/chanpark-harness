@@ -161,7 +161,7 @@
     ],
     "SubagentStart": [
       {
-        "matcher": "worker|reviewer|video-scene-generator",
+        "matcher": "worker|reviewer",
         "hooks": [
           {
             "type": "command",
@@ -184,7 +184,7 @@
     ],
     "SubagentStop": [
       {
-        "matcher": "worker|reviewer|video-scene-generator",
+        "matcher": "worker|reviewer",
         "hooks": [
           {
             "type": "command",

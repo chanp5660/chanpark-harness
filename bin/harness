@@ -37,6 +37,6 @@ if [ -x "$BINARY" ]; then
   exec "$BINARY" "$@"
 fi
 
-printf 'claude-code-harness: no binary for %s-%s at %s (command %s skipped).\n' \
+printf 'chanpark-harness: no binary for %s-%s at %s (command %s skipped).\n' \
   "$OS" "$ARCH" "$BINARY" "${1:-<none>}" >&2
 exit 0

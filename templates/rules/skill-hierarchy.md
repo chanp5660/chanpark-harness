@@ -7,7 +7,7 @@ _harness_version: 2.6.1
 
 ## Overview
 
-Skills in claude-code-harness follow a two-layer structure: **parent skills (categories)** and **child skills (specific capabilities)**.
+Skills in chanpark-harness follow a two-layer structure: **parent skills (categories)** and **child skills (specific capabilities)**.
 
 ```
 skills/

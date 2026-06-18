@@ -19,8 +19,8 @@ url = "https://github.com/Chachamaru127"
 CLAUDE_CODE_SUBPROCESS_ENV_SCRUB = "1"
 
 [safety.permissions]
-# main/master への直接 push の扱い。
-# ask: 実行前にユーザー確認（既定） / deny: 禁止 / allow: 確認なしで許可
+# Handling of direct pushes to main/master.
+# ask: confirm with the user before running (default) / deny: forbid / allow: permit without confirmation
 protectedBranchPush = "ask"
 allow = [
   # Low-risk local development commands. Keep install, arbitrary npx/npm exec,
@@ -57,8 +57,8 @@ deny = [
   "Bash(mongod:*)",
   "Bash(mongo:*)",
   "mcp__codex__*",
-  # 自己書換防止: settings ファイルへの Write/Edit を禁止（CLAUDE.md Permission Boundaries）。
-  # harness sync が .claude-plugin/settings.json へ生成する。直接編集は不可。
+  # Self-modification guard: forbid Write/Edit to settings files (CLAUDE.md Permission Boundaries).
+  # 'harness sync' generates .claude-plugin/settings.json; do not edit it directly.
   "Edit(.claude/settings*)",
   "Write(.claude/settings*)",
   "Edit(.claude-plugin/settings*)",
@@ -154,20 +154,20 @@ hook_enabled = false                     # Only fires when level == "max".
 default_max_red_log_age_minutes = 60
 bypass_audit_required = true
 
-# Worker が commit 前に自己検証する rule セット。Worker は `worker-report.v1` の
-# self_review[] にそれぞれ {rule, verified: true, evidence: "<実コマンド出力>"} を
-# 埋めて返す。Lead は verified=false または evidence="" の rule が 1 件でもあれば
-# Reviewer を spawn せずに Worker に自動差し戻す（同一セッション内 最大 2 回、3 回目で escalate）。
-# project 固有 rule を追加したい場合は `extra_rules` 配列に追記する（default 6 とは独立）。
-# `tdd-red-evidence-attached` は [tdd.enforce].enabled = true の時だけ有効化される。
+# Rule set the Worker self-verifies before commit. The Worker fills each entry of
+# `worker-report.v1` self_review[] with {rule, verified: true, evidence: "<actual command output>"}
+# and returns it. If even one rule has verified=false or evidence="", Lead
+# auto-returns it to the Worker without spawning the Reviewer (max 2 times per session; escalate on the 3rd).
+# To add project-specific rules, append to the `extra_rules` array (independent of the default 6).
+# `tdd-red-evidence-attached` is enabled only when [tdd.enforce].enabled = true.
 [worker.self_review]
 default_rules = [
-  "dry-violation-none",                  # DRY 違反ゼロ（実装も import 共有）
-  "plans-cc-markers-untouched",          # Plans.md cc:* マーカー未書換
-  "all-declared-symbols-called",         # 宣言した関数/クラスは全て呼び出し経路あり
-  "dod-items-verified-with-evidence",    # DoD 各項目に検証方法と evidence
-  "no-existing-test-regression",         # 既存テスト回帰なし
+  "dry-violation-none",                  # zero DRY violations (shared implementation and imports)
+  "plans-cc-markers-untouched",          # Plans.md cc:* markers untouched
+  "all-declared-symbols-called",         # every declared function/class has a call path
+  "dod-items-verified-with-evidence",    # each DoD item has a verification method and evidence
+  "no-existing-test-regression",         # no regression in existing tests
   "tdd-red-evidence-attached",           # active only when [tdd.enforce].enabled = true
 ]
-extra_rules = []                         # project 固有 rule を追加する場合はここに列挙
-max_retries_before_escalate = 2          # 3 回目の差し戻しで Lead に escalate
+extra_rules = []                         # list project-specific rules here
+max_retries_before_escalate = 2          # escalate to Lead on the 3rd return
