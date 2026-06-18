@@ -146,9 +146,9 @@ Following the non-`claude` backend topology, Lead calls `cursor-companion.sh` di
 | Role | Agent Type | Mode | Responsibility |
 |------|-----------|------|------|
 | Lead | (self) | - | Coordination, direction, task distribution |
-| Worker ×N | `claude-code-harness:worker` | `bypassPermissions` (current) / Auto Mode (follow-up)* | Implementation |
-| Advisor | `claude-code-harness:advisor` | Read-only | Policy advice (`PLAN` / `CORRECTION` / `STOP`) |
-| Reviewer | `claude-code-harness:reviewer` | `bypassPermissions` (current) / Auto Mode (follow-up)* | Independent review |
+| Worker ×N | `chanpark-harness:worker` | `bypassPermissions` (current) / Auto Mode (follow-up)* | Implementation |
+| Advisor | `chanpark-harness:advisor` | Read-only | Policy advice (`PLAN` / `CORRECTION` / `STOP`) |
+| Reviewer | `chanpark-harness:reviewer` | `bypassPermissions` (current) / Auto Mode (follow-up)* | Independent review |
 
 > *If the parent session or frontmatter specifies `bypassPermissions`, that takes precedence. Distribution templates currently use `bypassPermissions`, so Auto Mode is a follow-up rollout target and not the default behavior.
 
@@ -184,7 +184,7 @@ Active when `--cursor` is specified or when env `HARNESS_IMPL_BACKEND=cursor` is
 
 | Step | Reason removed | Time saved |
 |---|---|---|
-| `claude-code-harness:worker` agent spawn | cursor backend has no Worker intermediary | 5-30s |
+| `chanpark-harness:worker` agent spawn | cursor backend has no Worker intermediary | 5-30s |
 | self_review 5-item gate | `worker-report.v1` is not generated with cursor, so unnecessary | 10-60s × retry |
 | sprint-contract 3-stage chain (generate→enrich→ensure) | No contract needed if no Worker contract | 2-5s × N |
 | Phase 0 Q1-Q3 interactive | `--no-discuss all` by default (Lead reads Plans/Depends directly) | 15-30s |

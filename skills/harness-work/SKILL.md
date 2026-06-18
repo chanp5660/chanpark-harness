@@ -106,7 +106,7 @@ bash "${HARNESS_PLUGIN_ROOT}/scripts/model-routing.sh" --host claude --role advi
 
 ### Non-`claude` Backend Topology (No Worker Intermediary)
 
-When the backend is `codex` or `cursor`, **Lead does not spawn a Worker agent (`claude-code-harness:worker`)**.
+When the backend is `codex` or `cursor`, **Lead does not spawn a Worker agent (`chanpark-harness:worker`)**.
 Instead, Lead calls `cursor-companion.sh` / `codex-companion.sh` directly.
 The Worker layer is only involved when backend=`claude`.
 
@@ -114,7 +114,7 @@ Wiring:
 
 | backend | Route |
 |---------|------|
-| `claude` (default) | Lead → Worker (`claude-code-harness:worker` agent) → … → Lead review → cherry-pick |
+| `claude` (default) | Lead → Worker (`chanpark-harness:worker` agent) → … → Lead review → cherry-pick |
 | `codex` | Lead → `codex-companion.sh task --write` → Lead review → cherry-pick |
 | `cursor` | Lead → `cursor-companion.sh task --write --workspace <isolated-wt>` → Lead review → cherry-pick |
 
@@ -484,7 +484,7 @@ In Cursor, maps to Task/subagent/background agents, but the serial responsibilit
 ```
 Lead (this agent)
 ├── Worker (task-worker agent) — implementation
-├── Advisor (claude-code-harness:advisor) — strategy advice
+├── Advisor (chanpark-harness:advisor) — strategy advice
 └── Reviewer (code-reviewer agent) — review
 ```
 
@@ -525,7 +525,7 @@ for task in execution_order:
         )
 
     worker_result = Agent(
-        subagent_type="claude-code-harness:worker",
+        subagent_type="chanpark-harness:worker",
         prompt=briefing_header + "Task: {task.content}\nDoD: {task.DoD}\ncontract_path: {contract_path}\nmode: breezing",
         isolation="worktree",
         run_in_background=false  # Run in foreground → wait for Worker to complete

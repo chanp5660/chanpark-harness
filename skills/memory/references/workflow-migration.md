@@ -78,13 +78,13 @@ Based on the summary, ask the user about items to **retain/adjust** (5–10 ques
 
 ### Step 3: Create Backups (Required)
 
-Store backups under `.claude-code-harness/backups/` in the project (often excluded from git).
+Store backups under `.chanpark-harness/backups/` in the project (often excluded from git).
 
 Example:
 
-- `.claude-code-harness/backups/2025-12-13/AGENTS.md`
-- `.claude-code-harness/backups/2025-12-13/CLAUDE.md`
-- `.claude-code-harness/backups/2025-12-13/Plans.md`
+- `.chanpark-harness/backups/2025-12-13/AGENTS.md`
+- `.chanpark-harness/backups/2025-12-13/CLAUDE.md`
+- `.chanpark-harness/backups/2025-12-13/Plans.md`
 
 Use `Bash` with `mkdir -p` and `cp`.
 
@@ -118,5 +118,5 @@ Minimum policy:
 ## Deliverables (Completion Criteria)
 
 - `AGENTS.md` / `CLAUDE.md` / `Plans.md` in the **new format** incorporating existing content
-- Backups present in `.claude-code-harness/backups/`
+- Backups present in `.chanpark-harness/backups/`
 - Plans tasks are intact (preserved)

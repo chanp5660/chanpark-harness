@@ -16,7 +16,7 @@
 
 ## Purpose
 
-Aligns project specs/docs (e.g., `Plans.md`, `AGENTS.md`, `.claude/rules/*`) with latest claude-code-harness operations (**PM ↔ Impl**, `pm:*` markers, handoff commands).
+Aligns project specs/docs (e.g., `Plans.md`, `AGENTS.md`, `.claude/rules/*`) with latest chanpark-harness operations (**PM ↔ Impl**, `pm:*` markers, handoff commands).
 
 ## VibeCoder Phrases
 

@@ -3,7 +3,10 @@ name: analyst
 description: Pre-planning consultant that converts decided product scope into implementable acceptance criteria, catching requirement gaps before planning begins.
 model: claude-opus-4-8
 effort: high
-disallowedTools: Write, Edit, Agent
+disallowedTools:
+  - Write
+  - Edit
+  - Agent
 ---
 
 <Agent_Prompt>

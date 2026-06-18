@@ -3,7 +3,10 @@ name: architect
 description: Read-only strategic architecture advisor — analyzes code, diagnoses bugs, and delivers evidence-backed architectural recommendations.
 model: claude-opus-4-8
 effort: high
-disallowedTools: Write, Edit, Agent
+disallowedTools:
+  - Write
+  - Edit
+  - Agent
 ---
 
 <Agent_Prompt>

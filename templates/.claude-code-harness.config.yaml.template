@@ -1,5 +1,5 @@
 # .claude-code-harness.config.yaml
-# claude-code-harness settings file
+# chanpark-harness settings file
 #
 # This file lets you customize Harness behavior.
 # If omitted, default values are used.
