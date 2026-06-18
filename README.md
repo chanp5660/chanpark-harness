@@ -63,9 +63,10 @@ With `version` pinned, Claude Code only updates when the version changes.
 /chanpark-harness:hud off       # disable
 ```
 
-Shows model, effort/thinking, git branch + diff counts, a context-window bar, session
-cost, elapsed time, and Plans.md task counts. Requires `jq`; without it, it falls back to a
-model-only line.
+Shows model, effort/thinking, git branch + diff counts + ahead/behind/untracked/stash, a
+context-window bar, session cost, lines changed this session (`+added/-removed`), elapsed
+time, Plans.md task counts, and the active WIP task title. Requires `jq`; without it, it
+falls back to a model-only line.
 
 ## Workflow
 

@@ -9,8 +9,10 @@ allowed-tools: ["Read", "Edit", "Write", "Bash"]
 # HUD — chanpark-harness status line
 
 Configures Claude Code's `statusLine` to render the chanpark-harness HUD: model, mode
-(effort/thinking), git branch + diff counts, context-window bar, session cost, elapsed
-time, and Plans.md task counts (`cc:todo`/`cc:wip`/`cc:done`).
+(effort/thinking), git branch + diff counts + ahead/behind/untracked/stash, context-window
+bar, session cost, lines changed this session (`+added/-removed`), elapsed time, and
+Plans.md task counts (`cc:todo`/`cc:wip`/`cc:done`, counted from table status cells) plus
+the active WIP task title.
 
 The renderer is a self-contained `bash` + `jq` script (`hud/statusline.sh`) — **no Node
 build required** (unlike upstream OMC's HUD). If `jq` is missing it degrades to a
@@ -88,8 +90,13 @@ and tell the user to restart Claude Code.
 
 ```
 minimal:  [Opus 4.8] 67% | tasks 1/4
-focused:  [Opus 4.8] effort:high think:on  main +2~1  agent:worker
-          ######....  67% | $1.23 | 3m5s | tasks 1/4 [harness-ops]
-full:     [Opus 4.8] effort:high think:on repo:myproject  main +2~1
-          ######....  67% | $1.23 | 3m5s | tasks todo:2 wip:1 done:1/4
+focused:  [Opus 4.8] effort:high think:on  main +2~1 ^1 ?3
+          ######....  67% | $1.23 | +120/-30 | 3m5s | tasks 1/4 > implement login flow
+full:     [Opus 4.8] effort:high think:on repo:myproject  main +2~1 ^1 ?3
+          ######....  67% | $1.23 | +120/-30 | 3m5s | tasks todo:2 wip:1 done:1/4 > implement login flow
 ```
+
+Line-1 git: `+staged ~modified` files, then `^ahead v behind ?untracked *stash` (only nonzero).
+Line-2: context bar + `%`, session `$cost`, `+lines/-lines` this session, elapsed, task
+counts, and `> <active WIP task title>` from Plans.md (truncated). `agent:`/`wt:` appear on
+line 1 only inside a subagent / git worktree.
