@@ -88,16 +88,10 @@ if [ -n "$PLANS" ]; then
     fi
 fi
 
-# --- Context bar color by threshold ---
-if [ "$PCT" -ge 90 ]; then BAR_COLOR="$RED"
-elif [ "$PCT" -ge 70 ]; then BAR_COLOR="$YELLOW"
-else BAR_COLOR="$GREEN"; fi
-BAR_WIDTH=10
-FILLED=$((PCT * BAR_WIDTH / 100)); [ "$FILLED" -gt "$BAR_WIDTH" ] && FILLED=$BAR_WIDTH
-EMPTY=$((BAR_WIDTH - FILLED))
-BAR=""
-[ "$FILLED" -gt 0 ] && BAR=$(printf "%${FILLED}s" | tr ' ' '#')
-[ "$EMPTY" -gt 0 ] && BAR="${BAR}$(printf "%${EMPTY}s" | tr ' ' '.')"
+# --- Context usage % color by threshold (no bar; just the number) ---
+if [ "$PCT" -ge 90 ]; then CTX_COLOR="$RED"
+elif [ "$PCT" -ge 70 ]; then CTX_COLOR="$YELLOW"
+else CTX_COLOR="$GREEN"; fi
 
 COST_FMT="$(printf '$%.2f' "$COST" 2>/dev/null || echo "\$$COST")"
 MINS=$((DURATION_MS / 60000)); SECS=$(((DURATION_MS % 60000) / 1000))
@@ -130,7 +124,7 @@ wip_badge() { [ -n "$WIP_TITLE" ] && printf ' %s>%s %s' "$CYAN" "$RESET" "$WIP_T
 
 case "$PRESET" in
   minimal)
-    LINE="${CYAN}[$MODEL]${RESET} ${BAR_COLOR}${PCT}%${RESET}"
+    LINE="${CYAN}[$MODEL]${RESET} ctx:${CTX_COLOR}${PCT}%${RESET}"
     TB="$(tasks_badge short)"; [ -n "$TB" ] && LINE="${LINE} | ${TB}"
     printf '%b\n' "$LINE"
     ;;
@@ -152,7 +146,7 @@ case "$PRESET" in
     [ -n "$WT_NAME" ] && LINE1="${LINE1} ${DIM}wt:${WT_NAME}${RESET}"
 
     # Line 2: context bar + cost + lines + time + tasks(+WIP) + style
-    LINE2="${BAR_COLOR}${BAR}${RESET} ${PCT}% | ${YELLOW}${COST_FMT}${RESET}"
+    LINE2="ctx:${CTX_COLOR}${PCT}%${RESET} | ${YELLOW}${COST_FMT}${RESET}"
     LB="$(lines_badge)"; [ -n "$LB" ] && LINE2="${LINE2} | ${LB}"
     LINE2="${LINE2} | ${MINS}m${SECS}s"
     if [ "$PRESET" = "full" ]; then TB="$(tasks_badge full)"; else TB="$(tasks_badge short)"; fi
