@@ -386,7 +386,7 @@ When the backend is `cursor` / `codex`, do not use native Worker spawn; instead 
 7. Implement the code via the backend-resolved executor path (Green).
    - backend=`claude`: implement via local / native Read/Write/Edit/Bash path.
    - backend=`cursor` / `codex`: implement via the companion worktree path above and pass `companion-result.v1` to the shared review loop.
-8. Auto-Refinement with `/simplify` (skip with `--no-simplify`).
+8. Auto-Refinement with `/code-review --fix` (formerly `/simplify`; skip with `--no-simplify`).
 9. **Automated Review Stage** (see "Review Loop"):
    - Run review with Codex exec as priority, fall back to internal Reviewer agent.
    - If `reviewer_profile` in `sprint-contract.json` is `runtime`, run `bash "${HARNESS_PLUGIN_ROOT}/scripts/run-contract-review-checks.sh"`.
