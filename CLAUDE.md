@@ -66,3 +66,11 @@ grep -rlP '[\x{3040}-\x{30ff}\x{4e00}-\x{9fff}]' agents skills output-styles tem
 
 MIT. Derived from claude-code-harness (Chachamaru) and oh-my-claudecode (Yeachan Heo),
 both MIT. See `LICENSE`.
+
+## Upstream updates
+
+This repo is a transform-merge of the two upstreams (rebrand + EN localization + spec
+modernization) with **no git ancestry** to them. To pull upstream changes, follow the
+reconcile procedure and component→upstream map in **`PROVENANCE.md`** — it records the
+fetch-only remotes (`harness-upstream`, `omc-upstream`), the baseline SHA markers to diff
+from, and the transforms to re-apply.
