@@ -1,6 +1,6 @@
 #!/bin/bash
 # check-consistency.sh
-# プラグインの整合性チェック
+# Plugin consistency check
 #
 # Usage: ./scripts/ci/check-consistency.sh
 # Exit codes:
@@ -12,14 +12,14 @@ set -euo pipefail
 PLUGIN_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 ERRORS=0
 
-echo "🔍 claude-code-harness 整合性チェック"
+echo "🔍 claude-code-harness consistency check"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # ================================
-# 1. テンプレートファイルの存在確認
+# 1. Check template files exist
 # ================================
 echo ""
-echo "📁 [1/14] テンプレートファイルの存在確認..."
+echo "📁 [1/14] Checking template files exist..."
 
 REQUIRED_TEMPLATES=(
   "templates/AGENTS.md.template"
@@ -47,7 +47,7 @@ REQUIRED_TEMPLATES=(
 
 for template in "${REQUIRED_TEMPLATES[@]}"; do
   if [ ! -f "$PLUGIN_ROOT/$template" ]; then
-    echo "  ❌ 不足: $template"
+    echo "  ❌ Missing: $template"
     ERRORS=$((ERRORS + 1))
   else
     echo "  ✅ $template"
@@ -55,22 +55,22 @@ for template in "${REQUIRED_TEMPLATES[@]}"; do
 done
 
 # ================================
-# 2. コマンド ↔ スキル の整合性
+# 2. Command <-> skill consistency
 # ================================
 echo ""
-echo "🔗 [2/14] コマンド ↔ スキル の参照整合性..."
+echo "🔗 [2/14] Command <-> skill reference consistency..."
 
-# コマンドが参照するテンプレートが存在するか
+# Whether the templates referenced by commands exist
 check_command_references() {
   local cmd_file="$1"
   local cmd_name=$(basename "$cmd_file" .md)
 
-  # テンプレートへの参照を抽出
+  # Extract template references
   local refs=$(grep -oE 'templates/[a-zA-Z0-9/_.-]+' "$cmd_file" 2>/dev/null || true)
 
   for ref in $refs; do
     if [ ! -e "$PLUGIN_ROOT/$ref" ] && [ ! -e "$PLUGIN_ROOT/${ref}.template" ]; then
-      echo "  ❌ $cmd_name: 参照先が存在しない: $ref"
+      echo "  ❌ $cmd_name: reference target does not exist: $ref"
       ERRORS=$((ERRORS + 1))
     fi
   done
@@ -79,13 +79,13 @@ check_command_references() {
 for cmd in "$PLUGIN_ROOT/commands"/*.md; do
   check_command_references "$cmd"
 done
-echo "  ✅ コマンド参照チェック完了"
+echo "  ✅ Command reference check complete"
 
 # ================================
-# 3. バージョン番号の一貫性
+# 3. Version number consistency
 # ================================
 echo ""
-echo "🏷️ [3/14] バージョン番号の一貫性..."
+echo "🏷️ [3/14] Version number consistency..."
 
 VERSION_FILE="$PLUGIN_ROOT/VERSION"
 PLUGIN_JSON="$PLUGIN_ROOT/.claude-plugin/plugin.json"
@@ -95,10 +95,10 @@ if [ -f "$VERSION_FILE" ] && [ -f "$PLUGIN_JSON" ]; then
   JSON_VERSION=$(grep '"version"' "$PLUGIN_JSON" | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
 
   if [ "$FILE_VERSION" != "$JSON_VERSION" ]; then
-    echo "  ❌ バージョン不一致: VERSION=$FILE_VERSION, plugin.json=$JSON_VERSION"
+    echo "  ❌ Version mismatch: VERSION=$FILE_VERSION, plugin.json=$JSON_VERSION"
     ERRORS=$((ERRORS + 1))
   else
-    echo "  ✅ VERSION と plugin.json が一致: $FILE_VERSION"
+    echo "  ✅ VERSION and plugin.json match: $FILE_VERSION"
   fi
 fi
 
@@ -106,36 +106,36 @@ LATEST_RELEASE_URL="https://github.com/Chachamaru127/claude-code-harness/release
 LATEST_RELEASE_BADGE="https://img.shields.io/github/v/release/Chachamaru127/claude-code-harness?display_name=tag&sort=semver"
 
 # ================================
-# 4. スキルの期待ファイル構成
+# 4. Expected file layout of skill definitions
 # ================================
 echo ""
-echo "📋 [4/14] スキル定義の期待ファイル構成..."
+echo "📋 [4/14] Expected file layout of skill definitions..."
 
-# 2agent 設定は harness-setup に統合済み
-# skills/harness-setup/SKILL.md の存在を確認
+# 2agent settings are merged into harness-setup
+# Check that skills/harness-setup/SKILL.md exists
 SETUP_SKILL="$PLUGIN_ROOT/skills/harness-setup/SKILL.md"
 if [ -f "$SETUP_SKILL" ]; then
-  echo "  ✅ skills/harness-setup/SKILL.md が存在（2agent 設定を包含）"
+  echo "  ✅ skills/harness-setup/SKILL.md exists (includes 2agent settings)"
 else
-  echo "  ❌ skills/harness-setup/SKILL.md が見つかりません"
+  echo "  ❌ skills/harness-setup/SKILL.md not found"
   ERRORS=$((ERRORS + 1))
 fi
 
 # ================================
-# 5. Hooks 設定の整合性
+# 5. Hooks configuration consistency
 # ================================
 echo ""
-echo "🪝 [5/14] Hooks 設定の整合性..."
+echo "🪝 [5/14] Hooks configuration consistency..."
 
 HOOKS_JSON="$PLUGIN_ROOT/hooks/hooks.json"
 if [ -f "$HOOKS_JSON" ]; then
-  # hooks.json 内のスクリプト参照を確認
+  # Check script references inside hooks.json
   SCRIPT_REFS=$(grep -oE '\$\{CLAUDE_PLUGIN_ROOT\}/scripts/[a-zA-Z0-9_./-]+' "$HOOKS_JSON" 2>/dev/null || true)
 
   for ref in $SCRIPT_REFS; do
     script_name=$(echo "$ref" | sed 's|\${CLAUDE_PLUGIN_ROOT}/scripts/||')
     if [ ! -f "$PLUGIN_ROOT/scripts/$script_name" ]; then
-      echo "  ❌ hooks.json: スクリプトが存在しない: scripts/$script_name"
+      echo "  ❌ hooks.json: script does not exist: scripts/$script_name"
       ERRORS=$((ERRORS + 1))
     else
       echo "  ✅ scripts/$script_name"
@@ -144,12 +144,12 @@ if [ -f "$HOOKS_JSON" ]; then
 fi
 
 # ================================
-# 6. /start-task 廃止の回帰チェック
+# 6. Regression check for /start-task removal
 # ================================
 echo ""
-echo "🚫 [6/14] /start-task 廃止の回帰チェック..."
+echo "🚫 [6/14] Regression check for /start-task removal..."
 
-# 運用導線ファイル（CHANGELOG等の履歴は除外）
+# Operational-path files (exclude history such as CHANGELOG)
 START_TASK_TARGETS=(
   "commands/"
   "skills/"
@@ -165,8 +165,9 @@ START_TASK_TARGETS=(
 START_TASK_FOUND=0
 for target in "${START_TASK_TARGETS[@]}"; do
   if [ -e "$PLUGIN_ROOT/$target" ]; then
-    # /start-task への参照を検索（履歴・説明文脈は除外）
-    # 除外パターン: 削除/廃止/Removed（履歴）, 相当/統合/従来/吸収（移行説明）, 改善/使い分け（CHANGELOG）
+    # Search for /start-task references (exclude history/explanatory context)
+    # Exclusion patterns (Japanese kept for matching): 削除/廃止/Removed (history),
+    # 相当/統合/従来/吸収 (migration notes), 改善/使い分け (CHANGELOG)
     REFS=$(grep -rn "/start-task" "$PLUGIN_ROOT/$target" 2>/dev/null \
       | grep -v "削除" | grep -v "廃止" | grep -v "Removed" \
       | grep -v "相当" | grep -v "統合" | grep -v "従来" | grep -v "吸収" \
@@ -174,7 +175,7 @@ for target in "${START_TASK_TARGETS[@]}"; do
       | grep -v "check-consistency.sh" \
       || true)
     if [ -n "$REFS" ]; then
-      echo "  ❌ /start-task 参照が残存: $target"
+      echo "  ❌ /start-task references remain: $target"
       sed -n '1,3p' <<<"$REFS" | sed 's/^/      /'
       START_TASK_FOUND=$((START_TASK_FOUND + 1))
     fi
@@ -182,18 +183,18 @@ for target in "${START_TASK_TARGETS[@]}"; do
 done
 
 if [ $START_TASK_FOUND -eq 0 ]; then
-  echo "  ✅ /start-task 参照なし（運用導線）"
+  echo "  ✅ No /start-task references (operational paths)"
 else
   ERRORS=$((ERRORS + START_TASK_FOUND))
 fi
 
 # ================================
-# 7. docs/ 正規化の回帰チェック
+# 7. Regression check for docs/ normalization
 # ================================
 echo ""
-echo "📁 [7/14] docs/ 正規化の回帰チェック..."
+echo "📁 [7/14] Regression check for docs/ normalization..."
 
-# proposal.md / priority_matrix.md のルート参照をチェック
+# Check for root references to proposal.md / priority_matrix.md
 DOCS_TARGETS=(
   "commands/"
   "skills/"
@@ -202,11 +203,11 @@ DOCS_TARGETS=(
 DOCS_ISSUES=0
 for target in "${DOCS_TARGETS[@]}"; do
   if [ -d "$PLUGIN_ROOT/$target" ]; then
-    # ルート直下の proposal.md / technical-spec.md / priority_matrix.md への参照を検索
-    # docs/ プレフィックスがないものを検出
+    # Search for references to proposal.md / technical-spec.md / priority_matrix.md at the root
+    # Detect those without the docs/ prefix
     REFS=$(grep -rn "proposal.md\|technical-spec.md\|priority_matrix.md" "$PLUGIN_ROOT/$target" 2>/dev/null | grep -v "docs/" | grep -v "\.template" || true)
     if [ -n "$REFS" ]; then
-      echo "  ❌ docs/ プレフィックスなしの参照: $target"
+      echo "  ❌ References without the docs/ prefix: $target"
       sed -n '1,3p' <<<"$REFS" | sed 's/^/      /'
       DOCS_ISSUES=$((DOCS_ISSUES + 1))
     fi
@@ -214,77 +215,77 @@ for target in "${DOCS_TARGETS[@]}"; do
 done
 
 if [ $DOCS_ISSUES -eq 0 ]; then
-  echo "  ✅ docs/ 正規化OK"
+  echo "  ✅ docs/ normalization OK"
 else
   ERRORS=$((ERRORS + DOCS_ISSUES))
 fi
 
 # ================================
-# 8. bypassPermissions 前提運用の回帰チェック
+# 8. Regression check for bypassPermissions baseline operation
 # ================================
 echo ""
-echo "🔓 [8/14] bypassPermissions 前提運用の回帰チェック..."
+echo "🔓 [8/14] Regression check for bypassPermissions baseline operation..."
 
 BYPASS_ISSUES=0
 
-# Check 1: disableBypassPermissionsMode が templates に戻っていないこと
+# Check 1: disableBypassPermissionsMode has not returned to templates
 SECURITY_TEMPLATE="$PLUGIN_ROOT/templates/claude/settings.security.json.template"
 if [ -f "$SECURITY_TEMPLATE" ]; then
   if grep -q "disableBypassPermissionsMode" "$SECURITY_TEMPLATE"; then
-    echo "  ❌ settings.security.json.template に disableBypassPermissionsMode が残存"
-    echo "      bypassPermissions 前提運用のため、この設定は削除してください"
+    echo "  ❌ disableBypassPermissionsMode remains in settings.security.json.template"
+    echo "      Since bypassPermissions baseline operation is assumed, remove this setting"
     BYPASS_ISSUES=$((BYPASS_ISSUES + 1))
   else
-    echo "  ✅ disableBypassPermissionsMode なし"
+    echo "  ✅ No disableBypassPermissionsMode"
   fi
 fi
 
-# Check 2: permissions.ask セクションに Edit / Write が入っていないこと
-# NOTE: deny セクションの Edit/Write は二重防御として正当。ask のみをチェック
+# Check 2: the permissions.ask section does not contain Edit / Write
+# NOTE: Edit/Write in the deny section is valid as defense-in-depth. Check ask only
 if [ -f "$SECURITY_TEMPLATE" ]; then
-  # ask セクションのみ抽出して Edit/Write を検索
+  # Extract only the ask section and search for Edit/Write
   ASK_EDIT_WRITE=$(sed -n '/"ask"/,/\]/p' "$SECURITY_TEMPLATE" | grep -E '"(Edit|Write|MultiEdit)' || true)
   if [ -n "$ASK_EDIT_WRITE" ]; then
-    echo "  ❌ settings.security.json.template の ask に Edit/Write が含まれている"
-    echo "      bypassPermissions 前提運用のため、Edit/Write は ask に入れないでください"
+    echo "  ❌ ask in settings.security.json.template contains Edit/Write"
+    echo "      Since bypassPermissions baseline operation is assumed, do not put Edit/Write in ask"
     BYPASS_ISSUES=$((BYPASS_ISSUES + 1))
   else
-    echo "  ✅ ask に Edit/Write なし"
+    echo "  ✅ No Edit/Write in ask"
   fi
 fi
 
-# Check 2.5: Bash パーミッション構文の回帰チェック（prefix は :* 必須）
+# Check 2.5: regression check for Bash permission syntax (prefix requires :*)
 if [ -f "$SECURITY_TEMPLATE" ]; then
   # Portable regex: use [(] / [*] instead of escaping to avoid BSD grep issues.
   if grep -nEq 'Bash[(][^)]*[^:][*]' "$SECURITY_TEMPLATE"; then
-    echo "  ❌ settings.security.json.template に不正な Bash パーミッション構文が含まれています"
-    echo "      prefix マッチングは :* を使用してください（例: Bash(git status:*)）"
+    echo "  ❌ settings.security.json.template contains invalid Bash permission syntax"
+    echo "      Use :* for prefix matching (e.g. Bash(git status:*))"
     grep -nE 'Bash[(][^)]*[^:][*]' "$SECURITY_TEMPLATE" | sed -n '1,3p' | sed 's/^/      /'
     BYPASS_ISSUES=$((BYPASS_ISSUES + 1))
   else
-    echo "  ✅ Bash パーミッション構文OK (:*)"
+    echo "  ✅ Bash permission syntax OK (:*)"
   fi
 fi
 
-# Check 3: settings.local.json.template が存在し、defaultMode が documented な permission mode であること
-# NOTE: shipped default は bypassPermissions を維持し、Auto Mode は teammate 実行経路の follow-up rollout として扱う
+# Check 3: settings.local.json.template exists and defaultMode is a documented permission mode
+# NOTE: the shipped default keeps bypassPermissions; Auto Mode is treated as a follow-up rollout for the teammate execution path
 LOCAL_TEMPLATE="$PLUGIN_ROOT/templates/claude/settings.local.json.template"
 if [ -f "$LOCAL_TEMPLATE" ]; then
   if grep -q '"defaultMode"[[:space:]]*:[[:space:]]*"bypassPermissions"' "$LOCAL_TEMPLATE"; then
     mode_val=$(grep '"defaultMode"' "$LOCAL_TEMPLATE" | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
     echo "  ✅ settings.local.json.template: defaultMode=${mode_val}"
   else
-    echo "  ❌ settings.local.json.template に defaultMode=bypassPermissions がありません"
+    echo "  ❌ settings.local.json.template is missing defaultMode=bypassPermissions"
     BYPASS_ISSUES=$((BYPASS_ISSUES + 1))
   fi
 else
-  echo "  ❌ settings.local.json.template が存在しません"
+  echo "  ❌ settings.local.json.template does not exist"
   BYPASS_ISSUES=$((BYPASS_ISSUES + 1))
 fi
 
-# Check 4: managed sandbox precedence key は managed settings 専用。
-# 通常配布の harness.toml / plugin settings / templates に混ぜると、
-# Claude Code 本体の managed settings precedence と責務が曖昧になる。
+# Check 4: the managed sandbox precedence key is for managed settings only.
+# Mixing it into the regularly distributed harness.toml / plugin settings / templates
+# makes the responsibility ambiguous against Claude Code's own managed settings precedence.
 MANAGED_SANDBOX_KEY_RE='allowManagedDomainsOnly|allowManagedReadPathsOnly'
 MANAGED_SANDBOX_DEFAULT_TARGETS=(
   "$PLUGIN_ROOT/harness.toml"
@@ -299,73 +300,73 @@ for target in "${MANAGED_SANDBOX_DEFAULT_TARGETS[@]}"; do
   fi
   FOUND_KEYS=$(grep -nE "$MANAGED_SANDBOX_KEY_RE" "$target" || true)
   if [ -n "$FOUND_KEYS" ]; then
-    echo "  ❌ managed sandbox key は通常 template/default に入れないでください: ${target#$PLUGIN_ROOT/}"
+    echo "  ❌ Do not put the managed sandbox key in a regular template/default: ${target#$PLUGIN_ROOT/}"
     sed -n '1,3p' <<<"$FOUND_KEYS" | sed 's/^/      /'
     MANAGED_SANDBOX_ISSUES=$((MANAGED_SANDBOX_ISSUES + 1))
   fi
 done
 
 if [ $MANAGED_SANDBOX_ISSUES -eq 0 ]; then
-  echo "  ✅ managed sandbox key は managed settings 専用として分離"
+  echo "  ✅ Managed sandbox key is kept separate, for managed settings only"
 else
   BYPASS_ISSUES=$((BYPASS_ISSUES + MANAGED_SANDBOX_ISSUES))
 fi
 
 if [ $BYPASS_ISSUES -eq 0 ]; then
-  echo "  ✅ bypassPermissions 前提運用OK"
+  echo "  ✅ bypassPermissions baseline operation OK"
 else
   ERRORS=$((ERRORS + BYPASS_ISSUES))
 fi
 
 # ================================
-# 9. ccp-* スキル廃止の回帰チェック
+# 9. Regression check for ccp-* skill removal
 # ================================
 echo ""
-echo "🚫 [9/14] ccp-* スキル廃止の回帰チェック..."
+echo "🚫 [9/14] Regression check for ccp-* skill removal..."
 
 CCP_ISSUES=0
 
-# Check 1: skills の name: に ccp- が含まれていないこと
+# Check 1: skills' name: does not contain ccp-
 CCP_NAMES=$(grep -rn "^name: ccp-" "$PLUGIN_ROOT/skills/" 2>/dev/null || true)
 if [ -n "$CCP_NAMES" ]; then
-  echo "  ❌ skills に name: ccp-* が残存"
+  echo "  ❌ name: ccp-* remains in skills"
   sed -n '1,3p' <<<"$CCP_NAMES" | sed 's/^/      /'
   CCP_ISSUES=$((CCP_ISSUES + 1))
 else
-  echo "  ✅ skills に name: ccp-* なし"
+  echo "  ✅ No name: ccp-* in skills"
 fi
 
-# Check 2: workflows の skill: に ccp- が含まれていないこと
+# Check 2: workflows' skill: does not contain ccp-
 CCP_WORKFLOWS=$(grep -rn "skill: ccp-" "$PLUGIN_ROOT/workflows/" 2>/dev/null || true)
 if [ -n "$CCP_WORKFLOWS" ]; then
-  echo "  ❌ workflows に skill: ccp-* が残存"
+  echo "  ❌ skill: ccp-* remains in workflows"
   sed -n '1,3p' <<<"$CCP_WORKFLOWS" | sed 's/^/      /'
   CCP_ISSUES=$((CCP_ISSUES + 1))
 else
-  echo "  ✅ workflows に skill: ccp-* なし"
+  echo "  ✅ No skill: ccp-* in workflows"
 fi
 
-# Check 3: ccp-* ディレクトリが残っていないこと
+# Check 3: no ccp-* directories remain
 CCP_DIRS=$(find "$PLUGIN_ROOT/skills" -type d -name "ccp-*" 2>/dev/null || true)
 if [ -n "$CCP_DIRS" ]; then
-  echo "  ❌ ccp-* ディレクトリが残存"
+  echo "  ❌ ccp-* directories remain"
   sed -n '1,3p' <<<"$CCP_DIRS" | sed 's/^/      /'
   CCP_ISSUES=$((CCP_ISSUES + 1))
 else
-  echo "  ✅ ccp-* ディレクトリなし"
+  echo "  ✅ No ccp-* directories"
 fi
 
 if [ $CCP_ISSUES -eq 0 ]; then
-  echo "  ✅ ccp-* スキル廃止OK"
+  echo "  ✅ ccp-* skill removal OK"
 else
   ERRORS=$((ERRORS + CCP_ISSUES))
 fi
 
 # ================================
-# 10. スキル Mirror チェック
+# 10. Skill mirror check
 # ================================
 echo ""
-echo "📦 [10/14] スキル Mirror チェック..."
+echo "📦 [10/14] Skill mirror check..."
 
 SKILLS_DIR="$PLUGIN_ROOT/skills"
 CODEX_SKILLS_DIR="$PLUGIN_ROOT/skills-codex"
@@ -373,10 +374,10 @@ CODEX_MIRROR="$PLUGIN_ROOT/codex/.codex/skills"
 OPENCODE_MIRROR="$PLUGIN_ROOT/opencode/skills"
 MIRROR_ISSUES=0
 
-# コアスキル（5動詞 harness- prefix + aux）の mirror チェック
-# SSOT: skills/ → ミラー先: codex/.codex/skills/, opencode/skills/
-# NOTE: mirror 側には disable-model-invocation: true が追加されている（自動発動抑制）
-#       この差異は意図的なため、比較時に除外する
+# Mirror check for core skills (5-verb harness- prefix + aux)
+# SSOT: skills/ -> mirror targets: codex/.codex/skills/, opencode/skills/
+# NOTE: the mirror side adds disable-model-invocation: true (suppresses auto-invocation)
+#       this difference is intentional, so exclude it during comparison
 HARNESS_SKILLS="harness-plan harness-work harness-review harness-release harness-setup harness-sync harness-loop"
 
 resolved_ssot_dir() {
@@ -389,13 +390,13 @@ resolved_ssot_dir() {
   printf '%s\n' "$SKILLS_DIR/$skill"
 }
 
-# mirror 比較用ヘルパー: disable-model-invocation 行を除外してファイル単位で diff
-# mirror 固有の設定（自動発動抑制）は意図的な差異のため許容する
+# Mirror comparison helper: diff per file, excluding the disable-model-invocation line
+# The mirror-specific setting (auto-invocation suppression) is an intentional difference, so allow it
 diff_mirror() {
   local src_dir="$1"
   local mirror_dir="$2"
 
-  # ファイル一覧を比較（ファイル構成の一致を確認）
+  # Compare the file list (verify the file layout matches)
   local src_files mirror_files
   src_files="$(cd "$src_dir" && find . -type f | sort)"
   mirror_files="$(cd "$mirror_dir" && find . -type f | sort)"
@@ -403,7 +404,7 @@ diff_mirror() {
     return 1
   fi
 
-  # 各ファイルを個別に比較（disable-model-invocation 行のみ除外）
+  # Compare each file individually (excluding only the disable-model-invocation line)
   local f compared=0
   while IFS= read -r f; do
     [ -z "$f" ] && continue
@@ -416,14 +417,14 @@ diff_mirror() {
     compared=$((compared + 1))
   done <<< "$src_files"
 
-  # ファイル比較が1件も実行されなかった場合は安全側に倒す
+  # Fail safe if no file comparison was performed at all
   [ "$compared" -gt 0 ]
 }
 
 for skill in $HARNESS_SKILLS; do
   src="$(resolved_ssot_dir codex "$skill")"
   if [ ! -d "$src" ]; then
-    echo "  ❌ $(basename "$(dirname "$src")")/$skill が存在しません（SSOT 欠落）"
+    echo "  ❌ $(basename "$(dirname "$src")")/$skill does not exist (SSOT missing)"
     MIRROR_ISSUES=$((MIRROR_ISSUES + 1))
     continue
   fi
@@ -439,20 +440,20 @@ for skill in $HARNESS_SKILLS; do
 
     mirror_path="$mirror_root/$skill"
     if [ ! -d "$mirror_path" ]; then
-      echo "  ❌ $mirror_name: $skill がディレクトリとして存在しません"
+      echo "  ❌ $mirror_name: $skill does not exist as a directory"
       MIRROR_ISSUES=$((MIRROR_ISSUES + 1))
       continue
     fi
 
     if [ -L "$mirror_path" ]; then
-      echo "  ❌ $mirror_name: $skill が symlink のままです"
+      echo "  ❌ $mirror_name: $skill is still a symlink"
       MIRROR_ISSUES=$((MIRROR_ISSUES + 1))
       continue
     fi
 
     mirror_src="$(resolved_ssot_dir "$mirror_name" "$skill")"
     if [ ! -d "$mirror_src" ]; then
-      echo "  ❌ $mirror_name: SSOT が見つかりません (${mirror_src})"
+      echo "  ❌ $mirror_name: SSOT not found (${mirror_src})"
       MIRROR_ISSUES=$((MIRROR_ISSUES + 1))
       continue
     fi
@@ -460,7 +461,7 @@ for skill in $HARNESS_SKILLS; do
     if diff_mirror "$mirror_src" "$mirror_path"; then
       echo "  ✅ $mirror_name: $skill mirror is in sync"
     else
-      echo "  ❌ $mirror_name: $skill mirror が SSOT と不一致"
+      echo "  ❌ $mirror_name: $skill mirror does not match SSOT"
       MIRROR_ISSUES=$((MIRROR_ISSUES + 1))
     fi
   done
@@ -479,8 +480,8 @@ if [ $MIRROR_ISSUES -gt 0 ]; then
   ERRORS=$((ERRORS + MIRROR_ISSUES))
 fi
 
-# breezing alias は codex mirror のみ。
-# Codex ネイティブ版が skills-codex/ にある場合はそちらを SSOT とみなす。
+# The breezing alias is codex mirror only.
+# If a Codex-native version exists in skills-codex/, treat that as the SSOT.
 BREEZING_SRC="$SKILLS_DIR/breezing"
 if [ -d "$CODEX_SKILLS_DIR/breezing" ]; then
   BREEZING_SRC="$CODEX_SKILLS_DIR/breezing"
@@ -489,19 +490,19 @@ fi
 if [ -d "$BREEZING_SRC" ]; then
   BREEZING_CODEX="$CODEX_MIRROR/breezing"
   if [ ! -d "$BREEZING_CODEX" ]; then
-    echo "  ❌ codex: breezing がディレクトリとして存在しません"
+    echo "  ❌ codex: breezing does not exist as a directory"
     ERRORS=$((ERRORS + 1))
   elif [ -L "$BREEZING_CODEX" ]; then
-    echo "  ❌ codex: breezing が symlink のままです"
+    echo "  ❌ codex: breezing is still a symlink"
     ERRORS=$((ERRORS + 1))
   elif diff_mirror "$BREEZING_SRC" "$BREEZING_CODEX"; then
     echo "  ✅ codex: breezing mirror is in sync"
   else
-    echo "  ❌ codex: breezing mirror が SSOT と不一致"
+    echo "  ❌ codex: breezing mirror does not match SSOT"
     ERRORS=$((ERRORS + 1))
   fi
 else
-  echo "  ❌ breezing の SSOT が見つかりません（skills/ または skills-codex/）"
+  echo "  ❌ breezing SSOT not found (skills/ or skills-codex/)"
   ERRORS=$((ERRORS + 1))
 fi
 
@@ -548,10 +549,10 @@ fi
 rm -f "$WEAK_SUPERVISION_LOG"
 
 # ================================
-# 11. CHANGELOG フォーマット検証
+# 11. CHANGELOG format verification
 # ================================
 echo ""
-echo "📝 [11/14] CHANGELOG フォーマット検証..."
+echo "📝 [11/14] CHANGELOG format verification..."
 
 CHANGELOG_ISSUES=0
 
@@ -562,43 +563,44 @@ for changelog in "$PLUGIN_ROOT/CHANGELOG.md" "$PLUGIN_ROOT/CHANGELOG_ja.md"; do
 
   cl_name=$(basename "$changelog")
 
-  # Check 1: Keep a Changelog ヘッダー（## [x.y.z] - YYYY-MM-DD 形式）
+  # Check 1: Keep a Changelog header (## [x.y.z] - YYYY-MM-DD format)
   BAD_DATES=$(grep -nE '^\#\# \[[0-9]' "$changelog" | grep -vE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | grep -v "Unreleased" || true)
   if [ -n "$BAD_DATES" ]; then
-    echo "  ❌ $cl_name: ISO 8601 日付でないエントリ"
+    echo "  ❌ $cl_name: entry with a non-ISO-8601 date"
     sed -n '1,3p' <<<"$BAD_DATES" | sed 's/^/      /'
     CHANGELOG_ISSUES=$((CHANGELOG_ISSUES + 1))
   fi
 
-  # Check 2: 非標準セクション見出し（Keep a Changelog 1.1.0 の 6 種以外）
+  # Check 2: non-standard section headings (other than the 6 types in Keep a Changelog 1.1.0)
+  # NOTE: the grep pattern keeps Japanese (あなたにとって) to match the localized CHANGELOG heading
   NON_STANDARD=$(grep -nE '^\#\#\# ' "$changelog" \
     | grep -viE '(Added|Changed|Deprecated|Removed|Fixed|Security|What.*Changed|あなたにとって)' \
     | grep -viE '(Internal|Breaking|Migration|Summary|Before)' \
     || true)
   if [ -n "$NON_STANDARD" ]; then
-    echo "  ⚠️ $cl_name: 非標準セクション見出し（確認推奨）"
+    echo "  ⚠️ $cl_name: non-standard section heading (review recommended)"
     sed -n '1,3p' <<<"$NON_STANDARD" | sed 's/^/      /'
-    # 警告のみ（エラーにはしない）
+    # Warning only (not treated as an error)
   fi
 
-  # Check 3: [Unreleased] セクションが存在するか
+  # Check 3: whether an [Unreleased] section exists
   if ! grep -q '^\#\# \[Unreleased\]' "$changelog"; then
-    echo "  ❌ $cl_name: [Unreleased] セクションがありません"
+    echo "  ❌ $cl_name: missing [Unreleased] section"
     CHANGELOG_ISSUES=$((CHANGELOG_ISSUES + 1))
   fi
 done
 
 if [ $CHANGELOG_ISSUES -eq 0 ]; then
-  echo "  ✅ CHANGELOG フォーマットOK"
+  echo "  ✅ CHANGELOG format OK"
 else
   ERRORS=$((ERRORS + CHANGELOG_ISSUES))
 fi
 
 # ================================
-# 12. README claim drift チェック
+# 12. README claim drift check
 # ================================
 echo ""
-echo "📚 [12/14] README claim drift チェック..."
+echo "📚 [12/14] README claim drift check..."
 
 README_ISSUES=0
 README_EN="$PLUGIN_ROOT/README.md"
@@ -614,7 +616,7 @@ check_fixed_string() {
   local label="$3"
 
   if [ ! -f "$file_path" ]; then
-    echo "  ❌ ${label}: ファイルが存在しません: $file_path"
+    echo "  ❌ ${label}: file does not exist: $file_path"
     README_ISSUES=$((README_ISSUES + 1))
     return
   fi
@@ -622,7 +624,7 @@ check_fixed_string() {
   if grep -qF "$needle" "$file_path"; then
     echo "  ✅ ${label}"
   else
-    echo "  ❌ ${label}: 必須文字列が見つかりません"
+    echo "  ❌ ${label}: required string not found"
     README_ISSUES=$((README_ISSUES + 1))
   fi
 }
@@ -633,13 +635,13 @@ check_absent_string() {
   local label="$3"
 
   if [ ! -f "$file_path" ]; then
-    echo "  ❌ ${label}: ファイルが存在しません: $file_path"
+    echo "  ❌ ${label}: file does not exist: $file_path"
     README_ISSUES=$((README_ISSUES + 1))
     return
   fi
 
   if grep -qF "$needle" "$file_path"; then
-    echo "  ❌ ${label}: 古い claim が残っています"
+    echo "  ❌ ${label}: a stale claim remains"
     README_ISSUES=$((README_ISSUES + 1))
   else
     echo "  ✅ ${label}"
@@ -653,7 +655,7 @@ check_exists() {
   if [ -f "$file_path" ]; then
     echo "  ✅ ${label}"
   else
-    echo "  ❌ ${label}: ファイルが存在しません"
+    echo "  ❌ ${label}: file does not exist"
     README_ISSUES=$((README_ISSUES + 1))
   fi
 }
@@ -680,8 +682,8 @@ check_fixed_string "$README_JA" "docs/CLAUDE_CODE_COMPATIBILITY.md" "README_ja.m
 check_fixed_string "$README_JA" "docs/CURSOR_INTEGRATION.md" "README_ja.md cursor doc link"
 check_fixed_string "$README_JA" "docs/evidence/work-all.md" "README_ja.md work-all evidence link"
 check_fixed_string "$README_JA" "docs/distribution-scope.md" "README_ja.md distribution scope link"
-check_fixed_string "$README_JA" "5動詞スキル" "README_ja.md 5動詞スキル message"
-check_fixed_string "$README_JA" "Go ネイティブガードレールエンジン" "README_ja.md Go ネイティブガードレールエンジン message"
+check_fixed_string "$README_JA" "5動詞スキル" "README_ja.md 5-verb skills message"
+check_fixed_string "$README_JA" "Go ネイティブガードレールエンジン" "README_ja.md Go-native guardrail engine message"
 check_absent_string "$README_JA" "本番品質のコード。" "README_ja.md stale production-ready wording"
 
 check_fixed_string "$SCOPE_DOC" '| `commands/` | Compatibility-retained |' "distribution-scope commands classification"
@@ -691,54 +693,54 @@ check_fixed_string "$RUBRIC_DOC" "| Executed evidence |" "benchmark-rubric execu
 check_fixed_string "$POSITIONING_DOC" "runtime enforcement" "positioning-notes runtime enforcement"
 
 if [ $README_ISSUES -eq 0 ]; then
-  echo "  ✅ README claim drift チェックOK"
+  echo "  ✅ README claim drift check OK"
 else
   ERRORS=$((ERRORS + README_ISSUES))
 fi
 
 # ================================
-# 13. EN/JA ビジュアル同期チェック
+# 13. EN/JA visual sync check
 # ================================
 echo ""
-echo "🎨 [13/14] EN/JA ビジュアル同期チェック..."
+echo "🎨 [13/14] EN/JA visual sync check..."
 
 VISUAL_EN_DIR="$PLUGIN_ROOT/assets/readme-visuals-en/generated"
 VISUAL_JA_DIR="$PLUGIN_ROOT/assets/readme-visuals-ja/generated"
 VISUAL_ISSUES=0
 
 if [ -d "$VISUAL_EN_DIR" ] && [ -d "$VISUAL_JA_DIR" ]; then
-  # EN にあるファイルが JA にも存在し、viewBox サイズが一致することを確認
+  # Verify that files present in EN also exist in JA and have matching viewBox sizes
   for en_svg in "$VISUAL_EN_DIR"/*.svg; do
     [ ! -f "$en_svg" ] && continue
     svg_name=$(basename "$en_svg")
     ja_svg="$VISUAL_JA_DIR/$svg_name"
 
     if [ ! -f "$ja_svg" ]; then
-      echo "  ❌ JA 版が欠落: $svg_name"
+      echo "  ❌ JA version missing: $svg_name"
       VISUAL_ISSUES=$((VISUAL_ISSUES + 1))
       continue
     fi
 
-    # viewBox の高さを比較（構造の大幅な乖離を検出）
+    # Compare viewBox height (detect large structural divergence)
     en_viewbox=$(grep -o 'viewBox="[^"]*"' "$en_svg" | head -1)
     ja_viewbox=$(grep -o 'viewBox="[^"]*"' "$ja_svg" | head -1)
     if [ "$en_viewbox" != "$ja_viewbox" ]; then
-      echo "  ⚠️ viewBox 不一致: $svg_name (EN: $en_viewbox / JA: $ja_viewbox)"
-      # 警告のみ（日本語は文字幅が異なるため高さ差は許容）
+      echo "  ⚠️ viewBox mismatch: $svg_name (EN: $en_viewbox / JA: $ja_viewbox)"
+      # Warning only (height differences allowed since Japanese char widths differ)
     fi
 
-    # テーブル行数を比較（<rect y= の数で簡易判定）
+    # Compare the number of table rows (rough check via the count of <rect y=)
     en_rows=$(grep -c '<rect y=' "$en_svg" 2>/dev/null || echo 0)
     ja_rows=$(grep -c '<rect y=' "$ja_svg" 2>/dev/null || echo 0)
     if [ "$en_rows" != "$ja_rows" ]; then
-      echo "  ❌ 行数不一致: $svg_name (EN: ${en_rows}行 / JA: ${ja_rows}行)"
+      echo "  ❌ Row count mismatch: $svg_name (EN: ${en_rows} rows / JA: ${ja_rows} rows)"
       VISUAL_ISSUES=$((VISUAL_ISSUES + 1))
     else
-      echo "  ✅ $svg_name (${en_rows}行)"
+      echo "  ✅ $svg_name (${en_rows} rows)"
     fi
   done
 else
-  echo "  ⚠️ EN/JA ビジュアルディレクトリが見つかりません（スキップ）"
+  echo "  ⚠️ EN/JA visual directories not found (skipping)"
 fi
 
 if [ $VISUAL_ISSUES -gt 0 ]; then
@@ -746,10 +748,10 @@ if [ $VISUAL_ISSUES -gt 0 ]; then
 fi
 
 # ================================
-# 14. i18n 回帰ゲート
+# 14. i18n regression gate
 # ================================
 echo ""
-echo "🌐 [14/14] i18n 回帰ゲート..."
+echo "🌐 [14/14] i18n regression gate..."
 
 I18N_ISSUES=0
 
@@ -785,21 +787,21 @@ run_i18n_gate "Japanese UX opt-in surfaces" \
   bash "$PLUGIN_ROOT/tests/test-i18n-japanese-ux-regression.sh"
 
 if [ $I18N_ISSUES -eq 0 ]; then
-  echo "  ✅ i18n 回帰ゲートOK"
+  echo "  ✅ i18n regression gate OK"
 else
   ERRORS=$((ERRORS + I18N_ISSUES))
 fi
 
 # ================================
-# 結果サマリー
+# Result summary
 # ================================
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 if [ $ERRORS -eq 0 ]; then
-  echo "✅ すべてのチェックに合格しました"
+  echo "✅ All checks passed"
   exit 0
 else
-  echo "❌ $ERRORS 個の問題が見つかりました"
+  echo "❌ $ERRORS problems found"
   exit 1
 fi

@@ -1,9 +1,9 @@
 #!/bin/bash
 # track-changes.sh
-# ファイル変更を追跡し、状態ファイルを更新
+# Track file changes and update the state file
 #
-# Usage: PostToolUse hook から自動実行
-# Input: stdin JSON (Claude Code hooks) / 互換: $1=tool_name, $2=file_path
+# Usage: run automatically from a PostToolUse hook
+# Input: stdin JSON (Claude Code hooks) / compatibility: $1=tool_name, $2=file_path
 #
 # Cross-platform: Supports Windows (Git Bash/MSYS2/Cygwin/WSL), macOS, Linux
 
@@ -70,7 +70,7 @@ fi
 
 TOOL_NAME="${TOOL_NAME:-unknown}"
 
-# 可能ならプロジェクト相対パスへ正規化（クロスプラットフォーム対応）
+# Normalize to a project-relative path when possible (cross-platform)
 if [ -n "$CWD" ] && [ -n "$FILE_PATH" ]; then
   NORM_FILE_PATH="$(normalize_path "$FILE_PATH")"
   NORM_CWD="$(normalize_path "$CWD")"
@@ -86,17 +86,17 @@ fi
 STATE_FILE=".claude/state/session.json"
 CURRENT_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-# 状態ファイルがなければスキップ
+# Skip if the state file does not exist
 if [ ! -f "$STATE_FILE" ]; then
   exit 0
 fi
 
-# ファイルパスがなければスキップ
+# Skip if there is no file path
 if [ -z "$FILE_PATH" ]; then
   exit 0
 fi
 
-# 重要なファイルの変更を検出
+# Detect changes to important files
 IMPORTANT_FILES="Plans.md CLAUDE.md AGENTS.md"
 IS_IMPORTANT="false"
 
@@ -107,19 +107,19 @@ for important in $IMPORTANT_FILES; do
   fi
 done
 
-# テストファイルの検出
+# Detect test files
 if [[ "$FILE_PATH" == *".test."* ]] || [[ "$FILE_PATH" == *".spec."* ]] || [[ "$FILE_PATH" == *"__tests__"* ]]; then
   IS_IMPORTANT="true"
 fi
 
-# 変更を記録（jq があれば使用、なければスキップ）
+# Record the change (use jq if available, otherwise skip)
 if command -v jq &> /dev/null; then
-  # 新しい変更エントリを追加
+  # Append a new change entry
   TEMP_FILE=$(mktemp 2>/dev/null) || {
-    # mktemp 失敗時は静かにスキップ（PostToolUse hookなので中断しない）
+    # On mktemp failure, skip quietly (do not interrupt, this is a PostToolUse hook)
     exit 0
   }
-  # クリーンアップを保証
+  # Ensure cleanup
   trap 'rm -f "$TEMP_FILE"' EXIT
 
   if jq --arg file "$FILE_PATH" \
@@ -136,30 +136,30 @@ if command -v jq &> /dev/null; then
   fi
 fi
 
-# 重要なファイルの変更時は通知
+# Notify when an important file changes
 if [ "$IS_IMPORTANT" = "true" ]; then
   case "$FILE_PATH" in
     *Plans.md*)
-      echo "📋 Plans.md が更新されました"
+      echo "Plans.md was updated"
       ;;
     *CLAUDE.md*)
-      echo "📝 CLAUDE.md が更新されました"
+      echo "CLAUDE.md was updated"
       ;;
     *AGENTS.md*)
-      echo "📝 AGENTS.md が更新されました"
+      echo "AGENTS.md was updated"
       ;;
     *.test.*|*.spec.*|*__tests__*)
-      echo "🧪 テストファイルが更新されました: $(basename "$FILE_PATH")"
+      echo "Test file was updated: $(basename "$FILE_PATH")"
       ;;
   esac
 fi
 
 # ==============================================================================
-# Work モード時の review_status リセット
+# Reset review_status in Work mode
 # ==============================================================================
-# /work 実行中に Write/Edit が入った場合、review_status を pending に戻す
-# これにより、コード変更後は必ず再レビューが必要になる
-# 後方互換: work-active.json を優先、ultrawork-active.json にフォールバック
+# When a Write/Edit happens during /work, reset review_status back to pending
+# This ensures a re-review is always required after a code change
+# Backward compatibility: prefer work-active.json, fall back to ultrawork-active.json
 # ==============================================================================
 WORK_FILE=".claude/state/work-active.json"
 if [ ! -f "$WORK_FILE" ]; then
@@ -168,13 +168,13 @@ fi
 if [ -f "$WORK_FILE" ] && command -v jq >/dev/null 2>&1; then
   CURRENT_STATUS=$(jq -r '.review_status // "pending"' "$WORK_FILE" 2>/dev/null)
 
-  # passed または failed の場合のみ pending にリセット
+  # Reset to pending only when passed or failed
   if [ "$CURRENT_STATUS" = "passed" ] || [ "$CURRENT_STATUS" = "failed" ]; then
     TEMP_UW=$(mktemp 2>/dev/null)
     if [ -n "$TEMP_UW" ]; then
       if jq '.review_status = "pending"' "$WORK_FILE" > "$TEMP_UW" 2>/dev/null; then
         mv "$TEMP_UW" "$WORK_FILE" 2>/dev/null || rm -f "$TEMP_UW"
-        echo "⚠️ work: コード変更を検出 → review_status を pending にリセット（再レビュー必須）" >&2
+        echo "work: code change detected -> reset review_status to pending (re-review required)" >&2
       else
         rm -f "$TEMP_UW"
       fi

@@ -1,11 +1,11 @@
 #!/bin/bash
 # config-utils.sh
-# ハーネス設定ファイルからの値取得ユーティリティ
+# Utilities for reading values from the harness config file
 #
 # Usage: source "${SCRIPT_DIR}/config-utils.sh"
 #        plans_path=$(get_plans_file_path)
 
-# 設定ファイルのデフォルトパス
+# Default path of the config file
 CONFIG_FILE="${CONFIG_FILE:-.claude-code-harness.config.yaml}"
 PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
 PLAN_MANIFEST_FILE="${PLAN_MANIFEST_FILE:-plans/manifest.json}"
@@ -90,7 +90,8 @@ read_i18n_language_from_config() {
 
   value="$(yaml_get_value '.i18n.language' "$file")"
 
-  # yq/PyYAML がない環境でも標準テンプレートの単純な YAML は読めるようにする。
+  # Allow reading the simple YAML of the standard template even on systems
+  # without yq/PyYAML.
   if [ -z "$value" ]; then
     value="$(awk '
       function trim(s) {
@@ -144,26 +145,26 @@ get_harness_locale() {
   printf '%s\n' "en"
 }
 
-# plansDirectory の検証（セキュリティ）
-# 絶対パス、親ディレクトリ参照、symlink脱出を拒否
+# Validate plansDirectory (security)
+# Reject absolute paths, parent-directory references, and symlink escapes
 validate_plans_directory() {
   local value="$1"
   local default="."
 
-  # 空の場合はデフォルト
+  # If empty, use the default
   [ -z "$value" ] && echo "$default" && return 0
 
-  # Security: 絶対パスを拒否
+  # Security: reject absolute paths
   case "$value" in
     /*) echo "$default" && return 0 ;;
   esac
 
-  # Security: 親ディレクトリ参照 (..) を拒否
+  # Security: reject parent-directory references (..)
   case "$value" in
     *..*)  echo "$default" && return 0 ;;
   esac
 
-  # Security: symlink脱出を検出（realpathが利用可能な場合）
+  # Security: detect symlink escapes (when realpath is available)
   if command -v realpath >/dev/null 2>&1 && [ -e "$value" ]; then
     local project_root
     local resolved_path
@@ -171,11 +172,11 @@ validate_plans_directory() {
     resolved_path=$(realpath "$value" 2>/dev/null)
 
     if [ -n "$resolved_path" ]; then
-      # 解決されたパスがプロジェクトルート内にあるか確認
+      # Check whether the resolved path is inside the project root
       case "$resolved_path" in
-        "$project_root"/*) ;; # OK: プロジェクト内
-        "$project_root") ;;   # OK: プロジェクトルート自体
-        *) echo "$default" && return 0 ;; # NG: プロジェクト外
+        "$project_root"/*) ;; # OK: inside the project
+        "$project_root") ;;   # OK: the project root itself
+        *) echo "$default" && return 0 ;; # NG: outside the project
       esac
     fi
   fi
@@ -183,7 +184,7 @@ validate_plans_directory() {
   echo "$value"
 }
 
-# plansDirectory 設定を取得（デフォルト: "."）
+# Get the plansDirectory setting (default: ".")
 get_plans_directory() {
   local default="."
 
@@ -195,12 +196,12 @@ get_plans_directory() {
   local value=""
   value="$(yaml_get_value '.plansDirectory' "$CONFIG_FILE")"
 
-  # yq/Python で取得できなかった場合、grep + sed でフォールバック
+  # Fall back to grep + sed if yq/Python could not retrieve it
   if [ -z "$value" ]; then
     value=$(grep "^plansDirectory:" "$CONFIG_FILE" 2>/dev/null | sed 's/^plansDirectory:[[:space:]]*//' | tr -d '"' | tr -d "'" || echo "")
   fi
 
-  # 検証してから返す
+  # Validate before returning
   validate_plans_directory "$value"
 }
 
@@ -310,10 +311,10 @@ get_legacy_plans_file_path() {
   local plans_dir
   plans_dir=$(get_plans_directory)
 
-  # ディレクトリ内で Plans.md を検索（大文字小文字を区別しない）
+  # Search for Plans.md in the directory (case-insensitive)
   for f in Plans.md plans.md PLANS.md PLANS.MD; do
     local full_path="${plans_dir}/${f}"
-    # "." の場合は "./" を省略
+    # Omit "./" when the directory is "."
     [ "$plans_dir" = "." ] && full_path="$f"
 
     if [ -f "$full_path" ]; then
@@ -322,13 +323,13 @@ get_legacy_plans_file_path() {
     fi
   done
 
-  # 見つからない場合はデフォルトパスを返す
+  # Return the default path if none is found
   local default_path="${plans_dir}/Plans.md"
   [ "$plans_dir" = "." ] && default_path="Plans.md"
   echo "$default_path"
 }
 
-# Plans.md のフルパスを取得
+# Get the full path of Plans.md
 get_plans_file_path() {
   if [ -n "${HARNESS_PLAN_FILE:-}" ]; then
     validate_plan_relative_path "$HARNESS_PLAN_FILE"
@@ -345,7 +346,7 @@ get_plans_file_path() {
   get_legacy_plans_file_path
 }
 
-# Plans.md が存在するかチェック
+# Check whether Plans.md exists
 plans_file_exists() {
   local plans_path
   plans_path=$(get_plans_file_path)

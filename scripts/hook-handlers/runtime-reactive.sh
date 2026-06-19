@@ -1,11 +1,11 @@
 #!/bin/bash
 # runtime-reactive.sh
-# Claude Code v2.1.83+/v2.1.84+ の reactive hook を Harness 用に統合処理する。
+# Integrates Claude Code v2.1.83+/v2.1.84+ reactive hooks for the Harness.
 #
-# 対応イベント:
-# - TaskCreated: バックグラウンド task の作成を記録
-# - FileChanged: Plans / ルール / 設定の変更を検知して再読を促す
-# - CwdChanged: worktree / repo 切り替え時にコンテキスト再確認を促す
+# Supported events:
+# - TaskCreated: record creation of a background task
+# - FileChanged: detect changes to Plans / rules / config and prompt a re-read
+# - CwdChanged: prompt a context re-check when switching worktree / repo
 
 set -euo pipefail
 
@@ -125,15 +125,15 @@ case "${HOOK_EVENT_NAME}" in
   FileChanged)
     case "${FILE_PATH}" in
       Plans.md|*/Plans.md)
-        MESSAGE="Plans.md が更新されました。次の実装やレビュー前に最新のタスク状態を読み直してください。"
+        MESSAGE="Plans.md was updated. Re-read the latest task state before the next implementation or review."
         ;;
       AGENTS.md|*/AGENTS.md|CLAUDE.md|*/CLAUDE.md|.claude/rules/*|*/.claude/rules/*|hooks/hooks.json|*/hooks/hooks.json|.claude-plugin/settings.json|*/.claude-plugin/settings.json)
-        MESSAGE="作業ルールまたは Harness 設定が更新されました。次の操作では最新ルールを前提に進めてください。"
+        MESSAGE="Work rules or Harness configuration were updated. Proceed with the latest rules in mind for the next operation."
         ;;
     esac
     ;;
   CwdChanged)
-    MESSAGE="作業ディレクトリが切り替わりました。別リポジトリや worktree に移動した場合は AGENTS.md、Plans.md、ローカルルールを再確認してください。"
+    MESSAGE="The working directory changed. If you moved to a different repository or worktree, re-check AGENTS.md, Plans.md, and local rules."
     ;;
 esac
 

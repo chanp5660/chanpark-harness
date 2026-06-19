@@ -6,25 +6,25 @@
 #   plan-brief-compile.sh --query <text> --project <name> [--mem-results <path>]
 #                         [--understanding <text>] [--out -|<path>]
 #
-# 役割:
-#   ユーザー request と harness-mem search 結果から plan-brief-context.v1
-#   schema 準拠の JSON を組み立てる。confidence は以下の 3 成分の合計:
-#     (1) 過去類似案件の cc:完了率   … 40 点満点
-#     (2) DoD / request の数値要件含有率 … 30 点満点
-#     (3) 関連 D/P 件数の有意性        … 30 点満点
-#   各成分の根拠を confidence_evidence (string[]) に literal な数値で残す。
+# Role:
+#   Build plan-brief-context.v1 schema-compliant JSON from the user request and
+#   the harness-mem search results. confidence is the sum of these 3 components:
+#     (1) cc:done rate of similar past plans       ... max 40 points
+#     (2) numeric-requirement coverage of DoD/request ... max 30 points
+#     (3) significance of related D/P counts          ... max 30 points
+#   Record the literal numbers behind each component in confidence_evidence (string[]).
 #
-# Mem search 結果の入力 schema (--mem-results が指す JSON ファイル):
+# Input schema of mem search results (the JSON file pointed to by --mem-results):
 #   {
 #     "decisions":     [{"id": "D22", "title": "...", "relevance": "..."}, ...],
 #     "patterns":      [{"id": "P5",  "title": "...", "relevance": "..."}, ...],
 #     "plans_archive": [{"phase": "Phase 41", "archive_path": "...",
-#                         "outcome": "cc:完了|cc:WIP|cc:TODO|skipped",
+#                         "outcome": "cc:done|cc:WIP|cc:TODO|skipped",
 #                         "relevance": "..."}, ...]
 #   }
-# --mem-results が省略された場合は全て空配列扱い (confidence は DoD / D-P 成分のみ)。
+# If --mem-results is omitted, all are treated as empty arrays (confidence uses only DoD / D-P components).
 #
-# 出力: stdout (--out が指定されたらそのファイル) に plan-brief-context.v1 JSON
+# Output: plan-brief-context.v1 JSON to stdout (or to the file given by --out)
 # Exit code: 0=success, 2=usage error, 3=invalid input
 
 set -euo pipefail
@@ -34,14 +34,14 @@ usage() {
 Usage: $0 --query <text> --project <name> [--mem-results <path>]
           [--understanding <text>] [--out -|<path>]
 
-引数:
-  --query <text>              ユーザー request の本文 (required)
-  --project <name>            project 名 (required, basename of toplevel)
-  --mem-results <path>        harness-mem search 結果の JSON ファイル (optional)
-  --understanding <text>      Claude の理解 (optional, default: "(まだ未着手)")
-  --out -|<path>              出力先 (- = stdout, default: stdout)
+Arguments:
+  --query <text>              Body of the user request (required)
+  --project <name>            Project name (required, basename of toplevel)
+  --mem-results <path>        JSON file of harness-mem search results (optional)
+  --understanding <text>      Claude's understanding (optional, default: "(not started yet)")
+  --out -|<path>              Output target (- = stdout, default: stdout)
 
-出力: plan-brief-context.v1 schema 準拠の JSON
+Output: plan-brief-context.v1 schema-compliant JSON
 USAGE
   exit 2
 }
@@ -49,7 +49,7 @@ USAGE
 QUERY=""
 PROJECT=""
 MEM_RESULTS=""
-UNDERSTANDING="(まだ未着手)"
+UNDERSTANDING="(not started yet)"
 OUT="-"
 
 while [[ $# -gt 0 ]]; do
@@ -74,7 +74,7 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 3
 fi
 
-# ---- mem results を normalize する (省略時は空配列) ----
+# ---- Normalize mem results (empty arrays if omitted) ----
 
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/plan-brief-compile.XXXXXX")"
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -98,26 +98,29 @@ else
   echo '{"decisions":[],"patterns":[],"plans_archive":[]}' > "$NORM_MEM"
 fi
 
-# ---- 成分 (1): 過去類似案件の cc:完了率 (40 点満点) ----
+# ---- Component (1): cc:done rate of similar past plans (max 40 points) ----
+# Note: ".outcome == \"cc:完了\"" preserves the legacy marker value for
+# backward-compatible reading of archived plan outcomes.
 
 PAST_TOTAL="$(jq '.plans_archive | length' "$NORM_MEM")"
 PAST_DONE="$(jq '[.plans_archive[] | select(.outcome == "cc:完了")] | length' "$NORM_MEM")"
 
 if [[ "$PAST_TOTAL" -eq 0 ]]; then
   SCORE_PAST=0
-  EVIDENCE_PAST="過去類似案件: 0 件 (シグナル不足)"
+  EVIDENCE_PAST="Similar past plans: 0 (insufficient signal)"
 else
-  # 40 * (PAST_DONE / PAST_TOTAL) を四捨五入
+  # Round 40 * (PAST_DONE / PAST_TOTAL)
   SCORE_PAST=$(awk -v d="$PAST_DONE" -v t="$PAST_TOTAL" 'BEGIN { printf "%.0f", 40.0 * d / t }')
   RATE=$(awk -v d="$PAST_DONE" -v t="$PAST_TOTAL" 'BEGIN { printf "%.0f", 100.0 * d / t }')
-  EVIDENCE_PAST="過去類似案件 ${PAST_TOTAL} 件中 ${PAST_DONE} 件 (${RATE}%) が cc:完了"
+  EVIDENCE_PAST="${PAST_DONE} of ${PAST_TOTAL} similar past plans (${RATE}%) are cc:done"
 fi
 
-# ---- 成分 (2): DoD / request の数値要件含有率 (30 点満点) ----
+# ---- Component (2): numeric-requirement coverage of DoD/request (max 30 points) ----
 
-# request を「。」「\n」で文に分割し、各文に数字を含むかを判定。
-# `tr` は LC_ALL=C の環境で UTF-8 句点をバイト列として壊すため、
-# 必須依存の jq で Unicode-safe に集計する。
+# Split the request into sentences on "." (full-width period) and "\n", then test
+# whether each sentence contains a digit.
+# `tr` corrupts the UTF-8 full-width period into raw bytes under LC_ALL=C, so we
+# aggregate Unicode-safely with the required jq dependency.
 
 SENTENCE_STATS_JSON="$(jq -n --arg q "$QUERY" '
   ($q
@@ -135,14 +138,14 @@ NUM_SENTENCES_WITH_NUM="$(printf '%s\n' "$SENTENCE_STATS_JSON" | jq -r '.with_nu
 
 if [[ "$NUM_SENTENCES_TOTAL" -eq 0 ]]; then
   SCORE_DOD=0
-  EVIDENCE_DOD="request が空 (DoD シグナルなし)"
+  EVIDENCE_DOD="request is empty (no DoD signal)"
 else
   SCORE_DOD=$(awk -v n="$NUM_SENTENCES_WITH_NUM" -v t="$NUM_SENTENCES_TOTAL" 'BEGIN { printf "%.0f", 30.0 * n / t }')
   RATE_DOD=$(awk -v n="$NUM_SENTENCES_WITH_NUM" -v t="$NUM_SENTENCES_TOTAL" 'BEGIN { printf "%.0f", 100.0 * n / t }')
-  EVIDENCE_DOD="request の ${NUM_SENTENCES_TOTAL} 文中 ${NUM_SENTENCES_WITH_NUM} 文 (${RATE_DOD}%) に数値要件あり"
+  EVIDENCE_DOD="${NUM_SENTENCES_WITH_NUM} of ${NUM_SENTENCES_TOTAL} request sentences (${RATE_DOD}%) contain numeric requirements"
 fi
 
-# ---- 成分 (3): 関連 D/P 件数の有意性 (30 点満点) ----
+# ---- Component (3): significance of related D/P counts (max 30 points) ----
 
 DECISIONS_COUNT="$(jq '.decisions | length' "$NORM_MEM")"
 PATTERNS_COUNT="$(jq '.patterns | length' "$NORM_MEM")"
@@ -153,23 +156,23 @@ elif [[ "$DP_TOTAL" -ge 3 ]]; then SCORE_DP=20
 elif [[ "$DP_TOTAL" -ge 1 ]]; then SCORE_DP=10
 else                               SCORE_DP=0
 fi
-EVIDENCE_DP="関連 D ${DECISIONS_COUNT} 件 + P ${PATTERNS_COUNT} 件 = ${DP_TOTAL} 件 (寄与 ${SCORE_DP} pt)"
+EVIDENCE_DP="Related D ${DECISIONS_COUNT} + P ${PATTERNS_COUNT} = ${DP_TOTAL} (contributes ${SCORE_DP} pt)"
 
-# ---- confidence 合計 (0-100 にクランプ) ----
+# ---- confidence total (clamped to 0-100) ----
 
 CONFIDENCE=$((SCORE_PAST + SCORE_DOD + SCORE_DP))
 [[ "$CONFIDENCE" -gt 100 ]] && CONFIDENCE=100
 [[ "$CONFIDENCE" -lt 0 ]]   && CONFIDENCE=0
 
-# ---- 出力 JSON 組み立て ----
+# ---- Build output JSON ----
 
 GENERATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-# 各セクションを normalized 配列で取得
+# Get each section as a normalized array
 RELATED_DECISIONS_JSON="$(jq '[.decisions[] | {id: (.id // ""), title: (.title // ""), relevance: (.relevance // "")}]' "$NORM_MEM")"
 SIMILAR_PAST_PLANS_JSON="$(jq '[.plans_archive[] | {archive_path: (.archive_path // ""), phase: (.phase // ""), outcome: (.outcome // "unknown"), relevance: (.relevance // "")}]' "$NORM_MEM")"
 
-# confidence_evidence_items は template 描画用の derived field
+# confidence_evidence_items is a derived field for template rendering
 EVIDENCE_ITEMS_JSON="$(jq -nc \
   --arg p "$EVIDENCE_PAST" \
   --arg d "$EVIDENCE_DOD" \

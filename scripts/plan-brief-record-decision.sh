@@ -8,27 +8,27 @@
 #       [--chosen-option <text>] [--rejected-options <csv>] \
 #       [--reasoning <text>] [--out -|<path>]
 #
-# 役割:
-#   Plan Brief への user 判断 (承認 / 修正依頼 / 質問) を記録する
-#   `personal-preference.v1` schema 準拠の payload JSON を出力する。
-#   実際の `mcp__harness__harness_mem_ingest` 呼び出しは skill (LLM context)
-#   側で行う — このスクリプトは payload を組み立てるだけ。
+# Role:
+#   Record the user's decision on the Plan Brief (approve / revise request / question)
+#   and output a `personal-preference.v1` schema-compliant payload JSON.
+#   The actual `mcp__harness__harness_mem_ingest` call is made on the skill
+#   (LLM context) side — this script only builds the payload.
 #
 # Schema: personal-preference.v1
 #   data: {
-#     user_request_hash : sha256 hex (request 原文を hash 化、生 text は記録しない)
-#     chosen_option     : string  (approve 時に選ばれた option 名、他は "")
+#     user_request_hash : sha256 hex (hash of the original request; raw text is not recorded)
+#     chosen_option     : string  (option name chosen on approve, otherwise "")
 #     rejected_options  : string[]
-#     reasoning         : string  (revise 時の理由 / question 時の質問本文)
-#     timestamp         : ISO8601 (UTC, Z 終端)
+#     reasoning         : string  (reason on revise / question body on question)
+#     timestamp         : ISO8601 (UTC, Z-terminated)
 #     project           : string
 #     action            : "approve" | "revise" | "question"
 #   }
 #
-# Tags (固定 — DoD b):
+# Tags (fixed — DoD b):
 #   ["personal-preference", "plan-brief-approval"]
 #
-# Output: stdout (--out 指定時はそのファイル) に ingest 用 JSON
+# Output: JSON for ingest to stdout (or to the file given by --out)
 # Exit code: 0=success, 2=usage error, 3=runtime error
 
 set -euo pipefail
@@ -41,17 +41,17 @@ Usage: $0 --action <approve|revise|question> \
           [--reasoning <text>] [--out -|<path>]
 
 Required:
-  --action <approve|revise|question>  user 判断のアクション種別
-  --user-request <text>               Plan Brief を起動した request 原文
-  --project <name>                    project 名 (basename of toplevel)
+  --action <approve|revise|question>  Action type of the user decision
+  --user-request <text>               Original request that launched the Plan Brief
+  --project <name>                    Project name (basename of toplevel)
 
 Optional:
-  --chosen-option <text>              approve 時に選んだ option 名 (default: "")
-  --rejected-options <csv>            却下した option を comma で区切る (default: "")
-  --reasoning <text>                  revise の理由 / question の本文 (default: "")
-  --out -|<path>                      出力先 (- = stdout, default: stdout)
+  --chosen-option <text>              Option name chosen on approve (default: "")
+  --rejected-options <csv>            Rejected options separated by comma (default: "")
+  --reasoning <text>                  Reason for revise / body of question (default: "")
+  --out -|<path>                      Output target (- = stdout, default: stdout)
 
-出力: personal-preference.v1 schema 準拠の harness_mem_ingest 用 JSON
+Output: personal-preference.v1 schema-compliant JSON for harness_mem_ingest
 USAGE
   exit 2
 }
@@ -78,7 +78,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# ---- 必須引数 ----
+# ---- Required arguments ----
 
 if [[ -z "$ACTION" || -z "$USER_REQUEST" || -z "$PROJECT" ]]; then
   echo "ERROR: --action, --user-request, --project are required" >&2
@@ -99,7 +99,7 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 # ---- sha256 hex ----
-# stdin 経由で request を hash 化。`shasum -a 256` (macOS) と `sha256sum` (Linux) の両対応。
+# Hash the request via stdin. Supports both `shasum -a 256` (macOS) and `sha256sum` (Linux).
 
 sha256_of_text() {
   local text="$1"
@@ -115,8 +115,8 @@ sha256_of_text() {
 
 USER_REQUEST_HASH="$(sha256_of_text "$USER_REQUEST")"
 
-# ---- rejected_options を array に変換 ----
-# csv は単純 split (引用符なし)。要素中に , を入れる必要があれば SKILL.md 側で URL-encode して渡すこと。
+# ---- Convert rejected_options to an array ----
+# Simple CSV split (no quoting). If an element must contain a comma, URL-encode it on the SKILL.md side before passing.
 
 if [[ -z "$REJECTED_OPTIONS_CSV" ]]; then
   REJECTED_OPTIONS_JSON='[]'
@@ -137,7 +137,7 @@ fi
 
 TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-# ---- payload 組み立て ----
+# ---- Build payload ----
 
 PAYLOAD="$(jq -n \
   --arg hash "$USER_REQUEST_HASH" \
