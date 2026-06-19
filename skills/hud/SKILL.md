@@ -1,6 +1,6 @@
 ---
 name: hud
-description: "Configure the chanpark-harness HUD status line (model, context %, cost, git, Plans.md task counts). Triggers: hud, hud setup, hud minimal, hud focused, hud full, hud status, statusline, status line."
+description: "Configure the chanpark-harness HUD status line (model, context %, subscription rate limits, git, Plans.md task counts). Triggers: hud, hud setup, hud minimal, hud focused, hud full, hud status, statusline, status line."
 argument-hint: "[setup|minimal|focused|full|status|off]"
 disable-model-invocation: true
 allowed-tools: ["Read", "Edit", "Write", "Bash"]
@@ -8,11 +8,16 @@ allowed-tools: ["Read", "Edit", "Write", "Bash"]
 
 # HUD — chanpark-harness status line
 
-Configures Claude Code's `statusLine` to render the chanpark-harness HUD: model, mode
-(effort/thinking), git branch + diff counts + ahead/behind/untracked/stash, context-window
-bar, session cost, lines changed this session (`+added/-removed`), elapsed time, and
-Plans.md task counts (`cc:todo`/`cc:wip`/`cc:done`, counted from table status cells) plus
-the active WIP task title.
+Configures Claude Code's `statusLine` to render the chanpark-harness HUD: model, git
+branch + diff counts + ahead/behind/untracked/stash, working subdir, context usage
+(`ctx:%`), subscription rate limits (`5h:%`/`7d:%` with reset countdown), lines changed
+this session (`+added/-removed`), elapsed time (full preset), and Plans.md task counts
+(`cc:todo`/`cc:wip`/`cc:done`, counted from table status cells) plus the active WIP task
+title.
+
+The subscription rate-limit segments come straight from Claude Code's statusLine JSON
+(`.rate_limits.five_hour`/`.seven_day`) and only appear for Claude.ai (Pro/Max)
+subscribers after the session's first API response — they self-omit otherwise.
 
 The renderer is a self-contained `bash` + `jq` script (`hud/statusline.sh`) — **no Node
 build required** (unlike upstream OMC's HUD). If `jq` is missing it degrades to a
@@ -23,8 +28,8 @@ minimal model-only line instead of breaking the status line.
 | `/hud` or `/hud status` | Report current HUD/statusLine configuration |
 | `/hud setup` | Install the HUD renderer and wire `statusLine` (preset: focused) |
 | `/hud minimal` | One-line HUD: model · context% · tasks |
-| `/hud focused` | Two-line HUD (default): model/mode/git + bar/cost/time/tasks |
-| `/hud full` | Two-line HUD plus repo name and todo/wip/done breakdown |
+| `/hud focused` | Two-line HUD (default): model/git/cwd + ctx%/5h/7d limits/lines/tasks |
+| `/hud full` | Two-line HUD plus repo name, elapsed time, and todo/wip/done breakdown |
 | `/hud off` | Remove the `statusLine` field (disable the HUD) |
 
 All `~/.claude/...` paths honor `CLAUDE_CONFIG_DIR` when that variable is set.
@@ -90,13 +95,29 @@ and tell the user to restart Claude Code.
 
 ```
 minimal:  [Opus 4.8] ctx:67% | tasks 1/4
-focused:  [Opus 4.8] effort:high think:on  main +2~1 ^1 ?3
-          ctx:67% | $1.23 | +120/-30 | 3m5s | tasks 1/4 > implement login flow
-full:     [Opus 4.8] effort:high think:on repo:myproject  main +2~1 ^1 ?3
-          ctx:67% | $1.23 | +120/-30 | 3m5s | tasks todo:2 wip:1 done:1/4 > implement login flow
+focused:  [Opus 4.8]  main@a1b2c3d +2~1 v1 ?3  pkg/api
+          ctx:67% | 5h:38% (2h 13m) | 7d:40% (4d 17h) | +120/-30 | tasks 1/4 > implement login flow
+full:     [Opus 4.8] repo:myproject  main@a1b2c3d +2~1 v1 ?3  pkg/api
+          ctx:67% | 5h:38% (2h 13m) | 7d:40% (4d 17h) | +120/-30 | 3m5s | tasks todo:2 wip:1 done:1/4 > implement login flow
 ```
 
-Line-1 git: `+staged ~modified` files, then `^ahead v behind ?untracked *stash` (only nonzero).
-Line-2: context usage `ctx:%`, session `$cost`, `+lines/-lines` this session, elapsed, task
-counts, and `> <active WIP task title>` from Plans.md (truncated). `agent:`/`wt:` appear on
-line 1 only inside a subagent / git worktree.
+Line-1: model, (repo in `full`), git branch`@shortSHA`, then `+staged ~modified` and
+`^ahead vbehind ?untracked *stash` (only nonzero), then the working subdir (project-relative,
+omitted at project root). `agent:` and a tinted `wt:` appear here only inside a subagent / git
+worktree.
+Line-2: context usage `ctx:%`, subscription limits `5h:%`/`7d:%` with reset countdown (omitted for
+non-subscribers / before the first API response), `+lines/-lines` this session, elapsed time
+(`full` only), task counts (the `wip:` count turns yellow when more than one task is in flight),
+and `> <active WIP task title>` from Plans.md (truncated).
+
+**Color grammar**: warm colors mean *attention* only — usage percentages (ctx/5h/7d) by threshold
+(green `<70`, yellow `≥70`, red `≥90`), `vbehind` (red), and `wip>1` (yellow). Everything else is
+dim reference metadata; cyan is identity (model, branch).
+
+**Width** (needs `$COLUMNS`, exported by Claude Code v2.1.153+):
+- **Single-line mode**: when the terminal is wide enough to hold line 1 + line 2 on one row,
+  they are merged into a single row (saves a vertical line). Narrower terminals fall back to two
+  rows. Set `CHANPARK_HUD_ONELINE=0` to always keep two rows. Unknown width → two rows.
+- **Shedding** (two-row mode): line 2 drops its lowest-priority segments (time → output-style →
+  lines → WIP title → tasks) to fit the terminal instead of being hard-truncated. `ctx`/`5h`/`7d`
+  are always kept.
