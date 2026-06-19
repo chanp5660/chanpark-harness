@@ -51,6 +51,8 @@ actually ported.
 - `bin/` — pre-built Go binaries + shim (upstream `go/` source)
 - `harness.toml`, `.claude-code-harness.config.*`, `claude-code-harness.config.*`
 - `hooks/hooks.json`
+- `monitors/monitors.json` — `harness-session-monitor` (auto-armed, `when: always`); SSOT is
+  the file, not `plugin.json` (upstream deliberately removed the `monitors` manifest block)
 - `agents/`: `worker.md`, `reviewer.md`, `advisor.md`
 - `skills/`: `harness-*`, `session*`, `memory`, `maintenance`, `hud`, `principles`,
   `routing-rules.md`, `workflow-guide`, `vibecoder-guide`

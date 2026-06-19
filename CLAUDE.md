@@ -23,6 +23,7 @@ The only compiled artifact is the committed harness Go binary in `bin/`.
 | `agents/` | 13 agents (harness `worker`/`reviewer`/`advisor` + 10 OMC consults) |
 | `skills/` | 30 skills (`harness-*`, sessions, memory, guides, `hud`, OMC gap skills) |
 | `hooks/hooks.json` | Automation hooks; exec the Go binary, no-op if absent |
+| `monitors/monitors.json` | Auto-armed `harness-session-monitor` (`when: always`) running `harness hook session-monitor` — emits the "Session Start - Project State" block (Plans.md drift, harness-mem health, advisor/reviewer state) |
 | `bin/` | `harness` shim + pre-built Go binaries (4 platforms) |
 | `hud/statusline.sh` | Portable HUD renderer (bash + jq) |
 | `harness.toml` | Config SoT read by the binary |
