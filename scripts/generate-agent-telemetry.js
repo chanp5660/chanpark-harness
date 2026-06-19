@@ -148,9 +148,9 @@ function extractEventRole(entry) {
 }
 
 function findWorktreeStateDirs(repoRoot) {
-  // Breezing では Worker/Reviewer が別の git worktree で動くため、
-  // 各 worktree の .claude/state にもテレメトリが分散する。
-  // git worktree list で全 worktree を列挙し、state ディレクトリを収集する。
+  // In Breezing, the Worker/Reviewer run in separate git worktrees, so
+  // telemetry is also spread across each worktree's .claude/state.
+  // Enumerate all worktrees with `git worktree list` and collect their state directories.
   const dirs = [];
   try {
     const { execFileSync } = require('child_process');
@@ -167,7 +167,7 @@ function findWorktreeStateDirs(repoRoot) {
       }
     }
   } catch {
-    // git worktree list が失敗する場合は無視
+    // Ignore if `git worktree list` fails
   }
   return dirs;
 }
@@ -178,14 +178,14 @@ function buildReport(stateDir) {
   const usageFile = path.join(stateDir, 'harness-usage.json');
   const eventsFile = path.join(stateDir, 'session.events.jsonl');
 
-  // worktree 分散テレメトリも集約
+  // Also aggregate telemetry spread across worktrees
   const repoRoot = path.resolve(stateDir, '..', '..');
   const extraStateDirs = findWorktreeStateDirs(repoRoot).filter((d) => d !== stateDir);
 
   const buckets = {};
   const roleSet = new Set(['worker', 'reviewer', 'lead']);
 
-  // メインと worktree の statusline を結合
+  // Merge statusline from main and worktrees
   const allStatuslineFiles = [statuslineFile, ...extraStateDirs.map((d) => path.join(d, 'statusline-telemetry.jsonl'))];
   const statuslines = allStatuslineFiles.flatMap((f) => readJsonLines(f));
   for (const entry of statuslines) {
@@ -227,9 +227,9 @@ function buildReport(stateDir) {
       const metrics = record.metrics || {};
       bucket.trace_count += 1;
       bucket.token_count += toNumber(metrics.tokenCount);
-      // duration は statusline で既にカウント済みの可能性があるため、
-      // statusline_count > 0 の場合は trace からの duration 加算をスキップ
-      // （statusline の方がサンプリング粒度が細かく正確）
+      // duration may already be counted in statusline, so if
+      // statusline_count > 0, skip adding duration from trace
+      // (statusline has finer, more accurate sampling granularity)
       if (bucket.statusline_count === 0) {
         bucket.duration_ms += toNumber(metrics.duration);
       }
@@ -244,11 +244,11 @@ function buildReport(stateDir) {
     });
   }
 
-  // メインと worktree の usage を結合
+  // Merge usage from main and worktrees
   const allUsageFiles = [usageFile, ...extraStateDirs.map((d) => path.join(d, 'harness-usage.json'))];
   const mergedUsages = allUsageFiles.map((f) => readJson(f)).filter(Boolean);
   const usage = mergedUsages[0] || {};
-  // worktree の usage を最初の usage に結合
+  // Merge worktree usage into the first usage
   for (let i = 1; i < mergedUsages.length; i++) {
     const extra = mergedUsages[i];
     if (extra?.agents) {
@@ -289,7 +289,7 @@ function buildReport(stateDir) {
     }
   }
 
-  // メインと worktree の events を結合
+  // Merge events from main and worktrees
   const allEventsFiles = [eventsFile, ...extraStateDirs.map((d) => path.join(d, 'session.events.jsonl'))];
   const events = allEventsFiles.flatMap((f) => readJsonLines(f));
   let retryEvents = 0;

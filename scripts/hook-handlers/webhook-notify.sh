@@ -1,30 +1,30 @@
 #!/bin/bash
 # webhook-notify.sh
-# HARNESS_WEBHOOK_URL が設定されている場合のみ外部 webhook に POST する
-# HTTP hook の url フィールドでは環境変数が展開されないため、
-# command hook + curl で実装している
+# POST to an external webhook only when HARNESS_WEBHOOK_URL is set.
+# The HTTP hook's url field does not expand environment variables,
+# so this is implemented with a command hook + curl.
 #
 # Usage: bash webhook-notify.sh <event-name>
 # Input: stdin JSON from Claude Code hooks
 # Env:
-#   HARNESS_WEBHOOK_URL (optional, skip if unset) — 外部 webhook POST
+#   HARNESS_WEBHOOK_URL (optional, skip if unset) — external webhook POST
 #   HARNESS_TERMINAL_NOTIFY (optional) — CC 2.1.141+ terminalSequence opt-in
-#     詳細: .claude/rules/hooks-2.1.139-plus.md
+#     Details: .claude/rules/hooks-2.1.139-plus.md
 
 set -euo pipefail
 
 EVENT_NAME="${1:-unknown}"
 
-# terminalSequence ヘルパーを読み込み (CC 2.1.141+)
+# Load the terminalSequence helper (CC 2.1.141+)
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "${_SCRIPT_DIR}/../lib/terminal-notify.sh" ]; then
   # shellcheck disable=SC1091
   source "${_SCRIPT_DIR}/../lib/terminal-notify.sh"
 fi
 
-# terminalSequence の JSON フィールドを output 用に構築するヘルパー
+# Helper that builds the terminalSequence JSON field for output.
 # Args: $1 = title, $2 = body (optional)
-# Stdout: `,"terminalSequence":"..."` または空文字列
+# Stdout: `,"terminalSequence":"..."` or an empty string
 _render_terminal_sequence_field() {
   if ! command -v build_terminal_sequence >/dev/null 2>&1; then
     return 0
@@ -40,8 +40,8 @@ _render_terminal_sequence_field() {
   fi
 }
 
-# HARNESS_WEBHOOK_URL が未設定なら何もせず終了（opt-in）
-# ただし terminalSequence のみ opt-in されている場合は local 通知を発火する
+# If HARNESS_WEBHOOK_URL is unset, do nothing and exit (opt-in).
+# But if only terminalSequence is opted in, fire a local notification.
 if [ -z "${HARNESS_WEBHOOK_URL:-}" ]; then
   _ts_field="$(_render_terminal_sequence_field "Claude Code: ${EVENT_NAME}" "")"
   if [ -n "${_ts_field}" ]; then
@@ -52,17 +52,17 @@ if [ -z "${HARNESS_WEBHOOK_URL:-}" ]; then
   exit 0
 fi
 
-# stdin から hook payload を読み取る
+# Read the hook payload from stdin
 PAYLOAD=""
 if [ ! -t 0 ]; then
   PAYLOAD=$(cat)
 fi
 
-# URL をマスク（シークレット保護: スキームのみ表示）
-# user:pass@host, ?token=xxx, /services/T00/B00/xxx 等を全て隠す
+# Mask the URL (secret protection: show only the scheme)
+# Hides user:pass@host, ?token=xxx, /services/T00/B00/xxx, etc.
 MASKED_URL="$(echo "${HARNESS_WEBHOOK_URL}" | sed -E 's|^(https?://).*|\1***/***|')"
 
-# curl で POST（タイムアウト 5 秒、失敗しても approve で続行だが結果を報告）
+# POST with curl (5 second timeout; on failure still approve and continue, but report the result)
 HTTP_CODE=""
 CURL_EXIT=0
 HTTP_CODE=$(curl --silent --output /dev/null --write-out "%{http_code}" --max-time 5 \
@@ -72,11 +72,11 @@ HTTP_CODE=$(curl --silent --output /dev/null --write-out "%{http_code}" --max-ti
   --data "${PAYLOAD:-"{}"}" \
   "${HARNESS_WEBHOOK_URL}" 2>/dev/null) || CURL_EXIT=$?
 
-# terminalSequence の payload (success/failure それぞれで title を出す)
+# terminalSequence payload (emit a title for success/failure each)
 _TS_FIELD_SUCCESS="$(_render_terminal_sequence_field "Claude Code: ${EVENT_NAME}" "webhook sent")"
 _TS_FIELD_FAILURE="$(_render_terminal_sequence_field "Claude Code: ${EVENT_NAME} (failed)" "webhook delivery failed")"
 
-# jq があれば安全に JSON を構築、なければ固定メッセージ
+# Build JSON safely if jq is available, otherwise use a fixed message
 if [ "$CURL_EXIT" -ne 0 ]; then
   if command -v jq >/dev/null 2>&1; then
     _BASE="$(jq -nc --arg reason "webhook delivery failed (curl exit $CURL_EXIT)" \

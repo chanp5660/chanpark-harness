@@ -1,7 +1,7 @@
 {
   "name": "chanpark-harness-marketplace",
   "metadata": {
-    "version": "1.0.4",
+    "version": "1.0.5",
     "description": "Personal marketplace for distributing and installing chanpark-harness as a single plugin."
   },
   "owner": {
@@ -11,7 +11,7 @@
   "plugins": [
     {
       "name": "chanpark-harness",
-      "version": "1.0.4",
+      "version": "1.0.5",
       "source": "./",
       "description": "Personal multi-agent harness: claude-code-harness base merged with selected oh-my-claudecode agents/skills, modernized for current Claude Code.",
       "author": {

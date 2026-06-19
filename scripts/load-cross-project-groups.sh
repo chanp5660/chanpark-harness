@@ -3,42 +3,42 @@
 # Phase 65.3.1 - Cross-Project Group + 3-Layer Redaction
 #
 # Purpose:
-#   .claude/rules/cross-project-groups.yaml を読み込み、JSON にパース。
-#   schema validation を行い、不正な場合は exit 1。
+#   Read .claude/rules/cross-project-groups.yaml and parse it into JSON.
+#   Perform schema validation and exit 1 if invalid.
 #
 # Usage:
-#   load-cross-project-groups.sh                       # 全 groups を JSON 出力
-#   load-cross-project-groups.sh --group <name>        # 特定 group の members を JSON array で出力
-#   load-cross-project-groups.sh --yaml <path>         # yaml ファイル指定 (test 用、default は SSOT path)
+#   load-cross-project-groups.sh                       # Output all groups as JSON
+#   load-cross-project-groups.sh --group <name>        # Output a specific group's members as a JSON array
+#   load-cross-project-groups.sh --yaml <path>         # Specify the yaml file (for tests; default is the SSOT path)
 #
 # Exit code:
-#   0 = success (yaml valid + 出力済み)
+#   0 = success (yaml valid + output produced)
 #   1 = schema validation failure / group not found / yaml file not found
-#   2 = usage error (引数の組み合わせが不正)
+#   2 = usage error (invalid combination of arguments)
 #
 # Schema: cross-project-group.v1
 #   {schema_version: "cross-project-group.v1",
 #    groups: [{name: string, members: string[], description?: string}]}
 #
 # Validation rules (D43 Option α):
-#   - schema_version は "cross-project-group.v1" 固定
-#   - groups は array (空 OK)
-#   - groups[].name は unique かつ非空
-#   - groups[].members は array (空 OK)、要素 unique かつ非空 string
+#   - schema_version must be the fixed value "cross-project-group.v1"
+#   - groups must be an array (empty OK)
+#   - groups[].name must be unique and non-empty
+#   - groups[].members must be an array (empty OK), with unique, non-empty string elements
 
 set -euo pipefail
 
 usage() {
   cat <<'USAGE' >&2
 Usage:
-  load-cross-project-groups.sh                       全 groups を JSON 出力
-  load-cross-project-groups.sh --group <name>        特定 group の members を JSON array で出力
-  load-cross-project-groups.sh --yaml <path>         yaml ファイル指定 (default: .claude/rules/cross-project-groups.yaml)
+  load-cross-project-groups.sh                       Output all groups as JSON
+  load-cross-project-groups.sh --group <name>        Output a specific group's members as a JSON array
+  load-cross-project-groups.sh --yaml <path>         Specify the yaml file (default: .claude/rules/cross-project-groups.yaml)
 
 Options:
-  --group <name>   group 名指定 (members 配列を出力)
-  --yaml <path>    yaml ファイルパス (test 用)
-  -h | --help      このヘルプを表示
+  --group <name>   Specify the group name (outputs the members array)
+  --yaml <path>    yaml file path (for tests)
+  -h | --help      Show this help
 
 Exit code:
   0 = success
@@ -60,7 +60,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# default yaml path = repo root の SSOT
+# default yaml path = the SSOT at the repo root
 if [[ -z "$YAML_PATH" ]]; then
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"

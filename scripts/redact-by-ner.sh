@@ -3,39 +3,39 @@
 # Phase 65.3.3 - Layer 2b NER (Named Entity Recognition) redaction
 #
 # Purpose:
-#   テキストを受け取り、Japanese tokenizer (fugashi + UniDic-lite)
-#   で形態素解析後、pos2="固有名詞" tag を持つトークンを [Entity] に置換。
-#   隣接する固有名詞は 1 つの [Entity] にマージする (e.g., 田中 + 太郎 → [Entity])。
+#   Takes text, runs morphological analysis with a Japanese tokenizer
+#   (fugashi + UniDic-lite), then replaces tokens whose pos2 tag is a proper
+#   noun with [Entity]. Adjacent proper nouns are merged into a single [Entity].
 #
 # Usage:
 #   redact-by-ner.sh --input <text>
 #   echo "text" | redact-by-ner.sh --stdin
 #
 # Options:
-#   --input <text>         redact 対象テキスト
-#   --stdin                stdin から読む
-#   -h | --help            ヘルプ
+#   --input <text>         text to redact
+#   --stdin                read from stdin
+#   -h | --help            help
 #
 # Environment:
-#   CCH_NER_DISABLE_TOKENIZER=1   tokenizer を強制 disable (test 用 fail-open)
+#   CCH_NER_DISABLE_TOKENIZER=1   force-disable the tokenizer (fail-open for tests)
 #
 # Exit code:
-#   0 = success (NER 成功 / fail-open 経由を含む)
+#   0 = success (NER success / including via fail-open)
 #   2 = usage error
 #
 # Output:
-#   stdout: redacted text (固有名詞 0 件なら原文そのまま)
-#   stderr: ヒット時 "redacted: <count> entities"
-#           tokenizer 不在時 "WARNING: tokenizer unavailable, fail-open"
+#   stdout: redacted text (original text unchanged if 0 proper nouns)
+#   stderr: on hit "redacted: <count> entities"
+#           when tokenizer absent "WARNING: tokenizer unavailable, fail-open"
 #
-# Fail-open 仕様 (Plans.md DoD d):
-#   tokenizer (fugashi) 不在 / import 失敗 → exit 0、原文そのまま、
-#   stderr に warning 1 行。redact しないが処理は止めない。
+# Fail-open behavior (Plans.md DoD d):
+#   tokenizer (fugashi) absent / import failure -> exit 0, original text unchanged,
+#   one warning line to stderr. Does not redact but does not halt processing.
 #
-# 二重置換ガード (D43 判断 4):
-#   既存の sentinel mark ([REDACTED_*] / [Entity] / [Client_*] /
-#   [Person_*] / [Domain_*]) は退避 → NER → 復元の 3 段で
-#   再 redact しない。
+# Double-replacement guard (D43 decision 4):
+#   Existing sentinel marks ([REDACTED_*] / [Entity] / [Client_*] /
+#   [Person_*] / [Domain_*]) are not re-redacted via the 3-stage
+#   stash -> NER -> restore.
 
 set -euo pipefail
 
@@ -46,14 +46,14 @@ Usage:
   echo "text" | redact-by-ner.sh --stdin
 
 Required (one of):
-  --input <text>          redact 対象テキスト
-  --stdin                 stdin から読む
+  --input <text>          text to redact
+  --stdin                 read from stdin
 
 Options:
-  -h | --help             ヘルプ
+  -h | --help             help
 
 Environment:
-  CCH_NER_DISABLE_TOKENIZER=1   tokenizer を強制 disable (test 用)
+  CCH_NER_DISABLE_TOKENIZER=1   force-disable the tokenizer (for tests)
 
 Exit code: 0=success / 2=usage error
 USAGE
@@ -84,7 +84,7 @@ if [[ "$USE_STDIN" == "false" && "$INPUT_PROVIDED" == "false" ]]; then
 fi
 
 if ! command -v python3 >/dev/null 2>&1; then
-  # python3 不在も fail-open
+  # python3 absent also fails open
   if [[ "$USE_STDIN" == "true" ]]; then
     cat
   else
@@ -94,7 +94,7 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 0
 fi
 
-# stdin から読む
+# read from stdin
 if [[ "$USE_STDIN" == "true" ]]; then
   INPUT="$(cat)"
 fi
@@ -110,7 +110,7 @@ import re
 INPUT_TEXT = os.environ.get("INPUT_TEXT_PY", "")
 DISABLE_TOKENIZER = os.environ.get("CCH_NER_DISABLE_TOKENIZER_PY", "") == "1"
 
-# Sentinel patterns (D43 判断 4: 二重置換ガード)
+# Sentinel patterns (D43 decision 4: double-replacement guard)
 SENTINEL_PATTERNS = [
     re.compile(r"\[REDACTED_[A-Za-z0-9_]+\]"),
     re.compile(r"\[Entity\]"),
@@ -120,7 +120,7 @@ SENTINEL_PATTERNS = [
 ]
 
 def fail_open(reason):
-    """tokenizer 不在 / import 失敗時は原文そのまま + stderr 警告"""
+    """On tokenizer absence / import failure: original text unchanged + stderr warning"""
     sys.stdout.write(INPUT_TEXT)
     print(f"WARNING: tokenizer unavailable, fail-open ({reason})", file=sys.stderr)
     sys.exit(0)
@@ -136,10 +136,10 @@ except ImportError as e:
 try:
     tagger = Tagger()
 except Exception as e:
-    # dict 不在 etc.
+    # dict absent etc.
     fail_open(f"tokenizer init failed: {e}")
 
-# ---- 二重置換ガード: sentinel を退避 ----
+# ---- double-replacement guard: stash sentinels ----
 text = INPUT_TEXT
 sentinel_storage = []
 
@@ -155,20 +155,20 @@ def stash_sentinels(t):
 
 text = stash_sentinels(text)
 
-# ---- NER: 形態素解析 → 固有名詞抽出 → 隣接マージ ----
-# fugashi で text を解析 → token list を得る
-# 連続する 固有名詞 token は 1 つの [Entity] にまとめる
-# それ以外の token (および sentinel placeholder) はそのまま保持
+# ---- NER: morphological analysis -> proper-noun extraction -> adjacent merge ----
+# Analyze text with fugashi -> obtain a token list
+# Consecutive proper-noun tokens are collapsed into a single [Entity]
+# Other tokens (and sentinel placeholders) are kept as-is
 
 try:
     tokens = list(tagger(text))
 except Exception as e:
-    # tokenize 失敗 (rare) も fail-open
+    # tokenize failure (rare) also fails open
     sys.stdout.write(INPUT_TEXT)
     print(f"WARNING: tokenization failed, fail-open ({e})", file=sys.stderr)
     sys.exit(0)
 
-# 出力組み立て: token を順に処理し、固有名詞 run を 1 つの [Entity] に
+# Build output: process tokens in order, collapsing a proper-noun run into one [Entity]
 output_parts = []
 hit_count = 0
 in_proper_noun_run = False
@@ -185,14 +185,14 @@ for tok in tokens:
             output_parts.append(white_space + "[Entity]")
             hit_count += 1
             in_proper_noun_run = True
-        # else: 同じ run の続き → 何も append しない (既に 1 つ [Entity] あり)
+        # else: continuation of the same run -> append nothing (one [Entity] already added)
     else:
         output_parts.append(white_space + surface)
         in_proper_noun_run = False
 
 result = "".join(output_parts)
 
-# ---- sentinel 復元 ----
+# ---- restore sentinels ----
 for idx, original in enumerate(sentinel_storage):
     placeholder_core = f"CCH_SENT_{idx}"
     result = result.replace(f" {placeholder_core} ", original)

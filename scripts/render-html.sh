@@ -1,30 +1,31 @@
 #!/usr/bin/env bash
 # scripts/render-html.sh
-# Phase 65.1.1 - HTML template renderer (mustache 風) + jq によるデータバインド
+# Phase 65.1.1 - HTML template renderer (mustache-style) + data binding via jq
 #
 # Usage:
 #   render-html.sh --template <name> --data <json_path|-> --out <output_path>
 #
-# 構文:
-#   {{var}}                       … data の top-level scalar を参照
-#   {{#section}}...{{/section}}   … data[section] (配列) で iterate し、
-#                                   ブロック内の {{key}} は item の field を参照
+# Syntax:
+#   {{var}}                       … reference a top-level scalar of data
+#   {{#section}}...{{/section}}   … iterate over data[section] (array); inside the
+#                                   block, {{key}} references a field of the item
 #
-# 入力 JSON は html-render-input.v1 schema (kind / project / generated_at / sections)
-# が canonical だが、MVP では「parseable な JSON であれば accept」する soft validation。
-# テンプレートに書かれていない field は無視され、書かれていて data に欠ける field は
-# 空文字に展開される (jq の // "" で fallback)。
+# The canonical input JSON is the html-render-input.v1 schema (kind / project /
+# generated_at / sections), but the MVP uses soft validation that "accepts any
+# parseable JSON". Fields not in the template are ignored, and fields in the
+# template missing from data expand to empty strings (jq fallback via // "").
 #
-# テンプレート格納先: templates/html/<name>.html.template
-# 出力 HTML は単独で開ける (no server, no JS framework)、CSS は inline 想定。
-# Claude Harness ブランド (off-white #FAFAFA / near-black #0F0F0F / harness-orange #F58A4A)
-# をテンプレート側で利用する。
+# Template location: templates/html/<name>.html.template
+# The output HTML opens standalone (no server, no JS framework); CSS is assumed inline.
+# Templates use the Claude Harness brand
+# (off-white #FAFAFA / near-black #0F0F0F / harness-orange #F58A4A).
 
 set -euo pipefail
 
-# awk は byte offset を返すが、bash の ${var:offset:length} は locale 依存で
-# UTF-8 multi-byte を 1 文字と数える。両者を整合させるため byte 単位 (LC_ALL=C) に固定。
-# 出力 HTML はバイト列を透過コピーするだけなので、UTF-8 は正しく保たれる。
+# awk returns byte offsets, but bash's ${var:offset:length} is locale-dependent and
+# counts a UTF-8 multi-byte sequence as one character. To align the two, pin to byte
+# units (LC_ALL=C). The output HTML only copies the byte stream verbatim, so UTF-8
+# is preserved correctly.
 export LC_ALL=C
 
 usage() {
@@ -32,10 +33,10 @@ usage() {
 Usage: $0 --template <name> --data <json_path|-> --out <output_path>
 
 Arguments:
-  --template <name>       テンプレート basename (拡張子 .html.template を除く)
-                          templates/html/<name>.html.template を読みに行く
-  --data <json_path|->    JSON データファイル (- で stdin から読む)
-  --out <output_path>     出力 HTML の destination
+  --template <name>       template basename (without the .html.template extension)
+                          reads templates/html/<name>.html.template
+  --data <json_path|->    JSON data file (- reads from stdin)
+  --out <output_path>     destination of the output HTML
 USAGE
   exit 2
 }
@@ -65,12 +66,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$TEMPLATE_NAME" || -z "$DATA_PATH" || -z "$OUT_PATH" ]]; then
-  echo "ERROR: --template / --data / --out のいずれかが未指定です" >&2
+  echo "ERROR: one of --template / --data / --out is not specified" >&2
   usage
 fi
 
 if ! command -v jq >/dev/null 2>&1; then
-  echo "ERROR: jq が見つかりません。jq をインストールしてください。" >&2
+  echo "ERROR: jq not found. Please install jq." >&2
   exit 5
 fi
 
@@ -83,7 +84,7 @@ if [[ ! -f "$TEMPLATE_PATH" ]]; then
   exit 3
 fi
 
-# JSON データを normalized なファイルに保存 (- は stdin、それ以外はそのファイル)
+# Save JSON data to a normalized file (- means stdin, otherwise that file)
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/render-html.XXXXXX")"
 trap 'rm -rf "$TMP_DIR"' EXIT
 DATA_FILE="$TMP_DIR/data.json"
@@ -103,19 +104,20 @@ if ! jq -e '.' "$DATA_FILE" >/dev/null 2>&1; then
   exit 4
 fi
 
-# --- 内部関数 ---
+# --- internal functions ---
 
-# テンプレート内で「最初に見つかる {{#tag}}...{{/tag}}」の位置情報を返す。
-# 出力: "<open_offset> <open_len> <block_len> <tag_name>" または空文字 (見つからない場合)。
-#   open_offset … {{#tag}} が始まる 0-based byte offset
-#   open_len    … "{{#tag}}" 自体の長さ
-#   block_len   … {{#tag}} と {{/tag}} の間の block 部分の長さ
-#   tag_name    … tag の識別子
+# Returns position info for the "first {{#tag}}...{{/tag}} found" in the template.
+# Output: "<open_offset> <open_len> <block_len> <tag_name>" or empty string (if not found).
+#   open_offset … 0-based byte offset where {{#tag}} starts
+#   open_len    … length of "{{#tag}}" itself
+#   block_len   … length of the block between {{#tag}} and {{/tag}}
+#   tag_name    … tag identifier
 find_first_section() {
   local content="$1"
   printf '%s' "$content" | awk '
-    # BSD awk は RS="\0" を空文字 (= paragraph mode) に解釈し leading newline を消すので、
-    # 入力に絶対現れないセンチネル文字列を RS に置く (実質 EOF まで 1 record)。
+    # BSD awk interprets RS="\0" as empty (= paragraph mode) and drops the leading
+    # newline, so use a sentinel string that never appears in the input as RS
+    # (effectively one record up to EOF).
     BEGIN { RS = "__RENDER_HTML_AWK_RS_SENTINEL_NEVER_OCCURS__"; }
     {
       if (match($0, /\{\{#[a-zA-Z_][a-zA-Z_0-9]*\}\}/)) {
@@ -133,13 +135,14 @@ find_first_section() {
   '
 }
 
-# テンプレート内で「最初に見つかる {{var}}」の位置情報を返す。
-# 出力: "<offset> <length> <var_name>" または空文字。
+# Returns position info for the "first {{var}} found" in the template.
+# Output: "<offset> <length> <var_name>" or empty string.
 find_first_var() {
   local content="$1"
   printf '%s' "$content" | awk '
-    # BSD awk は RS="\0" を空文字 (= paragraph mode) に解釈し leading newline を消すので、
-    # 入力に絶対現れないセンチネル文字列を RS に置く (実質 EOF まで 1 record)。
+    # BSD awk interprets RS="\0" as empty (= paragraph mode) and drops the leading
+    # newline, so use a sentinel string that never appears in the input as RS
+    # (effectively one record up to EOF).
     BEGIN { RS = "__RENDER_HTML_AWK_RS_SENTINEL_NEVER_OCCURS__"; }
     {
       if (match($0, /\{\{[a-zA-Z_][a-zA-Z_0-9]*\}\}/)) {
@@ -149,34 +152,37 @@ find_first_var() {
   '
 }
 
-# data_file の top-level の var を文字列で取得 (存在しなければ空文字)
+# Get a top-level var from data_file as a string (empty string if absent)
 lookup_top_var() {
   local var="$1"
   jq -r --arg k "$var" '.[$k] // "" | tostring' "$DATA_FILE"
 }
 
-# section 内の item (JSON) から var を文字列で取得
+# Get a var as a string from an item (JSON) within a section
 lookup_item_var() {
   local item_json="$1"
   local var="$2"
   printf '%s' "$item_json" | jq -r --arg k "$var" '.[$k] // "" | tostring'
 }
 
-# 二重展開防止用の escape sentinel。data 値由来の `{` を SENTINEL に置換しておくと、
-# その値の中に `{{...}}` が含まれていても段階1/2 のどちらの awk pattern にもマッチしない。
-# 全展開が完了した後に SENTINEL を `{` に戻して原文を復元する。
+# Escape sentinel to prevent double expansion. By replacing a `{` from a data value
+# with SENTINEL, even if that value contains `{{...}}` it won't match either the
+# stage-1 or stage-2 awk pattern. After all expansion completes, SENTINEL is turned
+# back into `{` to restore the original text.
 #
-# 3 バイト列 (SOH + STX + ETX) を採用し、データ値内に既存する確率を実用上ゼロに抑える。
-# 1 バイト sentinel だと JSON が `` を含む場合に最終復元で誤変換が起きうるため避ける。
+# A 3-byte sequence (SOH + STX + ETX) is used to keep the probability of it pre-existing
+# in a data value practically zero.
+# A 1-byte sentinel is avoided because, when the JSON contains it, the final
+# restoration could mis-convert.
 SENTINEL_OPEN_BRACE=$'\x01\x02\x03'
 
 escape_val_for_embed() {
-  # data 値内の `{` を SENTINEL に置換 (二重展開防止)
+  # Replace `{` in a data value with SENTINEL (prevents double expansion)
   local v="$1"
   printf '%s' "${v//\{/$SENTINEL_OPEN_BRACE}"
 }
 
-# block を 1 item で render: ブロック内の各 {{var}} を item.var で置換。
+# Render a block for one item: replace each {{var}} in the block with item.var.
 render_block_with_item() {
   local block="$1"
   local item_json="$2"
@@ -202,7 +208,7 @@ render_block_with_item() {
   printf '%s' "$rendered"
 }
 
-# --- 段階1: section blocks を展開 ---
+# --- stage 1: expand section blocks ---
 TEMPLATE_CONTENT="$(cat "$TEMPLATE_PATH")"
 
 while :; do
@@ -216,11 +222,11 @@ while :; do
 
   prefix="${TEMPLATE_CONTENT:0:open_off}"
   block="${TEMPLATE_CONTENT:$((open_off + open_len)):block_len}"
-  # 5 は close marker `{{/<tag>}}` のうち tag を除いた固定 5 文字 (`{{/` + `}}`)
+  # 5 is the fixed 5 chars of the close marker `{{/<tag>}}` excluding the tag (`{{/` + `}}`)
   suffix_off=$((open_off + open_len + block_len + ${#tag_name} + 5))
   suffix="${TEMPLATE_CONTENT:$suffix_off}"
 
-  # data[tag_name] が配列でない (または欠落) ときは空配列扱い
+  # If data[tag_name] is not an array (or missing), treat it as an empty array
   items_count="$(jq -r --arg t "$tag_name" '
     if (.[$t] | type) == "array" then (.[$t] | length) else 0 end
   ' "$DATA_FILE")"
@@ -237,7 +243,7 @@ while :; do
   TEMPLATE_CONTENT="${prefix}${rendered_section}${suffix}"
 done
 
-# --- 段階2: top-level {{var}} を展開 (val 内の {{...}} は escape して再展開を防ぐ) ---
+# --- stage 2: expand top-level {{var}} (escape {{...}} within val to prevent re-expansion) ---
 while :; do
   info="$(find_first_var "$TEMPLATE_CONTENT")"
   [[ -z "$info" ]] && break
@@ -252,20 +258,21 @@ while :; do
   TEMPLATE_CONTENT="${TEMPLATE_CONTENT:0:off}${val_safe}${TEMPLATE_CONTENT:$((off + len))}"
 done
 
-# 全展開完了 — SENTINEL を `{` に復元して原文を取り戻す。
-# bash 3.2 の `${var//SEARCH/REPLACE}` で `\{` を replacement に書くと
-# backslash がリテラル挿入されるため、リテラル `{` を変数経由で渡す。
+# All expansion done — restore SENTINEL to `{` to recover the original text.
+# In bash 3.2's `${var//SEARCH/REPLACE}`, writing `\{` in the replacement inserts a
+# literal backslash, so pass the literal `{` via a variable.
 LITERAL_OPEN_BRACE="{"
 TEMPLATE_CONTENT="${TEMPLATE_CONTENT//$SENTINEL_OPEN_BRACE/$LITERAL_OPEN_BRACE}"
 
 # --- Layer 2/3 Redaction (Phase 65.3.4 / D43) + Phase 65.3.6 audit ---
-# --with-redaction 有効時、HTML 出力直前に 3 段順次:
-#   Layer 2a: redact-by-dictionary.sh (literal 固有名詞)
+# When --with-redaction is enabled, run 3 stages in order just before HTML output:
+#   Layer 2a: redact-by-dictionary.sh (literal proper nouns)
 #   Layer 2b: redact-by-ner.sh (Japanese tokenizer)
-#   Layer 3 : final scan (カタカナ 5 文字以上連続を残骸として検出)
-# Layer 3 で検出時は HTML を**書かず exit 1**、stderr に detected token を出力。
-# Phase 65.3.6: --audit-group 指定時は監査ログ append + HTML 末尾に redaction
-# サマリ表示。
+#   Layer 3 : final scan (detect runs of 5+ consecutive katakana as residue)
+# If Layer 3 detects something, **do not write the HTML and exit 1**, outputting the
+# detected token to stderr.
+# Phase 65.3.6: when --audit-group is specified, append to the audit log + show a
+# redaction summary at the end of the HTML.
 DICT_COUNT=0
 NER_COUNT=0
 PASSED_FINAL_SCAN="true"
@@ -275,7 +282,7 @@ if [[ "$WITH_REDACTION" == "true" ]]; then
   DICT_LOG="$TMP_DIR/dict.log"
   NER_LOG="$TMP_DIR/ner.log"
 
-  # Layer 2a: dict (--client-dict 指定時はそれを、なければ default SSOT)
+  # Layer 2a: dict (use --client-dict if specified, otherwise the default SSOT)
   if [[ -n "$CLIENT_DICT_PATH" ]]; then
     TEMPLATE_CONTENT="$(printf '%s' "$TEMPLATE_CONTENT" | bash "$SCRIPT_DIR/redact-by-dictionary.sh" --stdin --dict "$CLIENT_DICT_PATH" 2>"$DICT_LOG" || true)"
   else
@@ -307,8 +314,8 @@ if [[ "$WITH_REDACTION" == "true" ]]; then
 
   if [[ $FINAL_SCAN_EXIT -ne 0 ]]; then
     PASSED_FINAL_SCAN="false"
-    # 監査ログには「failed」を残してから abort する (Plans.md DoD e の
-    # 「final scan 失敗」ケース対応)
+    # Record "failed" in the audit log before aborting (handles the
+    # "final scan failure" case in Plans.md DoD e)
     if [[ -n "$AUDIT_GROUP" && -n "$AUDIT_QUERY_HASH" ]]; then
       bash "$SCRIPT_DIR/cross-project-audit-log.sh" \
         --group "$AUDIT_GROUP" \
@@ -322,12 +329,12 @@ if [[ "$WITH_REDACTION" == "true" ]]; then
     exit 1
   fi
 
-  # --- HTML 末尾に redaction サマリを表示 (Plans.md §65.3.6 DoD d) ---
-  # </body> の直前に footer を挿入。</body> がない場合は末尾に append。
-  AUDIT_FOOTER="<div class=\"audit-summary\" style=\"margin-top:2em;padding:0.6em 0.8em;border-top:1px solid #ccc;font-size:0.85em;color:#666;\">redacted: dict ${DICT_COUNT} 件 + NER ${NER_COUNT} 件</div>"
-  # bash parameter substitution: pattern の '/' は最初の 1 つのみ separator、
-  # 以降は literal。replacement 内の '<\/body>' は literal な「<\/body>」になるので
-  # 必ず '</body>' (backslash なし) を書く。
+  # --- Show a redaction summary at the end of the HTML (Plans.md §65.3.6 DoD d) ---
+  # Insert the footer just before </body>. If there is no </body>, append at the end.
+  AUDIT_FOOTER="<div class=\"audit-summary\" style=\"margin-top:2em;padding:0.6em 0.8em;border-top:1px solid #ccc;font-size:0.85em;color:#666;\">redacted: dict ${DICT_COUNT} + NER ${NER_COUNT}</div>"
+  # bash parameter substitution: only the first '/' in the pattern is the separator,
+  # the rest are literal. '<\/body>' in the replacement becomes a literal "<\/body>",
+  # so always write '</body>' (no backslash).
   if printf '%s' "$TEMPLATE_CONTENT" | grep -q "</body>"; then
     BODY_CLOSE_TAG="</body>"
     TEMPLATE_CONTENT="${TEMPLATE_CONTENT/${BODY_CLOSE_TAG}/${AUDIT_FOOTER}${BODY_CLOSE_TAG}}"
@@ -335,7 +342,7 @@ if [[ "$WITH_REDACTION" == "true" ]]; then
     TEMPLATE_CONTENT="${TEMPLATE_CONTENT}${AUDIT_FOOTER}"
   fi
 
-  # --- audit log append (--audit-group 指定時のみ) ---
+  # --- audit log append (only when --audit-group is specified) ---
   if [[ -n "$AUDIT_GROUP" && -n "$AUDIT_QUERY_HASH" ]]; then
     bash "$SCRIPT_DIR/cross-project-audit-log.sh" \
       --group "$AUDIT_GROUP" \
@@ -347,12 +354,12 @@ if [[ "$WITH_REDACTION" == "true" ]]; then
   fi
 fi
 
-# --- 出力 ---
+# --- output ---
 OUT_DIR="$(dirname "$OUT_PATH")"
 mkdir -p "$OUT_DIR"
 printf '%s' "$TEMPLATE_CONTENT" > "$OUT_PATH"
 
-# 末尾改行を保証 (テンプレートに改行があればそのまま、無ければ 1 行追加で diff を見やすく)
+# Ensure a trailing newline (keep the template's if present, otherwise add one line for cleaner diffs)
 if [[ "${TEMPLATE_CONTENT: -1}" != $'\n' ]]; then
   printf '\n' >> "$OUT_PATH"
 fi

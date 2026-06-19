@@ -1,12 +1,12 @@
 #!/bin/bash
 # session-resume.sh
-# SessionStart Hook (resume): Harness セッション状態の自動復元
+# SessionStart Hook (resume): auto-restore Harness session state
 #
-# Claude Code の /resume コマンド実行時に自動的に呼び出され、
-# Harness のセッション状態（session.json, session.events.jsonl）を復元します。
+# Called automatically when Claude Code's /resume command runs, and restores
+# the Harness session state (session.json, session.events.jsonl).
 #
-# 入力: stdin から JSON（session_id, source などを含む）
-# 出力: JSON 形式で hookSpecificOutput.additionalContext に情報を出力
+# Input: JSON from stdin (includes session_id, source, etc.)
+# Output: writes info to hookSpecificOutput.additionalContext in JSON
 
 set -euo pipefail
 
@@ -17,11 +17,11 @@ if [ -f "${PROGRESS_SNAPSHOT_LIB}" ]; then
   source "${PROGRESS_SNAPSHOT_LIB}"
 fi
 
-# ===== バナー表示 =====
+# ===== Banner =====
 VERSION=$(cat "$SCRIPT_DIR/../VERSION" 2>/dev/null || echo "unknown")
 echo -e "\033[0;36m[claude-code-harness v${VERSION}]\033[0m Session resumed" >&2
 
-# ===== stdin から JSON 入力を読み取り =====
+# ===== Read JSON input from stdin =====
 INPUT=""
 if [ -t 0 ]; then
   :
@@ -29,13 +29,13 @@ else
   INPUT=$(cat 2>/dev/null || true)
 fi
 
-# ===== Claude Code session_id を取得 =====
+# ===== Get the Claude Code session_id =====
 CC_SESSION_ID=""
 if [ -n "$INPUT" ] && command -v jq >/dev/null 2>&1; then
   CC_SESSION_ID="$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)"
 fi
 
-# ===== Harness 状態ディレクトリ (repo root 基準で統一) =====
+# ===== Harness state directory (unified to repo root) =====
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || REPO_ROOT="$(pwd)"
 STATE_DIR="${REPO_ROOT}/.claude/state"
 SESSION_FILE="$STATE_DIR/session.json"
@@ -74,7 +74,7 @@ if [ "$RESUME_MAX_BYTES" -lt 4096 ]; then
   RESUME_MAX_BYTES=4096
 fi
 
-# ===== 出力メッセージを蓄積 =====
+# ===== Accumulate the output message =====
 OUTPUT=""
 add_line() {
   OUTPUT="${OUTPUT}$1\n"
@@ -332,12 +332,12 @@ sync_handoff_session_metadata() {
     ' "$session_file" > "$tmp_file" && mv "$tmp_file" "$session_file"
 }
 
-# ===== セッション復元ロジック =====
+# ===== Session restore logic =====
 RESTORED="false"
 RESTORED_SESSION_ID=""
 RESTORE_METHOD=""
 
-# 方法1: セッションマッピングから検索
+# Method 1: look it up from the session mapping
 if [ -n "$CC_SESSION_ID" ] && [ -f "$SESSION_MAP_FILE" ] && command -v jq >/dev/null 2>&1; then
   HARNESS_SESSION_ID="$(jq -r --arg cc_id "$CC_SESSION_ID" '.[$cc_id] // empty' "$SESSION_MAP_FILE" 2>/dev/null)"
 
@@ -349,7 +349,7 @@ if [ -n "$CC_SESSION_ID" ] && [ -f "$SESSION_MAP_FILE" ] && command -v jq >/dev/
       cp "$ARCHIVE_SESSION" "$SESSION_FILE"
       [ -f "$ARCHIVE_EVENTS" ] && cp "$ARCHIVE_EVENTS" "$EVENT_LOG_FILE"
 
-      # 状態を initialized に更新し、resume イベントを記録
+      # Set state to initialized and record a resume event
       NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
       if command -v jq >/dev/null 2>&1; then
         tmp_file=$(mktemp)
@@ -359,7 +359,7 @@ if [ -n "$CC_SESSION_ID" ] && [ -f "$SESSION_MAP_FILE" ] && command -v jq >/dev/
            "$SESSION_FILE" > "$tmp_file" && mv "$tmp_file" "$SESSION_FILE"
       fi
 
-      # resume イベントを記録
+      # Record a resume event
       echo "{\"type\":\"session.resume\",\"ts\":\"$NOW\",\"state\":\"initialized\",\"data\":{\"cc_session_id\":\"$CC_SESSION_ID\",\"method\":\"mapping\"}}" >> "$EVENT_LOG_FILE"
 
       RESTORED="true"
@@ -369,7 +369,7 @@ if [ -n "$CC_SESSION_ID" ] && [ -f "$SESSION_MAP_FILE" ] && command -v jq >/dev/
   fi
 fi
 
-# 方法2: 最新の stopped セッションを自動復元（マッピングがない場合）
+# Method 2: auto-restore the latest stopped session (when there is no mapping)
 if [ "$RESTORED" = "false" ]; then
   LATEST_ARCHIVE=$(ls -t "$ARCHIVE_DIR"/*.json 2>/dev/null | head -n 1 || true)
 
@@ -397,9 +397,9 @@ if [ "$RESTORED" = "false" ]; then
   fi
 fi
 
-# 方法3: 復元対象がない場合は新規初期化
+# Method 3: initialize a new session if there is nothing to restore
 if [ "$RESTORED" = "false" ]; then
-  # session-init.sh と同等の初期化を行う
+  # Perform initialization equivalent to session-init.sh
   NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   NEW_SESSION_ID="session-$(date +%s)"
 
@@ -422,7 +422,7 @@ EOF
   RESTORE_METHOD="new"
 fi
 
-# ===== Claude Code session_id とのマッピングを保存 =====
+# ===== Save the mapping with the Claude Code session_id =====
 if [ -n "$CC_SESSION_ID" ] && [ -n "$RESTORED_SESSION_ID" ]; then
   if command -v jq >/dev/null 2>&1; then
     if [ -f "$SESSION_MAP_FILE" ]; then
@@ -435,36 +435,36 @@ if [ -n "$CC_SESSION_ID" ] && [ -n "$RESTORED_SESSION_ID" ]; then
   fi
 fi
 
-# ===== セッション間通信用の登録 =====
-# active.json に自分を登録（他セッションから認識可能にする）
+# ===== Register for inter-session communication =====
+# Register self in active.json (so other sessions can detect it)
 if [ -f "$SCRIPT_DIR/session-register.sh" ]; then
   bash "$SCRIPT_DIR/session-register.sh" "$RESTORED_SESSION_ID" 2>/dev/null || true
 fi
 
-# ===== Skills Gate 初期化（session-init.sh と同様） =====
+# ===== Skills Gate initialization (same as session-init.sh) =====
 SESSION_SKILLS_USED_FILE="${STATE_DIR}/session-skills-used.json"
 echo '{"used": [], "session_start": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > "$SESSION_SKILLS_USED_FILE"
 
-# ===== SSOT 同期フラグをクリア（新セッション/復元セッション開始時） =====
-# このフラグは /sync-ssot-from-memory 実行時に作成され、
-# Plans.md クリーンアップ前の SSOT 同期確認に使用される
+# ===== Clear the SSOT sync flag (at new/restored session start) =====
+# This flag is created when /sync-ssot-from-memory runs and is used to
+# confirm SSOT sync before Plans.md cleanup
 rm -f "${STATE_DIR}/.ssot-synced-this-session" 2>/dev/null || true
 
-# ultrawork 警告フラグをクリア（セッション復元時）
-# このフラグは userprompt-inject-policy.sh で一度だけ警告するために使用される
-# 復元時にクリアすることで、復元後の最初のプロンプトで警告が再表示される
-# 後方互換: 両方のフラグ名をクリア
+# Clear the ultrawork warning flag (on session restore)
+# This flag is used by userprompt-inject-policy.sh to warn only once
+# Clearing it on restore re-shows the warning on the first prompt after restore
+# Backward compatibility: clear both flag names
 rm -f "${STATE_DIR}/.work-review-warned" 2>/dev/null || true
 rm -f "${STATE_DIR}/.ultrawork-review-warned" 2>/dev/null || true
 
-# ===== Plans.md チェック =====
+# ===== Plans.md check =====
 PLANS_INFO=""
 if [ -f "$PLANS_PATH" ]; then
   wip_count="$(count_task_matches "(cc:(wip|WIP)|pm:(requested|依頼中)|cursor:依頼中)" "$PLANS_PATH")"
   todo_count="$(count_task_matches "cc:(todo|TODO)" "$PLANS_PATH")"
-  PLANS_INFO="📄 Plans.md: 進行中 ${wip_count} / 未着手 ${todo_count}"
+  PLANS_INFO="📄 Plans.md: In progress ${wip_count} / To do ${todo_count}"
 else
-  PLANS_INFO="📄 Plans.md: 未検出"
+  PLANS_INFO="📄 Plans.md: not found"
 fi
 
 SNAPSHOT_INFO=""
@@ -472,70 +472,70 @@ if declare -F progress_snapshot_summary >/dev/null 2>&1; then
   SNAPSHOT_INFO="$(progress_snapshot_summary "${STATE_DIR}" 2>/dev/null || true)"
 fi
 
-# ===== active_skill 検出（スキル再起動が必要かチェック） =====
+# ===== active_skill detection (check whether the skill must be restarted) =====
 ACTIVE_SKILL_INFO=""
 if [ -f "$SESSION_FILE" ] && command -v jq >/dev/null 2>&1; then
   ACTIVE_SKILL=$(jq -r '.active_skill // empty' "$SESSION_FILE" 2>/dev/null)
-  ACTIVE_SKILL_STARTED=$(jq -r '.active_skill_started_at // "不明"' "$SESSION_FILE" 2>/dev/null)
+  ACTIVE_SKILL_STARTED=$(jq -r '.active_skill_started_at // "unknown"' "$SESSION_FILE" 2>/dev/null)
 
   if [ -n "$ACTIVE_SKILL" ]; then
     ACTIVE_SKILL_INFO="
 ## ⚠️ MANDATORY: ${ACTIVE_SKILL} Session Recovery
 
-**前回のセッションで \`/${ACTIVE_SKILL}\` が実行中でした（開始: ${ACTIVE_SKILL_STARTED}）**
+**\`/${ACTIVE_SKILL}\` was running in the previous session (started: ${ACTIVE_SKILL_STARTED})**
 
-**必須アクション:**
-1. \`/${ACTIVE_SKILL} 続きやって\` でスキルを再起動してください
-2. スキルを再起動せずに直接実装を開始しないでください
-3. スキル文脈なしでは review_status ガードが機能しません
+**Required actions:**
+1. Restart the skill with \`/${ACTIVE_SKILL} continue\`
+2. Do not start implementing directly without restarting the skill
+3. Without the skill context, the review_status guard does not work
 
-スキルを再起動しない場合:
-- レビュー強制が機能しません
-- 前回の失敗からの学習が引き継がれません
-- 完了チェックが不完全になります
+If you do not restart the skill:
+- Review enforcement will not work
+- Learnings from the previous failure will not carry over
+- Completion checks will be incomplete
 "
   fi
 fi
 
-# ===== Work モード検出と harness-review 必須の再注入 =====
+# ===== Work mode detection and re-injection of the harness-review requirement =====
 WORK_INFO=""
 WORK_FILE="${STATE_DIR}/work-active.json"
-# 後方互換: work-active.json がなければ ultrawork-active.json を試行
+# Backward compatibility: try ultrawork-active.json if work-active.json is missing
 if [ ! -f "$WORK_FILE" ]; then
   WORK_FILE="${STATE_DIR}/ultrawork-active.json"
 fi
 if [ -f "$WORK_FILE" ] && command -v jq >/dev/null 2>&1; then
   REVIEW_STATUS=$(jq -r '.review_status // "pending"' "$WORK_FILE" 2>/dev/null)
-  STARTED_AT=$(jq -r '.started_at // "不明"' "$WORK_FILE" 2>/dev/null)
+  STARTED_AT=$(jq -r '.started_at // "unknown"' "$WORK_FILE" 2>/dev/null)
 
   case "$REVIEW_STATUS" in
     "passed")
-      WORK_INFO="⚡ **work モード継続中** (開始: ${STARTED_AT})\n   ✅ review_status: passed → 完了処理可能"
+      WORK_INFO="⚡ **work mode in progress** (started: ${STARTED_AT})\n   ✅ review_status: passed → completion allowed"
       ;;
     "failed")
-      WORK_INFO="⚡ **work モード継続中** (開始: ${STARTED_AT})\n   ❌ review_status: failed → 修正後に /harness-review を再実行してください"
+      WORK_INFO="⚡ **work mode in progress** (started: ${STARTED_AT})\n   ❌ review_status: failed → fix and re-run /harness-review"
       ;;
     *)
-      WORK_INFO="⚡ **work モード継続中** (開始: ${STARTED_AT})\n   ⚠️ review_status: pending → **完了前に /harness-review で APPROVE を得てください**"
+      WORK_INFO="⚡ **work mode in progress** (started: ${STARTED_AT})\n   ⚠️ review_status: pending → **get APPROVE from /harness-review before completing**"
       ;;
   esac
 fi
 
-# ===== 出力メッセージの構築 =====
-add_line "# [claude-code-harness] セッション復元"
+# ===== Build the output message =====
+add_line "# [claude-code-harness] Session restore"
 add_line ""
 
 case "$RESTORE_METHOD" in
   "mapping")
-    add_line "✅ セッション状態を復元しました（マッピングから検出）"
+    add_line "✅ Restored session state (detected from mapping)"
     add_line "   Harness Session: ${RESTORED_SESSION_ID}"
     ;;
   "latest")
-    add_line "✅ 最新のセッション状態を復元しました"
+    add_line "✅ Restored the latest session state"
     add_line "   Harness Session: ${RESTORED_SESSION_ID}"
     ;;
   "new")
-    add_line "ℹ️ 復元対象のセッションがないため、新規初期化しました"
+    add_line "ℹ️ No session to restore, so a new one was initialized"
     add_line "   Harness Session: ${RESTORED_SESSION_ID}"
     ;;
 esac
@@ -559,7 +559,7 @@ fi
 HANDOFF_CONTEXT=""
 HANDOFF_ARTIFACT_PATH="$(get_handoff_artifact_path)"
 if [ -n "$HANDOFF_ARTIFACT_PATH" ] && [ -f "$HANDOFF_ARTIFACT_PATH" ]; then
-  # stale handoff を拒否: 24時間以上前の artifact は無視（session-init.sh と同じポリシー）
+  # Reject stale handoffs: ignore artifacts older than 24 hours (same policy as session-init.sh)
   HANDOFF_AGE_LIMIT=86400
   HANDOFF_MTIME="$(stat -f %m "$HANDOFF_ARTIFACT_PATH" 2>/dev/null || stat -c %Y "$HANDOFF_ARTIFACT_PATH" 2>/dev/null || echo 0)"
   NOW="$(date +%s)"
@@ -586,19 +586,19 @@ if [ -n "${SNAPSHOT_INFO}" ]; then
   add_line "${SNAPSHOT_INFO}"
 fi
 
-# active_skill 再起動指示を追加（最優先で表示）
+# Add the active_skill restart instruction (shown with top priority)
 if [ -n "$ACTIVE_SKILL_INFO" ]; then
   add_line ""
   add_line "$ACTIVE_SKILL_INFO"
 fi
 
-# ultrawork モード情報を追加
+# Add ultrawork mode info
 if [ -n "$WORK_INFO" ]; then
   add_line ""
   add_line "$WORK_INFO"
 fi
 
-# ===== JSON 出力 =====
+# ===== JSON output =====
 ESCAPED_OUTPUT=$(echo -e "$OUTPUT" | sed 's/\\/\\\\/g; s/"/\\"/g; s/$/\\n/' | tr -d '\n' | sed 's/\\n$//')
 
 cat <<EOF

@@ -1,6 +1,6 @@
 #!/bin/bash
 # write-review-result.sh
-# さまざまな review 出力を review-result.v1 に正規化し、後方互換の review-approved.json も更新する。
+# Normalize various review outputs into review-result.v1, and also update the backward-compatible review-approved.json.
 
 set -euo pipefail
 
@@ -89,7 +89,7 @@ jq -n   --slurpfile src "$INPUT_FILE"   --slurpfile browser "$BROWSER_SLURP_FILE
     end;
   def is_browser_pending(v):
     v == null or v == "" or v == "PENDING_BROWSER" or v == "SKIPPED" or v == "DOWNGRADE_TO_STATIC";
-  # companion verdict 正規化: approve→APPROVE, needs-attention→REQUEST_CHANGES
+  # Normalize companion verdict: approve->APPROVE, needs-attention->REQUEST_CHANGES
   def normalize_verdict(v):
     if v == "approve" then "APPROVE"
     elif v == "needs-attention" then "REQUEST_CHANGES"
@@ -102,8 +102,8 @@ jq -n   --slurpfile src "$INPUT_FILE"   --slurpfile browser "$BROWSER_SLURP_FILE
     elif is_browser_pending(static) then browser
     else static
     end;
-  # companion findings[] → gaps[] マッピング（引数で入力を受け取る）
-  # companion findings → gaps（critical/high のみブロッキング）
+  # Map companion findings[] -> gaps[] (takes input as an argument)
+  # companion findings -> gaps (only critical/high are blocking)
   def findings_to_gaps(input):
     as_array(input.findings) | map({
       severity: .severity,
@@ -113,7 +113,7 @@ jq -n   --slurpfile src "$INPUT_FILE"   --slurpfile browser "$BROWSER_SLURP_FILE
       line_end: (.line_end // null),
       recommendation: (.recommendation // "")
     }) | map(select(.severity | IN("critical","high")));
-  # companion findings → followups（medium/low は非ブロッキング）
+  # companion findings -> followups (medium/low are non-blocking)
   def findings_to_followups(input):
     as_array(input.findings) | map({
       severity: .severity,
@@ -202,7 +202,7 @@ jq -n   --slurpfile src "$INPUT_FILE"   --slurpfile browser "$BROWSER_SLURP_FILE
       dual_review: ($in.dual_review // null)
     }' > "$OUTPUT_FILE"
 
-# blocking gaps がある場合は verdict を REQUEST_CHANGES に強制
+# If there are blocking gaps, force verdict to REQUEST_CHANGES
 BLOCKING_GAPS="$(jq '[.gaps[] | select(.severity == "critical" or .severity == "high" or .severity == "major")] | length' "$OUTPUT_FILE" 2>/dev/null || echo 0)"
 if [ "$BLOCKING_GAPS" -gt 0 ]; then
   jq '.verdict = "REQUEST_CHANGES"' "$OUTPUT_FILE" > "${OUTPUT_FILE}.tmp" && mv "${OUTPUT_FILE}.tmp" "$OUTPUT_FILE"

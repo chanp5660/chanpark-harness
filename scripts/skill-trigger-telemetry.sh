@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # skill-trigger-telemetry.sh
-# Phase 62.2.3: skill_activated.invocation_trigger を local ledger に記録
+# Phase 62.2.3: record skill_activated.invocation_trigger to a local ledger
 #
 # Input:  stdin JSON (Claude Code 2.1.126+ skill_activated OTel event)
 #   {
@@ -9,10 +9,10 @@
 #     "session_id": "session-abc123",
 #     "duration_ms": 1234     // optional
 #   }
-# Output: stdout は no-op (silent)
-# Side effect: .claude/state/skill-trigger-stats.jsonl に append-only 記録
+# Output: stdout is a no-op (silent)
+# Side effect: append-only record to .claude/state/skill-trigger-stats.jsonl
 #
-# Privacy / retention / opt-out: docs/skill-telemetry-policy.md を参照
+# Privacy / retention / opt-out: see docs/skill-telemetry-policy.md
 
 set -euo pipefail
 
@@ -20,7 +20,7 @@ PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 STATE_DIR="${PROJECT_ROOT}/.claude/state"
 LEDGER="${STATE_DIR}/skill-trigger-stats.jsonl"
 
-# opt-out: 環境変数で無効化
+# opt-out: disable via environment variable
 if [ "${HARNESS_SKILL_TELEMETRY_DISABLE:-0}" = "1" ]; then
   exit 0
 fi
@@ -43,19 +43,19 @@ if [ -z "${SKILL_NAME}" ] || [ -z "${TRIGGER}" ]; then
   exit 0
 fi
 
-# trigger を allowlist に絞る (privacy: 想定外の field 値を記録しない)
+# Restrict trigger to an allowlist (privacy: do not record unexpected field values)
 case "${TRIGGER}" in
   human|model|skill-chain) ;;
   *)
-    # 想定外の trigger は "other" として記録 (ledger 整合性のため値は固定化)
+    # Record unexpected triggers as "other" (fixed value for ledger consistency)
     TRIGGER="other"
     ;;
 esac
 
-# session_id は 12 文字 prefix に truncate (privacy minimization)
+# Truncate session_id to a 12-character prefix (privacy minimization)
 SESSION_ID="${SESSION_ID_RAW:0:12}"
 
-# skill exclude list (settings.local.json から読む)
+# skill exclude list (read from settings.local.json)
 SETTINGS_LOCAL="${PROJECT_ROOT}/.claude/settings.local.json"
 if [ -f "${SETTINGS_LOCAL}" ]; then
   EXCLUDED="$(jq -r --arg s "${SKILL_NAME}" '.harness.skill_telemetry_exclude // [] | map(select(. == $s)) | length' "${SETTINGS_LOCAL}" 2>/dev/null || echo "0")"

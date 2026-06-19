@@ -15,11 +15,11 @@
 # not. Reuse a valid existing worktree; otherwise create one. On unrecoverable
 # ambiguity, emit nothing (aborts creation safely) rather than corrupt state.
 #
-# 入力 (stdin JSON): session_id, cwd, hook_event_name, tool_input
+# Input (stdin JSON): session_id, cwd, hook_event_name, tool_input
 
 set -euo pipefail
 
-# === stdin から JSON ペイロードを読み取り ===
+# === Read the JSON payload from stdin ===
 INPUT=""
 if [ ! -t 0 ]; then
   INPUT="$(cat 2>/dev/null)"
@@ -45,7 +45,7 @@ looks_like_hook_decision_json() {
   esac
 }
 
-# === フィールド抽出 ===
+# === Field extraction ===
 SESSION_ID=""
 CWD=""
 TOOL_WORKTREE_PATH=""
@@ -84,7 +84,7 @@ if looks_like_hook_decision_json "${CWD}"; then
   exit 0
 fi
 
-# === worktree パスを決定 ===
+# === Determine the worktree path ===
 sanitize_slug() {
   printf '%s' "$1" | sed 's#[ /\\.:]#-#g; s/^-*//; s/-*$//'
 }
@@ -126,7 +126,7 @@ origin_default_ref() {
   printf ''
 }
 
-# === worktree を確保（reuse or create）===
+# === Ensure the worktree exists (reuse or create) ===
 if ! is_git_worktree "${TARGET}"; then
   # Pre-existing non-empty non-worktree dir: never clobber, report as-is.
   if [ -d "${TARGET}" ] && [ -n "$(ls -A "${TARGET}" 2>/dev/null)" ]; then
@@ -153,7 +153,7 @@ if ! is_git_worktree "${TARGET}"; then
   fi
 fi
 
-# === worktree 内に .claude/state/ を初期化（best-effort, idempotent）===
+# === Initialize .claude/state/ inside the worktree (best-effort, idempotent) ===
 WORKTREE_STATE_DIR="${TARGET}/.claude/state"
 mkdir -p "${WORKTREE_STATE_DIR}" 2>/dev/null || true
 WORKTREE_INFO_FILE="${WORKTREE_STATE_DIR}/worktree-info.json"

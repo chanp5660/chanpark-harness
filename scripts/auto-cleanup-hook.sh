@@ -1,19 +1,19 @@
 #!/bin/bash
 # auto-cleanup-hook.sh
-# PostToolUse Hook: Plans.md 等への書き込み後に自動でサイズチェック
+# PostToolUse Hook: automatic size check after writing to Plans.md, etc.
 #
-# 入力: stdin から JSON（tool_name, tool_input 等）
-# 出力: additionalContext でフィードバック
+# Input: JSON from stdin (tool_name, tool_input, etc.)
+# Output: feedback via additionalContext
 
 set +e
 
-# 入力JSONを読み取り（Claude Code hooks は stdin で JSON を渡す）
+# Read input JSON (Claude Code hooks pass JSON via stdin)
 INPUT=""
 if [ ! -t 0 ]; then
   INPUT="$(cat 2>/dev/null)"
 fi
 
-# stdin JSON から file_path / cwd を取得（jq がなければ python3 を試す）
+# Get file_path / cwd from stdin JSON (try python3 if jq is missing)
 FILE_PATH=""
 CWD=""
 if [ -n "$INPUT" ]; then
@@ -39,34 +39,34 @@ print(f"FILE_PATH_FROM_STDIN={shlex.quote(file_path)}")
   fi
 fi
 
-# file_path が空なら終了
+# Exit if file_path is empty
 if [ -z "$FILE_PATH" ]; then
   exit 0
 fi
 
-# 可能ならプロジェクト相対パスへ正規化（絶対パスでも動作するが判定が安定する）
+# Normalize to a project-relative path when possible (works with absolute paths too, but stabilizes matching)
 if [ -n "$CWD" ] && [[ "$FILE_PATH" == "$CWD/"* ]]; then
   FILE_PATH="${FILE_PATH#$CWD/}"
 fi
 
-# デフォルト閾値
+# Default thresholds
 PLANS_MAX_LINES=${PLANS_MAX_LINES:-200}
 SESSION_LOG_MAX_LINES=${SESSION_LOG_MAX_LINES:-500}
 CLAUDE_MD_MAX_LINES=${CLAUDE_MD_MAX_LINES:-100}
 
-# フィードバックを格納する変数
+# Variable that holds the feedback
 FEEDBACK=""
 
-# Plans.md のチェック
+# Check Plans.md
 if [[ "$FILE_PATH" == *"Plans.md"* ]] || [[ "$FILE_PATH" == *"plans.md"* ]]; then
   if [ -f "$FILE_PATH" ]; then
     lines=$(wc -l < "$FILE_PATH" | tr -d ' ')
     if [ "$lines" -gt "$PLANS_MAX_LINES" ]; then
-      FEEDBACK="⚠️ Plans.md が ${lines} 行です（上限: ${PLANS_MAX_LINES}行）。/maintenance で古いタスクをアーカイブすることを推奨します。"
+      FEEDBACK="⚠️ Plans.md is ${lines} lines (limit: ${PLANS_MAX_LINES}). Archiving old tasks via /maintenance is recommended."
     fi
 
-    # Plans.md クリーンアップ（アーカイブ移動）検知時の SSOT 同期チェック
-    # アーカイブセクションへの編集がある場合、/memory sync の事前実行を確認
+    # SSOT sync check when Plans.md cleanup (archive move) is detected
+    # If the archive section was edited, confirm /memory sync ran beforehand
     if grep -q "📦 アーカイブ\|## アーカイブ\|Archive" "$FILE_PATH" 2>/dev/null; then
       # Resolve repository root for consistent state directory lookup
       CWD="${CWD:-$(pwd)}"  # Fallback to pwd if empty
@@ -76,8 +76,8 @@ if [[ "$FILE_PATH" == *"Plans.md"* ]] || [[ "$FILE_PATH" == *"plans.md"* ]]; the
       SSOT_FLAG="${STATE_DIR}/.ssot-synced-this-session"
 
       if [ ! -f "$SSOT_FLAG" ]; then
-        # フラグがない場合、SSOT 同期を促す警告を追加
-        SSOT_WARNING="**Plans.md クリーンアップ前に /memory sync を実行してください** - 重要な決定や学習事項が SSOT (decisions.md/patterns.md) に反映されていない可能性があります。"
+        # If the flag is absent, add a warning prompting an SSOT sync
+        SSOT_WARNING="**Run /memory sync before cleaning up Plans.md** - important decisions or learnings may not yet be reflected in the SSOT (decisions.md/patterns.md)."
 
         if [ -n "$FEEDBACK" ]; then
           FEEDBACK="${FEEDBACK} | ${SSOT_WARNING}"
@@ -89,30 +89,30 @@ if [[ "$FILE_PATH" == *"Plans.md"* ]] || [[ "$FILE_PATH" == *"plans.md"* ]]; the
   fi
 fi
 
-# session-log.md のチェック
+# Check session-log.md
 if [[ "$FILE_PATH" == *"session-log.md"* ]]; then
   if [ -f "$FILE_PATH" ]; then
     lines=$(wc -l < "$FILE_PATH" | tr -d ' ')
     if [ "$lines" -gt "$SESSION_LOG_MAX_LINES" ]; then
-      FEEDBACK="⚠️ session-log.md が ${lines} 行です（上限: ${SESSION_LOG_MAX_LINES}行）。/maintenance で月別に分割することを推奨します。"
+      FEEDBACK="⚠️ session-log.md is ${lines} lines (limit: ${SESSION_LOG_MAX_LINES}). Splitting it by month via /maintenance is recommended."
     fi
   fi
 fi
 
-# CLAUDE.md のチェック
+# Check CLAUDE.md
 if [[ "$FILE_PATH" == *"CLAUDE.md"* ]] || [[ "$FILE_PATH" == *"claude.md"* ]]; then
   if [ -f "$FILE_PATH" ]; then
     lines=$(wc -l < "$FILE_PATH" | tr -d ' ')
     if [ "$lines" -gt "$CLAUDE_MD_MAX_LINES" ]; then
-      FEEDBACK="⚠️ CLAUDE.md が ${lines} 行です。.claude/rules/ への分割、または docs/ に移動して @docs/filename.md で参照することを検討してください。"
+      FEEDBACK="⚠️ CLAUDE.md is ${lines} lines. Consider splitting it into .claude/rules/, or moving it to docs/ and referencing it via @docs/filename.md."
     fi
   fi
 fi
 
-# フィードバックがあれば JSON で出力
+# Emit JSON if there is feedback
 if [ -n "$FEEDBACK" ]; then
   echo "{\"hookSpecificOutput\": {\"hookEventName\": \"PostToolUse\", \"additionalContext\": \"$FEEDBACK\"}}"
 fi
 
-# 常に成功で終了
+# Always exit successfully
 exit 0

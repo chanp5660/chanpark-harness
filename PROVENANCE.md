@@ -95,7 +95,31 @@ actually ported.
 | rebrand | `oh-my-claudecode` / `claude-code-harness` → `chanpark-harness` in user-facing paths/literals (keep the invariants in CLAUDE.md — hooks grep, marketplace/cache paths, binary-read filenames) | yes (sed) |
 | status markers | keep English lowercase `cc:todo\|wip\|done\|blocked`, `pm:requested\|approved` | yes |
 | agent frontmatter | full model IDs, `effort`, `disallowedTools`; no `permissionMode`/`mcpServers`/`hooks` | check, not auto |
-| localization | JP → EN for all user-facing content | **no — needs human judgment** |
+| localization | JP → EN for all user-facing content, **including the compiled Go binary** (see note) | **no — needs human judgment** |
+
+### Binary localization note (added 2026-06-19)
+
+`bin/harness-*` had Japanese baked in (status labels like `が実行予定`/`が実装中`, notifications,
+error prose) because the upstream `go/` source is Japanese. The committed binaries were rebuilt
+from a JP→EN-localized copy of upstream `go/` (fetched at `harness-upstream` HEAD
+`4a0961e4`). Likewise `scripts/` (the binary's bash fallbacks) were localized in place.
+
+To redo this on a future reconcile:
+1. `git archive harness-upstream/HEAD go/ | tar -x -C <workdir>` (Go source is **not** kept in
+   this repo — `no Go build` portability rule means only the binary is committed).
+2. Translate JP **comments + user-facing strings** in `*.go` and `scripts/*`. **Preserve** these
+   Japanese literals — they are matched, not displayed: marker aliases (`cc:完了`/`pm:依頼中`/
+   `pm:確認済`/`cursor:*`), `locale=="ja"` i18n branches, input-matching keyword lists
+   (`detectIntent`, yes/no normalizers `はい`/`いいえ`/`承認`/`却下`), NER/POS tags (`固有名詞`),
+   and read-compat header patterns (`## マーカー凡例|## Marker Legend`).
+3. Reconcile any `*_test.go` assertions that expected the old strings (update expected English;
+   never weaken/skip assertions).
+4. Rebuild 4 platforms with `CGO_ENABLED=0` (modernc sqlite is pure-Go) from `./cmd/harness`:
+   `linux/amd64`, `darwin/amd64`, `darwin/arm64`, `windows/amd64` (`.exe`); copy over `bin/`,
+   keep `bin/harness` shim untouched, `chmod 0755`.
+5. Verify: `grep -aoP '(が実行予定|が実装中|がタスクを完了しました|から依頼)' bin/harness-linux-amd64`
+   should be empty; one residual `が更新されました` is expected (a `locale=="ja"` branch in
+   `runtime_reactive.go`, served only when `HARNESS_LOCALE=ja` — English is the default).
 
 ## Claude Code (host CLI) spec drift
 
