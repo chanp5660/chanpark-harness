@@ -1,9 +1,14 @@
 # Local/runtime state — never committed
 .claude/state/
+.claude/sessions/
 .omc/
 *.log
 *.lock
 .DS_Store
+
+# Python bytecode caches
+__pycache__/
+*.py[cod]
 
 # Plugin install caches (if ever present in-tree)
 plugins/cache/
