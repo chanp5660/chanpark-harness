@@ -73,6 +73,7 @@ project/
 5. **Go binary verification**: Run `harness version` to confirm the binary is available (Node.js is not required since v4.0)
 6. **Plugin file sync**: Run `harness sync` to sync files under `.claude-plugin/` to the latest. If `harness.toml` is missing and sync fails, run `harness init` first (recovery path for projects bootstrapped before the Setup hook was introduced)
 7. **Health check**: Run `harness doctor` to pass all check items. If issues are found, present remediation steps.
+8. **HUD status line (optional)**: Offer to enable the chanpark-harness HUD by running `/chanpark-harness:hud setup`. Mention it is optional and writes the user's global `~/.claude/settings.json` `statusLine`, so only proceed with the user's consent (skip if they already use a custom status line). A SessionStart nudge also surfaces this suggestion until a status line is configured.
 
 ### Go Binary Verification
 
