@@ -58,15 +58,16 @@ With `version` pinned, Claude Code only updates when the version changes.
 ```text
 /chanpark-harness:hud setup     # install + wire the status line (focused preset)
 /chanpark-harness:hud minimal   # one line: model · context% · tasks
-/chanpark-harness:hud full      # adds repo name + todo/wip/done breakdown
+/chanpark-harness:hud focused   # default: model/git/cwd + ctx%/5h/7d limits/lines/tasks
+/chanpark-harness:hud full      # adds repo name + elapsed time + todo/wip/done breakdown
 /chanpark-harness:hud status    # report current config
 /chanpark-harness:hud off       # disable
 ```
 
-Shows model, effort/thinking, git branch + diff counts + ahead/behind/untracked/stash, a
-context usage `ctx:%`, session cost, lines changed this session (`+added/-removed`), elapsed
-time, Plans.md task counts, and the active WIP task title. Requires `jq`; without it, it
-falls back to a model-only line.
+Shows model, git branch + diff counts + ahead/behind/untracked/stash, a context usage
+`ctx:%`, subscription rate limits (`5h:%`/`7d:%` with reset countdown, Claude.ai Pro/Max
+only), lines changed this session (`+added/-removed`), elapsed time, Plans.md task counts,
+and the active WIP task title. Requires `jq`; without it, it falls back to a model-only line.
 
 ## Workflow
 
