@@ -155,6 +155,12 @@
             "command": "/bin/bash -c 'valid_root(){ local r=\"${1:-}\"; [ -n \"$r\" ] && [ -x \"$r/bin/harness\" ] && [ -f \"$r/.claude-plugin/plugin.json\" ] && /usr/bin/grep -q \"\\\"name\\\"[[:space:]]*:[[:space:]]*\\\"chanpark-harness\\\"\" \"$r/.claude-plugin/plugin.json\"; }; root=\"${CLAUDE_PLUGIN_ROOT:-}\"; if ! valid_root \"$root\"; then root=\"\"; for c in \"${CLAUDE_PROJECT_DIR:-}\" \"$PWD\" \"$HOME/.claude/plugins/marketplaces/chanpark-harness-marketplace\" \"$HOME/.claude/plugins/cache/chanpark-harness-marketplace/chanpark-harness/\"*; do if valid_root \"$c\"; then root=\"$c\"; break; fi; done; fi; if ! valid_root \"$root\"; then echo \"[chanpark-harness] plugin root not found; hook skipped\" >&2; exit 0; fi; exec \"$root/bin/harness\" \"$@\"' _ hook session-relay-start",
             "timeout": 15,
             "once": true
+          },
+          {
+            "type": "command",
+            "command": "/bin/bash -c 'valid_root(){ local r=\"${1:-}\"; [ -n \"$r\" ] && [ -x \"$r/bin/harness\" ] && [ -f \"$r/.claude-plugin/plugin.json\" ] && /usr/bin/grep -q \"\\\"name\\\"[[:space:]]*:[[:space:]]*\\\"chanpark-harness\\\"\" \"$r/.claude-plugin/plugin.json\"; }; root=\"${CLAUDE_PLUGIN_ROOT:-}\"; if ! valid_root \"$root\"; then root=\"\"; for c in \"${CLAUDE_PROJECT_DIR:-}\" \"$PWD\" \"$HOME/.claude/plugins/marketplaces/chanpark-harness-marketplace\" \"$HOME/.claude/plugins/cache/chanpark-harness-marketplace/chanpark-harness/\"*; do if valid_root \"$c\"; then root=\"$c\"; break; fi; done; fi; if ! valid_root \"$root\"; then echo \"[chanpark-harness] plugin root not found; hook skipped\" >&2; exit 0; fi; exec /bin/bash \"$root/scripts/hook-handlers/hud-onboarding-nudge.sh\" \"$@\"' _",
+            "timeout": 10,
+            "once": true
           }
         ]
       }
