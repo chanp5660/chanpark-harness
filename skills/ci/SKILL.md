@@ -1,6 +1,6 @@
 ---
 name: ci
-description: "CI red? Call us. Pipeline fire brigade deploys. Use when user mentions CI failures, build errors, test failures, or pipeline issues. Do NOT load for: local builds, standard implementation work, reviews, or setup."
+description: "Diagnose and fix CI/CD pipeline failures. Trigger: CI failures, build errors, test failures, pipeline issues. Do NOT load for: local builds, standard implementation, reviews, setup."
 allowed-tools: ["Read", "Grep", "Bash", "Task", "Monitor"]
 user-invocable: true
 context: fork
