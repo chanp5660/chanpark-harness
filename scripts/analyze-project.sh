@@ -307,33 +307,33 @@ detect_important_patterns() {
   local patterns=()
 
   # Files to search (only those that exist)
-  local search_files=""
+  local -a search_files=()
   for f in README.md CONTRIBUTING.md AGENTS.md CLAUDE.md; do
-    [ -f "$f" ] && search_files="$search_files $f"
+    [ -f "$f" ] && search_files+=("$f")
   done
 
   # Security-related (Japanese-aware; JP terms preserved as search patterns)
-  if [ -f "SECURITY.md" ] || grep -riqE "security|セキュリティ|バリデーション|SQLインジェクション|認証" $search_files 2>/dev/null; then
+  if [ -f "SECURITY.md" ] || grep -riqE "security|セキュリティ|バリデーション|SQLインジェクション|認証" "${search_files[@]}" 2>/dev/null; then
     patterns+=("security")
   fi
 
   # Testing-focused (Japanese-aware; JP terms preserved as search patterns)
-  if grep -riqE "test coverage|coverage.*%|must have tests|require.*test|テスト.*必須|カバレッジ|ユニットテスト" $search_files 2>/dev/null; then
+  if grep -riqE "test coverage|coverage.*%|must have tests|require.*test|テスト.*必須|カバレッジ|ユニットテスト" "${search_files[@]}" 2>/dev/null; then
     patterns+=("testing-required")
   fi
 
   # Accessibility (Japanese-aware; JP terms preserved as search patterns)
-  if grep -riqE "accessibility|a11y|wcag|aria|アクセシビリティ|スクリーンリーダー" $search_files package.json 2>/dev/null; then
+  if grep -riqE "accessibility|a11y|wcag|aria|アクセシビリティ|スクリーンリーダー" "${search_files[@]}" package.json 2>/dev/null; then
     patterns+=("accessibility")
   fi
 
   # Performance (Japanese-aware; JP terms preserved as search patterns)
-  if grep -riqE "performance|core web vitals|lighthouse|パフォーマンス|レスポンス.*ms|N\+1" $search_files 2>/dev/null; then
+  if grep -riqE "performance|core web vitals|lighthouse|パフォーマンス|レスポンス.*ms|N\+1" "${search_files[@]}" 2>/dev/null; then
     patterns+=("performance")
   fi
 
   # Internationalization (Japanese-aware; JP terms preserved as search patterns)
-  if grep -riqE "i18n|internationalization|localization|国際化" $search_files package.json 2>/dev/null; then
+  if grep -riqE "i18n|internationalization|localization|国際化" "${search_files[@]}" package.json 2>/dev/null; then
     patterns+=("i18n")
   fi
 
