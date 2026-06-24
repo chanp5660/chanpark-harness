@@ -19,9 +19,9 @@ plugin works straight from `git` with **no Node/Go build required**.
   consult agents (`architect`, `analyst`, `debugger`, `security-reviewer`,
   `document-specialist`, `test-engineer`, `explore`, `git-master`, `writer`, `qa-tester`).
 - **30 skills** — the full harness `harness-*` workflow set (plan, work, review, sync,
-  setup, progress, accept, release, loop), `breezing`, `ci`, `maintenance`,
-  the `memory`/`session` stacks, guides, plus ported `ai-slop-cleaner`, `deep-interview`,
-  `trace`, `skill`, `skillify`, and a portable `hud`.
+  setup, progress, accept, release, loop, plan-brief), `breezing`, `ci`, `maintenance`,
+  the `memory`/`session` stacks, guides, plus ported `ai-slop-cleaner`, `agent-browser`,
+  `ui`, `deep-interview`, `trace`, `skill`, `skillify`, and a portable `hud` (among others).
 - **Automation hooks** (`hooks/hooks.json`) — file-lease, secret scanning, a quality gate,
   a permission allowlist, and session memory wiring. They self-detect the plugin root and
   no-op gracefully if the binary is missing.

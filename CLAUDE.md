@@ -17,7 +17,7 @@ The only compiled artifact is the committed harness Go binary in `bin/`.
 
 | Path | Role |
 |------|------|
-| `.claude-plugin/plugin.json` | Manifest (modern spec: `displayName`, `defaultEnabled`, explicit component paths, no `mcpServers`) |
+| `.claude-plugin/plugin.json` | Manifest (modern spec: `displayName`, `defaultEnabled`, explicit skills/outputStyles paths; agents/hooks/monitors auto-discovered, no `mcpServers`) |
 | `.claude-plugin/marketplace.json` | Self-marketplace catalog entry |
 | `.claude-plugin/settings.json` | Permission allowlist/denylist shipped with the plugin |
 | `agents/` | 13 agents (harness `worker`/`reviewer`/`advisor` + 10 OMC consults) |
@@ -38,6 +38,12 @@ Plan → Work → Review, tracked in a root `Plans.md` with English status marke
 `pm:approved`. Skills: `harness-plan`, `harness-work`, `harness-review`, `harness-sync`.
 The ported OMC agents are read-only/consult helpers for the gaps (architecture, requirements,
 debugging, security, docs, tests, search, git, writing, interactive QA).
+
+> **`HAR:` description prefix**: intentionally present only on the 5 canonical-loop skills
+> (`harness-plan`, `harness-work`, `harness-review`, `harness-sync`, `harness-setup`).
+> The auxiliary `harness-*` skills (`harness-accept`, `harness-loop`, `harness-plan-brief`,
+> `harness-progress`, `harness-release`) omit the prefix by design — the split is documented
+> intent, not drift.
 
 ## Invariants — do not break these
 
