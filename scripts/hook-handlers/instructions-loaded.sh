@@ -77,7 +77,7 @@ if command -v jq >/dev/null 2>&1; then
 fi
 
 # Lightweight prerequisite check (does not block if missing)
-if [ ! -f "${PROJECT_ROOT}/hooks/hooks.json" ] && [ ! -f "${PROJECT_ROOT}/.claude-plugin/hooks.json" ]; then
+if [ ! -f "${PROJECT_ROOT}/hooks/hooks.json" ]; then
   echo '{"decision":"approve","reason":"InstructionsLoaded: hooks.json not found in project root"}'
   exit 0
 fi

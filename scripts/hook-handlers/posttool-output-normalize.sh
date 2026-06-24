@@ -9,7 +9,7 @@
 # The original and updated outputs are recorded append-only in the audit ledger.
 #
 # **How to opt in**: add this script to the "PostToolUse" matcher in
-#   .claude-plugin/hooks.json or .claude/settings.local.json. Disabled by default.
+#   hooks/hooks.json or .claude/settings.local.json. Disabled by default.
 #
 # **Prohibited uses** (Phase 58.2.2 governance):
 #   - Tampering with review / test output

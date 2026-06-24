@@ -1,6 +1,7 @@
 # Local/runtime state — never committed
 .claude/state/
 .claude/sessions/
+.claude/memory/session-log.md
 .omc/
 *.log
 *.lock
