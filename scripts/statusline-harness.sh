@@ -81,7 +81,12 @@ MINS=$((DURATION_MS / 60000))
 SECS=$(((DURATION_MS % 60000) / 1000))
 
 # Git info (cached for 5 seconds)
-CACHE_FILE="${HARNESS_STATUSLINE_GIT_CACHE:-/tmp/harness-statusline-git-cache}"
+# Cache is namespaced per-user in a private directory to prevent cross-user git-state
+# leaks and symlink-clobbering attacks on shared hosts.
+# HARNESS_STATUSLINE_GIT_CACHE override is honoured when explicitly set by the user.
+_HARNESS_CACHE_DIR="${XDG_RUNTIME_DIR:-/tmp}/harness-statusline-$(id -u)"
+mkdir -p "$_HARNESS_CACHE_DIR" && chmod 700 "$_HARNESS_CACHE_DIR" 2>/dev/null || true
+CACHE_FILE="${HARNESS_STATUSLINE_GIT_CACHE:-${_HARNESS_CACHE_DIR}/git-cache}"
 CACHE_MAX_AGE=5
 cache_mtime() {
     local ts=""
@@ -105,13 +110,21 @@ cache_is_stale() {
     [ $(( $(date +%s) - $(cache_mtime) )) -gt $CACHE_MAX_AGE ]
 }
 if cache_is_stale; then
+    # Write atomically: write to a temp file in the same directory then rename,
+    # so concurrent readers never see a partial cache file.
+    _cache_write() {
+        local data="$1"
+        local tmp
+        tmp="$(mktemp "$(dirname "$CACHE_FILE")/git-cache.XXXXXX")"
+        printf '%s\n' "$data" > "$tmp" && mv "$tmp" "$CACHE_FILE" || rm -f "$tmp" 2>/dev/null
+    }
     if git rev-parse --git-dir > /dev/null 2>&1; then
         BRANCH=$(git branch --show-current 2>/dev/null || echo "")
         STAGED=$(git diff --cached --numstat 2>/dev/null | wc -l | tr -d ' ')
         MODIFIED=$(git diff --numstat 2>/dev/null | wc -l | tr -d ' ')
-        echo "$BRANCH|$STAGED|$MODIFIED" > "$CACHE_FILE"
+        _cache_write "${BRANCH}|${STAGED}|${MODIFIED}"
     else
-        echo "||" > "$CACHE_FILE"
+        _cache_write "||"
     fi
 fi
 IFS='|' read -r BRANCH STAGED MODIFIED < "$CACHE_FILE"
