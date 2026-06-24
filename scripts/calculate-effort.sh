@@ -103,8 +103,8 @@ if [ -n "$TASK_DEPENDS" ]; then
 fi
 
 # 3. Keyword check -> +1 (added if 1+ match, no double-counting)
-# JP terms below are preserved as search patterns matched against task text.
-KEYWORDS="refactor migration security cross-cutting リファクタ 移行 認証 セキュリティ 横断"
+# Keywords matched against task text (English only).
+KEYWORDS="refactor migration security cross-cutting authentication"
 KEYWORD_MATCH=0
 for kw in $KEYWORDS; do
   if echo "$ANALYSIS_TEXT" | grep -qi "$kw" 2>/dev/null; then

@@ -289,8 +289,10 @@ CURRENT_PROMPT_SEQ=$(json_file_get "$SESSION_FILE" ".prompt_seq" "0")
 NEW_PROMPT_SEQ=$((CURRENT_PROMPT_SEQ + 1))
 
 # semantic/literal detection (keyword-based)
+# Japanese terms kept for compat; English terms added with \b word-boundary guards
+# so short words like 'add'/'fix'/'move' do not over-match inside longer words.
 INTENT="literal"
-SEMANTIC_KEYWORDS="定義|参照|rename|診断|リファクタ|変更|修正|実装|追加|削除|移動|シンボル|関数|クラス|メソッド|変数"
+SEMANTIC_KEYWORDS="定義|参照|rename|診断|リファクタ|変更|修正|実装|追加|削除|移動|シンボル|関数|クラス|メソッド|変数|\bdefinition\b|\breference\b|\bdiagnostic\b|\brefactor\b|\bchange\b|\bfix\b|\bimplement\b|\badd\b|\bdelete\b|\bmove\b|\bsymbol\b|\bfunction\b|\bclass\b|\bmethod\b|\bvariable\b"
 if echo "$PROMPT" | grep -qiE "$SEMANTIC_KEYWORDS"; then
   INTENT="semantic"
 fi
