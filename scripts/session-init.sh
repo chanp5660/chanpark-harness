@@ -652,7 +652,7 @@ add_line "| \`cc:blocked\` | Blocked | Waiting on a dependent task |"
 add_line "| \`pm:requested\` | Requested by PM | 2-Agent mode |"
 add_line "| \`pm:approved\` | Approved by PM | 2-Agent mode |"
 add_line ""
-add_line "> **Compatibility**: \`cc:TODO\` / \`cc:WIP\` / \`cc:完了\` / \`pm:依頼中\` / \`pm:確認済\` / \`cursor:*\` are still readable."
+add_line "> **Compatibility**: legacy uppercase (\`cc:TODO\`/\`cc:WIP\`), \`cc:done\`/\`pm:requested\`/\`pm:approved\`, and \`cursor:*\` markers are still readable."
 
 # ===== JSON output =====
 # Claude Code's SessionStart hook accepts hookSpecificOutput in JSON form

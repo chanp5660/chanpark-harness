@@ -32,36 +32,34 @@ echo -e "${GREEN}✓${NC} Backup created: $BACKUP_DIR/Plans.md.backup"
 # Change count
 CHANGES=0
 
-# 1. cursor:WIP → pm:依頼中 (interpreted as "waiting for PM review")
-# Note: cursor:WIP usually means "PM (Cursor) is reviewing"
-# In the new format this corresponds to pm:依頼中 (implementation done → waiting for PM review)
+# 1. cursor:WIP → pm:requested (implementation done → waiting for PM review)
 if grep -qE 'cursor:WIP' "$PLANS_FILE" 2>/dev/null; then
   echo -e "${YELLOW}→${NC} Detected cursor:WIP"
   if [ "$DRY_RUN" = "false" ]; then
-    sed -i '' 's/cursor:WIP/pm:依頼中/g' "$PLANS_FILE" 2>/dev/null || \
-    sed -i 's/cursor:WIP/pm:依頼中/g' "$PLANS_FILE"
-    echo -e "  ${GREEN}✓${NC} Converted cursor:WIP → pm:依頼中"
+    sed -i '' 's/cursor:WIP/pm:requested/g' "$PLANS_FILE" 2>/dev/null || \
+    sed -i 's/cursor:WIP/pm:requested/g' "$PLANS_FILE"
+    echo -e "  ${GREEN}✓${NC} Converted cursor:WIP → pm:requested"
   else
-    echo -e "  [DRY RUN] Will convert cursor:WIP → pm:依頼中"
+    echo -e "  [DRY RUN] Will convert cursor:WIP → pm:requested"
   fi
   ((CHANGES++))
 fi
 
-# 2. cursor:完了 → pm:確認済
+# 2. cursor:完了 → pm:approved
 if grep -qE 'cursor:完了' "$PLANS_FILE" 2>/dev/null; then
   echo -e "${YELLOW}→${NC} Detected cursor:完了"
   if [ "$DRY_RUN" = "false" ]; then
-    sed -i '' 's/cursor:完了/pm:確認済/g' "$PLANS_FILE" 2>/dev/null || \
-    sed -i 's/cursor:完了/pm:確認済/g' "$PLANS_FILE"
-    echo -e "  ${GREEN}✓${NC} Converted cursor:完了 → pm:確認済"
+    sed -i '' 's/cursor:完了/pm:approved/g' "$PLANS_FILE" 2>/dev/null || \
+    sed -i 's/cursor:完了/pm:approved/g' "$PLANS_FILE"
+    echo -e "  ${GREEN}✓${NC} Converted cursor:完了 → pm:approved"
   else
-    echo -e "  [DRY RUN] Will convert cursor:完了 → pm:確認済"
+    echo -e "  [DRY RUN] Will convert cursor:完了 → pm:approved"
   fi
   ((CHANGES++))
 fi
 
 # 3. Check whether the marker legend section needs updating
-if ! grep -qE '## マーカー凡例|## Marker Legend' "$PLANS_FILE" 2>/dev/null; then
+if ! grep -qE '## Marker Legend' "$PLANS_FILE" 2>/dev/null; then
   echo -e "${YELLOW}→${NC} Marker legend section is missing"
   echo -e "  ${YELLOW}!${NC} Adding it manually is recommended"
 fi
