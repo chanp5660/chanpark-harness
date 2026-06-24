@@ -127,23 +127,40 @@ To redo this on a future reconcile:
 
 The portability rule ("no Node/Go build required") means the 4 pre-built Go binaries
 (`harness-linux-amd64`, `harness-darwin-amd64`, `harness-darwin-arm64`,
-`harness-windows-amd64.exe`) must be committed into `bin/`. Each release replaces all four,
-adding roughly **66 MB** to the repository's pack history. The `.git` directory grows
-accordingly across versions and is never compacted automatically.
+`harness-windows-amd64.exe`) must be committed into `bin/`. Each release replaces all four.
+Because successive builds are highly similar, git delta-compresses them, so the **incremental
+pack cost per release is far smaller than the ~66 MB raw size** would suggest.
 
-**Current state: intentional-but-bounded, pending a deliberate mitigation decision.**
-The accretion is accepted because the portability guarantee depends on it. Considered
-mitigations (none adopted yet — each requires a history-rewrite decision):
+**History cleanup performed 2026-06-24 (option: periodic history pruning).**
+The pre-1.2.1 `bin/` binary blobs were stripped from git history with
+`git filter-repo --invert-paths --path bin/` scoped to our own refs
+(`refs/heads/master` + tags `v1.0.0`…`v1.2.1`; the `harness-upstream` / `omc-upstream`
+fetch mirrors were deliberately left untouched). The current platform binaries were then
+re-committed at the `v1.2.1` tip, so the **plain-checkout invariant is preserved** — a fresh
+checkout of `master`/`v1.2.1` still contains working `bin/` binaries with no build step.
 
-| option | trade-off |
-|--------|-----------|
-| **Git LFS for `bin/harness-*`** | Moves blobs out of pack history; requires LFS on every clone/CI; breaks "plain `git clone`" guarantee unless LFS is pre-installed |
-| **GitHub Releases + shim download-on-miss** | `bin/harness` shim tries local binary; if absent, downloads the matching release asset at runtime; needs a fallback for air-gapped/offline setups; committed in-tree offline binary remains the last resort |
-| **Periodic history pruning** (`git filter-repo --strip-blobs-bigger-than`) | Reclaims history size; rewrites all SHAs; breaks forks, cached installs, and any pinned SHA references |
+Consequences (one-time, accepted):
+- All commit SHAs on `master` and all 8 tags were rewritten and force-pushed.
+- **Older tags (`v1.0.0`…`v1.2.0`) no longer carry in-tree binaries** — only the current
+  release tip does. Checking out a historical tag will not yield a runnable binary.
+- Local `.git` dropped 173 MB → 145 MB (the ~28 MB reclaimed was the real delta-compressed
+  cost of the historical binaries; most of the remaining 145 MB is the upstream fetch mirrors,
+  which are a separate, out-of-scope bloat source — removable with `git remote remove
+  harness-upstream omc-upstream` if reconcile mirrors are not currently needed).
+- Remote (GitHub) reclamation is eventual/server-side after the force-push.
 
-Adopting any of these requires an explicit decision (history rewrite, LFS migration, or
-release-asset wiring) and is deferred. Until then: do **not** rewrite `bin/` history
-silently, and do **not** change `.gitattributes` binary markings without updating this note.
+Mitigations considered and **not** adopted (LFS breaks the plain-checkout invariant;
+release-asset download breaks air-gapped use):
+
+| option | why not chosen |
+|--------|----------------|
+| **Git LFS for `bin/harness-*`** | requires LFS on every clone/CI; breaks "plain `git clone`" guarantee unless LFS is pre-installed |
+| **GitHub Releases + shim download-on-miss** | needs network at first run; breaks air-gapped/offline setups unless an in-tree binary remains anyway |
+
+**Going forward**: re-pruning is a deliberate, force-push-bearing operation — repeat the
+scoped `git filter-repo` above (never widen it to the upstream mirrors), keep the current
+binaries re-committed at the release tip, and do **not** change `.gitattributes` binary
+markings without updating this note.
 
 ## Claude Code (host CLI) spec drift
 
