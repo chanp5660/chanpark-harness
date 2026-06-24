@@ -157,7 +157,6 @@ critical_files=(
   "scripts/hook-handlers/memory-codex-notify.sh"
   "scripts/hook-handlers/runtime-reactive.sh"
   "hooks/hooks.json"
-  ".claude-plugin/hooks.json"
   ".claude-plugin/settings.json"
   ".claude-plugin/plugin.json"
   "VERSION"
