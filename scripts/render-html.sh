@@ -6,9 +6,11 @@
 #   render-html.sh --template <name> --data <json_path|-> --out <output_path>
 #
 # Syntax:
-#   {{var}}                       … reference a top-level scalar of data
+#   {{var}}                       … reference a top-level scalar of data (HTML-escaped, safe default)
+#   {{{var}}}                     … reference a top-level scalar, injected as raw HTML (no escaping;
+#                                   use only for trusted/pre-sanitised content)
 #   {{#section}}...{{/section}}   … iterate over data[section] (array); inside the
-#                                   block, {{key}} references a field of the item
+#                                   block, {{key}} / {{{key}}} reference a field of the item
 #
 # The canonical input JSON is the html-render-input.v1 schema (kind / project /
 # generated_at / sections), but the MVP uses soft validation that "accepts any
@@ -135,8 +137,13 @@ find_first_section() {
   '
 }
 
-# Returns position info for the "first {{var}} found" in the template.
-# Output: "<offset> <length> <var_name>" or empty string.
+# Returns position info for the "first {{var}} or {{{var}}} found" in the template.
+# Output: "<offset> <length> <var_name> <type>" or empty string.
+#   type = "esc"  → {{var}}  : value will be HTML-escaped before insertion
+#   type = "raw"  → {{{var}}}: value is inserted verbatim (no HTML escaping)
+# When both patterns appear in the string, the one with the smaller start offset wins.
+# On a tie (e.g. {{name}} inside {{{name}}}), the triple-brace (raw) form wins because
+# it starts one character earlier.
 find_first_var() {
   local content="$1"
   printf '%s' "$content" | awk '
@@ -145,8 +152,28 @@ find_first_var() {
     # (effectively one record up to EOF).
     BEGIN { RS = "__RENDER_HTML_AWK_RS_SENTINEL_NEVER_OCCURS__"; }
     {
+      best_start = 0; best_len = 0; best_var = ""; best_type = ""
+
+      # Try triple-brace {{{var}}} (raw passthrough)
+      if (match($0, /\{\{\{[a-zA-Z_][a-zA-Z_0-9]*\}\}\}/)) {
+        best_start = RSTART
+        best_len   = RLENGTH
+        best_var   = substr($0, RSTART + 3, RLENGTH - 6)
+        best_type  = "raw"
+      }
+
+      # Try double-brace {{var}} (HTML-escaped); wins only if it starts before the triple match
       if (match($0, /\{\{[a-zA-Z_][a-zA-Z_0-9]*\}\}/)) {
-        printf "%d %d %s", RSTART - 1, RLENGTH, substr($0, RSTART + 2, RLENGTH - 4)
+        if (best_start == 0 || RSTART < best_start) {
+          best_start = RSTART
+          best_len   = RLENGTH
+          best_var   = substr($0, RSTART + 2, RLENGTH - 4)
+          best_type  = "esc"
+        }
+      }
+
+      if (best_start > 0) {
+        printf "%d %d %s %s", best_start - 1, best_len, best_var, best_type
       }
     }
   '
@@ -182,6 +209,19 @@ escape_val_for_embed() {
   printf '%s' "${v//\{/$SENTINEL_OPEN_BRACE}"
 }
 
+# HTML-escape a data value so it is safe to embed in HTML markup.
+# Escapes in order: & first (to avoid double-encoding), then < > " '
+# Only applied to {{var}} (double-brace) substitutions; {{{var}}} bypasses this.
+html_escape() {
+  local v="$1" _sq="'"
+  v="${v//&/&amp;}"
+  v="${v//</&lt;}"
+  v="${v//>/&gt;}"
+  v="${v//\"/&quot;}"
+  v="${v//$_sq/&#39;}"
+  printf '%s' "$v"
+}
+
 # Render a block for one item: replace each {{var}} in the block with item.var.
 render_block_with_item() {
   local block="$1"
@@ -193,13 +233,16 @@ render_block_with_item() {
     info="$(find_first_var "$rendered")"
     [[ -z "$info" ]] && break
 
-    local off len var
+    local off len var typ
     off="$(echo "$info" | awk '{print $1}')"
     len="$(echo "$info" | awk '{print $2}')"
     var="$(echo "$info" | awk '{print $3}')"
+    typ="$(echo "$info" | awk '{print $4}')"
 
     local val val_safe
     val="$(lookup_item_var "$item_json" "$var")"
+    # HTML-escape data values for {{var}}; skip escaping for raw {{{var}}}
+    [[ "$typ" == "esc" ]] && val="$(html_escape "$val")"
     val_safe="$(escape_val_for_embed "$val")"
 
     rendered="${rendered:0:off}${val_safe}${rendered:$((off + len))}"
@@ -243,7 +286,10 @@ while :; do
   TEMPLATE_CONTENT="${prefix}${rendered_section}${suffix}"
 done
 
-# --- stage 2: expand top-level {{var}} (escape {{...}} within val to prevent re-expansion) ---
+# --- stage 2: expand top-level {{var}} / {{{var}}} ---
+# {{var}}  → HTML-escaped value (safe default; prevents injection into generated HTML)
+# {{{var}}} → raw value (no HTML escaping; use only for trusted/pre-sanitised content)
+# In both cases, {{...}} within the value is sentinel-escaped to prevent re-expansion.
 while :; do
   info="$(find_first_var "$TEMPLATE_CONTENT")"
   [[ -z "$info" ]] && break
@@ -251,8 +297,11 @@ while :; do
   off="$(echo "$info" | awk '{print $1}')"
   len="$(echo "$info" | awk '{print $2}')"
   var="$(echo "$info" | awk '{print $3}')"
+  typ="$(echo "$info" | awk '{print $4}')"
 
   val="$(lookup_top_var "$var")"
+  # HTML-escape data values for {{var}}; skip escaping for raw {{{var}}}
+  [[ "$typ" == "esc" ]] && val="$(html_escape "$val")"
   val_safe="$(escape_val_for_embed "$val")"
 
   TEMPLATE_CONTENT="${TEMPLATE_CONTENT:0:off}${val_safe}${TEMPLATE_CONTENT:$((off + len))}"

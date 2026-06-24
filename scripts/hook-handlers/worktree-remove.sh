@@ -57,11 +57,16 @@ fi
 
 # === Clean up worktree-specific temporary files ===
 
-# Codex prompt temp files (prefer session-specific ones)
-rm -f /tmp/codex-prompt-*.md 2>/dev/null || true
+# Only remove temp files that belong to THIS session (identified by SESSION_ID).
+# An empty/unset SESSION_ID would widen the glob to every session's files, so guard
+# explicitly — even though SESSION_ID is already validated non-empty above.
+if [ -n "${SESSION_ID}" ]; then
+  # Codex prompt temp files scoped to this session
+  rm -f /tmp/codex-prompt-*"${SESSION_ID}"*.md 2>/dev/null || true
 
-# Harness Codex logs (session-specific)
-rm -f /tmp/harness-codex-*.log 2>/dev/null || true
+  # Harness Codex logs scoped to this session
+  rm -f /tmp/harness-codex-*"${SESSION_ID}"*.log 2>/dev/null || true
+fi
 
 # Clean up worktree-info.json
 if [ -n "${CWD}" ] && [ -f "${CWD}/.claude/state/worktree-info.json" ]; then
