@@ -65,7 +65,7 @@ Sends a message to all active sessions.
 | **Initialization** | Start new session, load context | See [../session-init/SKILL.md](../session-init/SKILL.md) |
 | **Memory** | Persist learnings across sessions | See [../session-memory/SKILL.md](../session-memory/SKILL.md) |
 | **State Control** | Resume/fork session based on flags | See [references/session-control.md](${CLAUDE_SKILL_DIR}/references/session-control.md) |
-| **Communication** | Cross-session messaging | See [../session-state/SKILL.md](../session-state/SKILL.md) |
+| **Communication** | Cross-session messaging | Built-in via `/session broadcast`; see subcommands above |
 
 ---
 
@@ -184,6 +184,6 @@ This skill consolidates:
 - `session-init` → Session initialization
 - `session-memory` → Memory persistence
 - `session-control` → Resume/fork control
-- `session-state` → State management & communication
+- `session-state` → State machine and lifecycle transitions
 
-The individual skills are deprecated but still work for backward compatibility.
+The individual sub-skills remain active for internal auto-delegation; this unified `/session` skill is the recommended user-facing interface.
