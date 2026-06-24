@@ -123,6 +123,28 @@ To redo this on a future reconcile:
    should be empty; one residual `が更新されました` is expected (a `locale=="ja"` branch in
    `runtime_reactive.go`, served only when `HARNESS_LOCALE=ja` — English is the default).
 
+## bin/ binary accretion in git history
+
+The portability rule ("no Node/Go build required") means the 4 pre-built Go binaries
+(`harness-linux-amd64`, `harness-darwin-amd64`, `harness-darwin-arm64`,
+`harness-windows-amd64.exe`) must be committed into `bin/`. Each release replaces all four,
+adding roughly **66 MB** to the repository's pack history. The `.git` directory grows
+accordingly across versions and is never compacted automatically.
+
+**Current state: intentional-but-bounded, pending a deliberate mitigation decision.**
+The accretion is accepted because the portability guarantee depends on it. Considered
+mitigations (none adopted yet — each requires a history-rewrite decision):
+
+| option | trade-off |
+|--------|-----------|
+| **Git LFS for `bin/harness-*`** | Moves blobs out of pack history; requires LFS on every clone/CI; breaks "plain `git clone`" guarantee unless LFS is pre-installed |
+| **GitHub Releases + shim download-on-miss** | `bin/harness` shim tries local binary; if absent, downloads the matching release asset at runtime; needs a fallback for air-gapped/offline setups; committed in-tree offline binary remains the last resort |
+| **Periodic history pruning** (`git filter-repo --strip-blobs-bigger-than`) | Reclaims history size; rewrites all SHAs; breaks forks, cached installs, and any pinned SHA references |
+
+Adopting any of these requires an explicit decision (history rewrite, LFS migration, or
+release-asset wiring) and is deferred. Until then: do **not** rewrite `bin/` history
+silently, and do **not** change `.gitattributes` binary markings without updating this note.
+
 ## Claude Code (host CLI) spec drift
 
 The host CLI is **not** a file-merge upstream — it changes the *plugin spec* (manifest schema,
