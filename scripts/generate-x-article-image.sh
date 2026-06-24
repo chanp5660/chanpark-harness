@@ -65,6 +65,11 @@ api_key="${GOOGLE_AI_API_KEY:-${GEMINI_API_KEY:-}}"
 
 mkdir -p "$(dirname "$output_file")" "$(dirname "$request_out")" "$(dirname "$response_out")"
 
+if ! command -v jq >/dev/null 2>&1; then
+  echo "jq is required but not found — install jq and retry" >&2
+  exit 2
+fi
+
 logo_b64="$(base64 -i "$logo_file" | tr -d '\n')"
 prompt_text="$(cat "$prompt_file")"
 

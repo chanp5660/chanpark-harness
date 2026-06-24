@@ -24,6 +24,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if ! command -v jq >/dev/null 2>&1; then
+  echo "jq is required but not found — install jq and retry" >&2
+  exit 2
+fi
+
 # ================================
 # Project analysis
 # ================================
