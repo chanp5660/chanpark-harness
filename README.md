@@ -40,12 +40,19 @@ This repo is itself a single-plugin marketplace.
 # 2. Install the plugin
 /plugin install chanpark-harness@chanpark-harness-marketplace
 
-# 3. (optional) scaffold harness files into your project
+# 3. Reload so the new skills/agents/hooks become active in this session
+/reload-plugins
+
+# 4. (optional) scaffold harness files into your project
 /chanpark-harness:harness-setup
 ```
 
 Skills are namespaced under the plugin, e.g. `/chanpark-harness:harness-plan`,
 `/chanpark-harness:harness-work`, `/chanpark-harness:hud`.
+
+> The HUD needs `jq` (and, on Windows, Git Bash). Ubuntu/macOS are one-liners;
+> **Windows takes a few extra steps** — see the **[Install guide](docs/INSTALL.md)** for the
+> per-platform `jq` setup and a Windows checklist.
 
 ### Update
 
@@ -55,33 +62,67 @@ With `version` pinned, Claude Code only updates when the version changes.
 
 ## HUD (status line)
 
+The HUD is a status line that lives at the bottom of Claude Code. Here's what the default
+**focused** preset looks like (it merges onto one row when the terminal is wide enough):
+
+```text
+[Opus 4.8] master@c876efed +2~3 ^1 ?4
+ctx:42% | 5h:18% (3h 12m) | 7d:55% (4d 6h) | +120/-30 | tasks 3/8 > add login ratelimit
+```
+
+Reading it left to right:
+
+| Segment | Meaning |
+|---------|---------|
+| `[Opus 4.8]` | active model |
+| `master@c876efed` | git branch @ short SHA |
+| `+2~3 ^1 ?4` | 2 staged, 3 modified, 1 ahead of upstream, 4 untracked (`v`=behind, `*`=stash) |
+| `ctx:42%` | context window used (green/yellow/red as it fills) |
+| `5h:18%` / `7d:55%` | subscription rate limits + reset countdown (Claude.ai Pro/Max only) |
+| `+120/-30` | lines added/removed this session |
+| `tasks 3/8` | Plans.md: 3 of 8 done (a yellow `wip:N` is added only when more than one task is in progress at once) |
+| `> add login ratelimit` | title of the active `cc:wip` task |
+
+Set it up and switch presets with:
+
 ```text
 /chanpark-harness:hud setup     # install + wire the status line (focused preset)
 /chanpark-harness:hud minimal   # one line: model · context% · tasks
-/chanpark-harness:hud focused   # default: model/git/cwd + ctx%/5h/7d limits/lines/tasks
+/chanpark-harness:hud focused   # default (shown above)
 /chanpark-harness:hud full      # adds repo name + elapsed time + todo/wip/done breakdown
 /chanpark-harness:hud status    # report current config
 /chanpark-harness:hud off       # disable
 ```
 
-Shows model, git branch + diff counts + ahead/behind/untracked/stash, a context usage
-`ctx:%`, subscription rate limits (`5h:%`/`7d:%` with reset countdown, Claude.ai Pro/Max
-only), lines changed this session (`+added/-removed`), elapsed time, Plans.md task counts,
-and the active WIP task title. Requires `jq`; without it, it falls back to a model-only line.
+Requires `jq`; without it the HUD falls back to a model-only line. See the
+**[Install guide](docs/INSTALL.md)** for `jq` setup (especially on Windows).
 
 ## Workflow
 
-The canonical loop is the harness **plan → work → review** cycle:
+The canonical loop is **plan → work → review → sync**, all tracked in one file at the project
+root — **`Plans.md`** — where each task carries an English status marker (`cc:todo` →
+`cc:wip` → `cc:done`, or `cc:blocked`).
 
 ```text
-/chanpark-harness:harness-plan      # write Plans.md tasks + a spec contract
-/chanpark-harness:harness-work      # execute tasks (solo or parallel)
-/chanpark-harness:harness-review    # multi-angle review before shipping
-/chanpark-harness:harness-sync      # reconcile Plans.md with the implementation
+        ┌──────────────────────── feeds back ─────────────────────────┐
+        v                                                              │
+  harness-plan  ──>  harness-work  ──>  harness-review  ──>  harness-sync
+  decide & write     execute tasks      multi-angle review     reconcile +
+  Plans.md tasks     (solo→parallel→    before shipping        retrospective
+                      team by count)
 ```
+
+- **plan** — turn an idea into verifiable `Plans.md` tasks (with a DoD per task).
+- **work** — implement them; mode auto-scales by count (1 → solo, 2–3 → parallel, 4+ → team).
+- **review** — a separate, independent pass; critical/major findings block the merge.
+- **sync** — reconcile markers with what actually shipped, then learn from it.
 
 The ported oh-my-claudecode agents are read-only/consult helpers you delegate to for
 architecture analysis, requirements clarification, debugging, security review, etc.
+
+**→ See the [Usage guide](docs/USAGE.md) for every command, its subcommands/flags, and
+worked examples** (including `harness-loop` for long/overnight runs and `maintenance` for
+cleanup).
 
 ## Maintaining the plugin
 
