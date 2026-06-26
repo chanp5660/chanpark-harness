@@ -7,3 +7,7 @@ bin/harness-windows-amd64.exe binary
 # Shell dispatcher and scripts: keep LF endings so they stay executable on Unix.
 bin/harness        text eol=lf
 *.sh               text eol=lf
+
+# Windows batch shim: cmd.exe requires CRLF line endings to parse correctly.
+bin/harness.cmd    text eol=crlf
+*.cmd              text eol=crlf
