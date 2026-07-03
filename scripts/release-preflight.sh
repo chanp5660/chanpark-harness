@@ -5,7 +5,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEFAULT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+DEFAULT_ROOT="$(pwd)"
 PROJECT_ROOT="${HARNESS_RELEASE_PROJECT_ROOT:-$DEFAULT_ROOT}"
 
 if [ "${1:-}" = "--help" ]; then
