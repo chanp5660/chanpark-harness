@@ -29,7 +29,7 @@ The only compiled artifact is the committed harness Go binary in `bin/`.
 | `harness.toml` | Config SoT read by the binary |
 | `templates/` | Scaffolding templates used by `harness-setup` |
 | `output-styles/` | `harness-ops` output style |
-| `scripts/` | Bash/Python helpers (binary fallbacks); some retain upstream Japanese comments |
+| `scripts/` | Live helpers invoked directly by hooks (4 scripts), by the Go binary (sync-plugin-cache.sh, template-tracker.sh, check-residue.sh, ci/check-consistency.sh, session-relay-watch.sh), and by skills/agents (~44); plus legacy upstream scripts pending cleanup (Phase 4). Some retain upstream Japanese comments. |
 
 ## Canonical workflow (what the plugin promotes)
 
@@ -51,14 +51,24 @@ debugging, security, docs, tests, search, git, writing, interactive QA).
   in marketplace/cache fallback paths. If you rename the plugin, update those literals too.
   The Go binary does **not** re-validate the plugin name, but `harness.toml` and the
   `.claude-code-harness.config.*` filenames are read by the binary — keep those names.
-- **Status markers are English** and matched by the binary case-insensitively
-  (`cc:todo|wip|done|blocked`). The bash scripts read uppercase/legacy aliases too; the
-  canonical written form is lowercase English.
+- **Status markers are English**; canonical written form is lowercase
+  (`cc:todo`/`cc:wip`/`cc:done`/`cc:blocked`) and PM markers `pm:requested`/`pm:approved`.
+  **Matching precision**: the committed binary's Plans.md counter paths are case-sensitive
+  and currently count only `cc:TODO`/`cc:WIP`/`cc:完了` — `cc:done` and `cc:blocked` are
+  not counted by any counter. Some individual binary matchers use `(?i)` (case-insensitive),
+  but this does not apply uniformly. The bash scripts read uppercase/legacy aliases too.
+  Target state (Phase 3 rebuild): case-insensitive counting of all four canonical markers.
 - **Agent frontmatter**: full model IDs (`claude-opus-4-8`, `claude-sonnet-4-6`,
   `claude-haiku-4-5`), `effort`, and `disallowedTools` (read-only consults disallow
   `Write, Edit, Agent`; others disallow `Agent`). No `permissionMode`/`mcpServers`/`hooks`
   in plugin-shipped agents (security restriction).
-- **English only** for user-facing content (agents/skills/output-styles/templates).
+- **English only** for user-facing content (agents/skills/output-styles/templates); the
+  grep health check enforces this for those paths. The 4 committed binaries still emit
+  Japanese strings (e.g., `pm:依頼中` via `hook session-init`) — binary strings are pending
+  Phase 3 rebuild.
+- **Do not run `bin/harness sync`** until the Phase 3 binary rebuild is complete — the
+  current binary regenerates `plugin.json` from `harness.toml` and recreates the removed
+  duplicate `.claude-plugin/hooks.json`.
 - Keep `bin/harness-*` executable (mode 0755) and marked binary in `.gitattributes`.
 
 ## Health checks
