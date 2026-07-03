@@ -15,7 +15,7 @@ is_harness_root() {
   [ -n "$candidate" ] &&
     [ -x "$candidate/bin/harness" ] &&
     [ -f "$candidate/.claude-plugin/plugin.json" ] &&
-    grep -q '"name"[[:space:]]*:[[:space:]]*"claude-code-harness"' "$candidate/.claude-plugin/plugin.json"
+    grep -q '"name"[[:space:]]*:[[:space:]]*"chanpark-harness"' "$candidate/.claude-plugin/plugin.json"
 }
 
 PROJECT_ROOT="${CLAUDE_PLUGIN_ROOT:-$DEFAULT_PROJECT_ROOT}"
@@ -23,7 +23,7 @@ if ! is_harness_root "$PROJECT_ROOT"; then
   if is_harness_root "$DEFAULT_PROJECT_ROOT"; then
     PROJECT_ROOT="$DEFAULT_PROJECT_ROOT"
   else
-    echo "Error: could not resolve claude-code-harness plugin root." >&2
+    echo "Error: could not resolve chanpark-harness plugin root." >&2
     exit 1
   fi
 fi
@@ -42,9 +42,18 @@ if [ "$sync_ok" = 0 ]; then
 fi
 
 # --- Step 2: Sync plugin load surfaces to marketplace cache ---
-PLUGIN_NAME="claude-code-harness"
-MARKETPLACE_NAME="claude-code-harness-marketplace"
-SOURCE_VERSION="$(tr -d '[:space:]' < "${PROJECT_ROOT}/VERSION")"
+PLUGIN_NAME="chanpark-harness"
+MARKETPLACE_NAME="chanpark-harness-marketplace"
+# Extract version from plugin.json (crash-safe: falls back to "unknown" when file is absent)
+_PLUGIN_JSON="${PROJECT_ROOT}/.claude-plugin/plugin.json"
+if [ -f "$_PLUGIN_JSON" ] && command -v jq >/dev/null 2>&1; then
+  SOURCE_VERSION="$(jq -r '.version // empty' "$_PLUGIN_JSON")"
+elif [ -f "$_PLUGIN_JSON" ]; then
+  SOURCE_VERSION="$(grep '"version"' "$_PLUGIN_JSON" | head -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')"
+else
+  SOURCE_VERSION=""
+fi
+SOURCE_VERSION="${SOURCE_VERSION:-unknown}"
 CACHE_DIR="${HOME}/.claude/plugins/cache/${MARKETPLACE_NAME}/${PLUGIN_NAME}/${SOURCE_VERSION}"
 MARKETPLACE_DIR="${HOME}/.claude/plugins/marketplaces/${MARKETPLACE_NAME}"
 

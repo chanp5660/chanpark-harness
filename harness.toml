@@ -1,19 +1,20 @@
 # Harness v4 Configuration
 # Edit this file, then run `harness sync` to generate CC plugin files.
+# NOTE: the current binary's sync drops displayName/defaultEnabled and recreates .claude-plugin/hooks.json — do NOT run 'harness sync' until Phase 3 rebuild (see Plans.md gate).
 
 [project]
-name = "claude-code-harness"
-version = "4.16.0"
+name = "chanpark-harness"
+version = "1.2.2"
 description = "Claude harness - A harness for solo developers (Vibecoders) to handle full-cycle contract development."
-homepage = "https://github.com/Chachamaru127/claude-code-harness"
-repository = "https://github.com/Chachamaru127/claude-code-harness"
+homepage = "https://github.com/chanp5660/chanpark-harness"
+repository = "https://github.com/chanp5660/chanpark-harness"
 license = "MIT"
 keywords = ["claude-code", "plugin", "vibecoder", "workflow", "plan-work-review"]
 outputStyles = "./output-styles/"
 
 [project.author]
-name = "Chachamaru"
-url = "https://github.com/Chachamaru127"
+name = "ChanPark"
+url = "https://github.com/chanp5660"
 
 [env]
 CLAUDE_CODE_SUBPROCESS_ENV_SCRUB = "1"
