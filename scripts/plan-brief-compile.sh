@@ -124,7 +124,7 @@ fi
 
 SENTENCE_STATS_JSON="$(jq -n --arg q "$QUERY" '
   ($q
-   | gsub("。|\\n"; "\n")
+   | gsub("\\.\\s+|\\.\\s*$|。|\\n"; "\n")
    | split("\n")
    | map(gsub("^[[:space:]]+|[[:space:]]+$"; ""))
    | map(select(length > 0))) as $sentences

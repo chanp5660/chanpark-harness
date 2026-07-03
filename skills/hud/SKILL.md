@@ -89,7 +89,8 @@ Also note whether `jq` is installed (`command -v jq`); without it the HUD shows 
 ## `/hud off`
 
 Remove the `statusLine` key from `settings.json` with the Edit tool (leave the rest intact)
-and tell the user to restart Claude Code.
+and tell the user to restart Claude Code. To also silence the onboarding nudge permanently,
+create the marker file: `touch "$HOME/.claude/state/chanpark-hud-nudge-off"`.
 
 ## Preview
 

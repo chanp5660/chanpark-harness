@@ -34,13 +34,13 @@ exec_harness_mem_script() {
 
   local harness_mem_root target_path
   if ! harness_mem_root="$(resolve_harness_mem_root)"; then
-    echo "[claude-code-harness] harness-mem repo not found" >&2
+    echo "[chanpark-harness] harness-mem repo not found" >&2
     exit 0
   fi
 
   target_path="${harness_mem_root}/${relative_path}"
   if [ ! -x "${target_path}" ]; then
-    echo "[claude-code-harness] harness-mem target missing: ${target_path}" >&2
+    echo "[chanpark-harness] harness-mem target missing: ${target_path}" >&2
     exit 0
   fi
 

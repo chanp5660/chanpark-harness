@@ -267,7 +267,7 @@ if ! is_valid_transition "$CURRENT_STATE" "$EVENT_NAME" "$TARGET_STATE"; then
   echo "Error: Invalid transition from '$CURRENT_STATE' via '$EVENT_NAME' to '$TARGET_STATE'" >&2
   echo "Allowed transitions from '$CURRENT_STATE':" >&2
   for rule in "${TRANSITION_RULES[@]}"; do
-    local rule_from="${rule%%:*}"
+    rule_from="${rule%%:*}"
     if [[ "$rule_from" == "$CURRENT_STATE" || "$rule_from" == "*" ]]; then
       echo "  $rule" >&2
     fi
