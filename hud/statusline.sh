@@ -34,28 +34,37 @@ if ! command -v jq >/dev/null 2>&1; then
     exit 0
 fi
 
-_get() { printf '%s' "$INPUT" | jq -r "$1 // empty" 2>/dev/null; }
-
-MODEL="$(_get '.model.display_name')";        MODEL="${MODEL:-?}"
-PCT="$(_get '.context_window.used_percentage' | cut -d. -f1)"; PCT="${PCT:-0}"
+# --- Single jq pass: extract all 14 fields at once (avoids 14 process spawns per render) ---
+# Uses SOH (U+0001, --arg sep) as field separator: unlike tab, SOH is a non-whitespace
+# IFS character so bash read preserves empty fields. Tab collapses consecutive separators
+# and would swallow empty fields (e.g. worktree.name=""); SOH never appears in names/paths.
+# Optional numeric rate-limit fields: "" when absent (field missing or null in JSON).
+_jq_soh="$(printf '%s' "$INPUT" | jq -r --arg sep $'\001' '[
+  (.model.display_name // ""),
+  ((.context_window.used_percentage // 0) | floor | tostring),
+  (if .rate_limits.five_hour.used_percentage != null then (.rate_limits.five_hour.used_percentage | floor | tostring) else "" end),
+  (if .rate_limits.five_hour.resets_at != null then (.rate_limits.five_hour.resets_at | floor | tostring) else "" end),
+  (if .rate_limits.seven_day.used_percentage != null then (.rate_limits.seven_day.used_percentage | floor | tostring) else "" end),
+  (if .rate_limits.seven_day.resets_at != null then (.rate_limits.seven_day.resets_at | floor | tostring) else "" end),
+  ((.cost.total_duration_ms // 0) | tostring),
+  ((.cost.total_lines_added // 0) | tostring),
+  ((.cost.total_lines_removed // 0) | tostring),
+  (.output_style.name // ""),
+  (.agent.name // ""),
+  (.worktree.name // ""),
+  (.workspace.current_dir // .cwd // ""),
+  (.workspace.project_dir // "")
+] | join($sep)' 2>/dev/null)"
 # Subscription rate limits (Claude.ai Pro/Max only; present after the first API
 # response — absent fields stay empty so the segments self-omit).
-FIVE_PCT="$(_get '.rate_limits.five_hour.used_percentage' | cut -d. -f1)"
-FIVE_RESET="$(_get '.rate_limits.five_hour.resets_at' | cut -d. -f1)"
-SEVEN_PCT="$(_get '.rate_limits.seven_day.used_percentage' | cut -d. -f1)"
-SEVEN_RESET="$(_get '.rate_limits.seven_day.resets_at' | cut -d. -f1)"
-DURATION_MS="$(_get '.cost.total_duration_ms')"; DURATION_MS="${DURATION_MS:-0}"
-LINES_ADD="$(_get '.cost.total_lines_added')";   LINES_ADD="${LINES_ADD:-0}"
-LINES_DEL="$(_get '.cost.total_lines_removed')"; LINES_DEL="${LINES_DEL:-0}"
-STYLE="$(_get '.output_style.name')"
-AGENT_NAME="$(_get '.agent.name')"
-WT_NAME="$(_get '.worktree.name')"
-CUR_DIR="$(_get '.workspace.current_dir')"; [ -z "$CUR_DIR" ] && CUR_DIR="$(_get '.cwd')"
-PROJ_DIR="$(_get '.workspace.project_dir')"
+IFS=$'\001' read -r MODEL PCT FIVE_PCT FIVE_RESET SEVEN_PCT SEVEN_RESET DURATION_MS LINES_ADD LINES_DEL STYLE AGENT_NAME WT_NAME CUR_DIR PROJ_DIR <<< "$_jq_soh" || true
+MODEL="${MODEL:-?}"; PCT="${PCT:-0}"
+DURATION_MS="${DURATION_MS:-0}"; LINES_ADD="${LINES_ADD:-0}"; LINES_DEL="${LINES_DEL:-0}"
 
 # --- Git (cached 5s to avoid spawning git on every keystroke) ---
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-REPO_NAME="$(basename "$REPO_ROOT" 2>/dev/null)"
+# REPO_ROOT/REPO_NAME are computed inside the cache-miss block so git rev-parse
+# --show-toplevel is NOT spawned on cache-hit renders. REPO_NAME is persisted in
+# the cache file as the 9th field.
 # Cache is namespaced per-user in a private directory (mode 0700) to prevent
 # cross-user git-state leaks and symlink-clobbering attacks on shared hosts.
 # CHANPARK_HUD_GIT_CACHE override is honoured only when the parent directory is
@@ -90,6 +99,8 @@ if [ ! -f "$CACHE_FILE" ] || [ $(( $(date +%s) - $(_cache_mtime) )) -gt 5 ]; the
         _tmp="$(mktemp "$(dirname "$CACHE_FILE")/git-cache.XXXXXX" 2>/dev/null)" || return 1
         printf '%s\n' "$1" > "$_tmp" && mv -f "$_tmp" "$CACHE_FILE" || { rm -f "$_tmp" 2>/dev/null; return 1; }
     }
+    export GIT_OPTIONAL_LOCKS=0
+    _rn=""
     if git rev-parse --git-dir >/dev/null 2>&1; then
         _br="$(git branch --show-current 2>/dev/null)"
         _sha="$(git rev-parse --short HEAD 2>/dev/null)"
@@ -103,19 +114,21 @@ if [ ! -f "$CACHE_FILE" ] || [ $(( $(date +%s) - $(_cache_mtime) )) -gt 5 ]; the
             _behind="$(printf '%s' "$_ab" | awk '{print $1+0}')"
             _ahead="$(printf '%s' "$_ab" | awk '{print $2+0}')"
         fi
-        _cache_write "${_br}|${_staged}|${_mod}|${_ahead}|${_behind}|${_unt}|${_stash}|${_sha}" || true
+        _rt="$(git rev-parse --show-toplevel 2>/dev/null)"; _rn="$(basename "$_rt" 2>/dev/null)"
+        _cache_write "${_br}|${_staged}|${_mod}|${_ahead}|${_behind}|${_unt}|${_stash}|${_sha}|${_rn}" || true
     else
-        _cache_write "||||||||" || true
+        _rn="$(basename "${PROJ_DIR:-$PWD}" 2>/dev/null)"
+        _cache_write "||||||||${_rn}" || true
     fi
 fi
-IFS='|' read -r BRANCH STAGED MODIFIED AHEAD BEHIND UNTRACKED STASH SHA < "$CACHE_FILE" || true
-BRANCH="${BRANCH:-}"; SHA="${SHA:-}"
+IFS='|' read -r BRANCH STAGED MODIFIED AHEAD BEHIND UNTRACKED STASH SHA REPO_NAME < "$CACHE_FILE" || true
+BRANCH="${BRANCH:-}"; SHA="${SHA:-}"; REPO_NAME="${REPO_NAME:-}"
 STAGED="${STAGED:-0}"; MODIFIED="${MODIFIED:-0}"; AHEAD="${AHEAD:-0}"; BEHIND="${BEHIND:-0}"; UNTRACKED="${UNTRACKED:-0}"; STASH="${STASH:-0}"
 
 # --- Plans.md task counts (A2: count only markdown status-column cells, not prose/legend) ---
 TODO=0; WIP=0; DONE=0; TOTAL=0; WIP_TITLE=""
 PLANS=""
-for p in "$REPO_ROOT/Plans.md" "$PWD/Plans.md"; do [ -f "$p" ] && PLANS="$p" && break; done
+for p in "${PROJ_DIR:+$PROJ_DIR/Plans.md}" "$PWD/Plans.md"; do [ -f "$p" ] && PLANS="$p" && break; done
 if [ -n "$PLANS" ]; then
     _cell() { grep -oiE "\|[[:space:]]*cc:$1\b" "$PLANS" 2>/dev/null | wc -l | tr -d ' '; }
     TODO="$(_cell todo)"; WIP="$(_cell wip)"; DONE="$(_cell done)"
