@@ -118,40 +118,73 @@ def to_float(s):
 COST_SO_FAR = to_float(os.environ["COST_SO_FAR_PY"])
 COST_ESTIMATE = to_float(os.environ["COST_ESTIMATE_PY"])
 
-# Parse Plans.md task rows:
+# Parse Plans.md task rows (v2 pipe-table format):
 #   "| 65.4.1 | <title> | <DoD> | <Depends> | cc:todo |"
 #   "| 65.4.1 | <title> | <DoD> | <Depends> | cc:done [a1b2c3d] |"
-# Use the part of the title up to the first "。" as a one-line summary
+#   "| T001   | <title> | <DoD> | <Depends> | cc:blocked |"
+# ID may be numeric (65.4.1) or alphanumeric with leading letters (T001).
+# Status matching is case-insensitive (cc:TODO / cc:WIP / cc:Done / cc:BLOCKED all valid).
+# Use the part of the title up to the first "。" as a one-line summary.
 
 ROW_RE = re.compile(
-    r"^\|\s*(\d+(?:\.\d+)*)\s*\|\s*(.+?)\s*\|\s*.+?\s*\|\s*.+?\s*\|\s*(cc:\S+(?:\s*\[[a-f0-9]+\])?)\s*\|\s*$"
+    r"^\|\s*([A-Za-z]*\d+(?:\.\d+)*)\s*\|\s*(.+?)\s*\|\s*.+?\s*\|\s*.+?\s*\|\s*(cc:\S+(?:\s*\[[^\]]+\])?)\s*\|\s*$"
+)
+
+# Parse checklist format (two status-embedding variants):
+#   "- [ ] <title> `cc:todo`"    (marker in backticks)
+#   "- [x] <title> cc:done"      (bare marker at end)
+# Requires the "- [?]" structural anchor; prose lines are NOT matched.
+CHECKLIST_RE = re.compile(
+    r"^\s*-\s+\[[ xX]\]\s+(.+?)\s*(?:`(cc:\S+)`|(cc:\S+))\s*$"
 )
 
 todo = []
 wip = []
 done = []
+blocked = []
+
+def _short(title):
+    s = title.split("。")[0]
+    return s[:77] + "..." if len(s) > 80 else s
 
 with open(PLANS_PATH, "r", encoding="utf-8") as f:
     for line in f:
+        # ── pipe-table row ──
         m = ROW_RE.match(line)
-        if not m:
+        if m:
+            number, title, status = m.group(1), m.group(2), m.group(3)
+            short_title = _short(title)
+            sl = status.lower()
+
+            if sl.startswith("cc:todo"):
+                todo.append({"number": number, "title": short_title})
+            elif sl.startswith("cc:wip"):
+                wip.append({"number": number, "title": short_title})
+            elif sl.startswith("cc:done") or status.startswith("cc:完了"):
+                commit_match = re.search(r"\[([0-9a-fA-F]{4,})\]", status)
+                commit = commit_match.group(1)[:7] if commit_match else ""
+                done.append({"number": number, "title": short_title, "commit": commit})
+            elif sl.startswith("cc:blocked"):
+                blocked.append({"number": number, "title": short_title})
             continue
-        number, title, status = m.group(1), m.group(2), m.group(3)
-        # Shorten title: cut at the first "。", otherwise truncate to 80 chars
-        short_title = title.split("。")[0]
-        if len(short_title) > 80:
-            short_title = short_title[:77] + "..."
 
-        if status in ("cc:todo", "cc:TODO"):
-            todo.append({"number": number, "title": short_title})
-        elif status in ("cc:wip", "cc:WIP"):
-            wip.append({"number": number, "title": short_title})
-        elif status.startswith("cc:done") or status.startswith("cc:完了"):
-            commit_match = re.search(r"\[([a-f0-9]+)\]", status)
-            commit = commit_match.group(1)[:7] if commit_match else ""
-            done.append({"number": number, "title": short_title, "commit": commit})
+        # ── checklist row ──
+        c = CHECKLIST_RE.match(line)
+        if c:
+            title = c.group(1).strip()
+            short_title = _short(title)
+            cc_status = (c.group(2) or c.group(3) or "").lower()
 
-total = len(todo) + len(wip) + len(done)
+            if cc_status.startswith("cc:todo"):
+                todo.append({"number": "", "title": short_title})
+            elif cc_status.startswith("cc:wip"):
+                wip.append({"number": "", "title": short_title})
+            elif cc_status.startswith("cc:done") or cc_status.startswith("cc:完了"):
+                done.append({"number": "", "title": short_title, "commit": ""})
+            elif cc_status.startswith("cc:blocked"):
+                blocked.append({"number": "", "title": short_title})
+
+total = len(todo) + len(wip) + len(done) + len(blocked)
 if total == 0:
     progress_pct = 0
 else:
@@ -162,6 +195,21 @@ current_task = wip[0]["title"] if wip else ""
 # Derived helpers (for section expansion in render-html.sh)
 done_recent = done[-5:][::-1]  # latest 5, newest first
 
+# Build alerts for each blocked task (consumed by {{#alerts}} in progress.html.template)
+alerts = [
+    {
+        "severity": "warn",
+        "kind": "blocked",
+        "message": (
+            f"Task {item['number']}: {item['title']} is blocked."
+            if item["number"]
+            else f"{item['title']} is blocked."
+        ),
+        "suggested_action": "Resolve blockers to continue progress.",
+    }
+    for item in blocked
+]
+
 snapshot = {
     "schema": "progress-snapshot.v1",
     "project": PROJECT,
@@ -170,16 +218,18 @@ snapshot = {
     "todo_tasks": todo,
     "wip_tasks": wip,
     "done_tasks": done,
+    "blocked_tasks": blocked,
     "elapsed_minutes": ELAPSED_MIN,
     "estimated_total_minutes": ESTIMATE_MIN,
     "cost_so_far_usd": COST_SO_FAR,
     "cost_estimate_usd": COST_ESTIMATE,
-    "alerts": [],
+    "alerts": alerts,
     "generated_at": TIMESTAMP,
     "_done_recent_items": done_recent,
     "_todo_count": len(todo),
     "_wip_count": len(wip),
     "_done_count": len(done),
+    "_blocked_count": len(blocked),
 }
 
 print(json.dumps(snapshot, ensure_ascii=False, indent=2))
