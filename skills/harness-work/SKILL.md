@@ -139,8 +139,7 @@ In Opus 4.8, thinking is off by default, and effort is the primary lever for rea
 When you observe shallow reasoning, raise the effort rather than working around it in the prompt.
 For this reason, the old approach of **injecting free-text markers (e.g. `ultrathink`) into spawn prompts is retired**,
 replaced by a unified approach of **selecting the effort tier for Worker spawning** based on a complexity score.
-This aligns with `docs/model-routing-policy.md` (do not infer effort from free-text) and
-`.claude/rules/opus-4-7-prompt-audit.md` pass condition 5 (`xhigh` is chosen by the caller).
+The rule: do not infer effort from free-text markers; `xhigh` is always chosen by the caller, not injected into prompts.
 
 ### Multi-Factor Scoring
 
@@ -169,7 +168,7 @@ There are only two applicable levers:
 | ≥ 3 | Yes | `xhigh` |
 
 The same logic applies in breezing mode (managed centrally by harness-work).
-Since Workers run on Sonnet 4.6, `xhigh` is effectively downgraded to `high` at runtime, but raising the tier itself remains valid (see `docs/effort-level-policy.md`).
+Since Workers run on Sonnet 4.6, `xhigh` is effectively downgraded to `high` at runtime, but raising the tier itself remains valid as a signal to escalate session effort.
 
 ## Execution Mode Details
 
@@ -264,9 +263,9 @@ Lead uses the Claude Code `Agent` / `SendMessage` API to orchestrate Workers.
 
 ```
 Lead (this agent)
-├── Worker (task-worker agent) — implementation
+├── Worker (chanpark-harness:worker) — implementation
 ├── Advisor (chanpark-harness:advisor) — strategy advice
-└── Reviewer (code-reviewer agent) — review
+└── Reviewer (chanpark-harness:reviewer) — review
 ```
 
 **Phase A: Pre-delegate (preparation)**:

@@ -90,7 +90,7 @@ Operational rules:
 - Using the first result of `harness_mem_sessions_list(project, limit=1)` is limited to read-only (resume confirmation); do not use it for writes via `record_checkpoint` / `finalize_session`
 - Inject the retrieved result into the session startup context
 - On retrieval failure, check daemon status with `harness_mem_health()`, explicitly report the failure, and continue
-- Recovery order: `scripts/harness-memd doctor` → `scripts/harness-memd cleanup-stale` → `scripts/harness-memd start`
+- Recovery order: `bin/harness mem doctor` → `bin/harness mem health` → `bin/harness mem setup`
 
 ### Step 1: Environment Check
 
@@ -176,5 +176,5 @@ At session start, concisely present the following information:
 ## Notes
 
 - **Always check AGENTS.md**: Understand role assignments before starting work
-- **If Plans.md is missing**: Direct the user to `/harness-init`
+- **If Plans.md is missing**: Direct the user to `/chanpark-harness:harness-setup`
 - **If previous work was interrupted**: Confirm whether to continue

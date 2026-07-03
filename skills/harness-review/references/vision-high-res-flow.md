@@ -4,7 +4,6 @@ Typical scenario-based flows for leveraging the high-resolution vision capabilit
 (short-side up to 2576px) of Opus 4.7 in harness-review.
 
 > **Resolution limit**: 2576px on the short side is the safe operational ceiling. Pre-resize images that exceed this limit.
-> For detailed guidance, see [`docs/opus-4-7-vision-usage.md`](../../../docs/opus-4-7-vision-usage.md).
 
 ---
 

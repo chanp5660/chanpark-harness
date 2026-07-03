@@ -28,7 +28,7 @@ Before editing any file, always confirm:
 
 ### 3. Respect Configuration Files
 
-Follow the settings in `claude-code-harness.config.json`:
+Follow the settings in `.claude-code-harness.config.yaml`:
 
 - `safety.mode`: dry-run / apply-local / apply-and-push
 - `paths.protected`: Do not modify protected paths

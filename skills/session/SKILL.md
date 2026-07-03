@@ -116,7 +116,7 @@ claude --resume "add tests"
 
 ## When to Use
 
-- Session initialization (`/harness-init`)
+- Session initialization (`/chanpark-harness:harness-setup`)
 - Session resume/fork (`/work --resume`, `/work --fork`)
 - Memory persistence (automatic)
 - Cross-session communication (`/session broadcast`)
@@ -126,7 +126,7 @@ claude --resume "add tests"
 ### 1. Session Initialization
 
 ```
-/harness-init
+/chanpark-harness:harness-setup
     ↓
 ├── Load project context
 ├── Initialize session.json

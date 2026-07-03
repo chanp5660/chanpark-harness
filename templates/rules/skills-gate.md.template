@@ -25,7 +25,7 @@ Skills provide guidelines that improve the quality of your work.
 |------|--------|-----------|
 | Implement a feature | `impl` | Invoke "impl" via the Skill tool |
 | Review code | `harness-review` | Invoke "harness-review" via the Skill tool |
-| Create UI | `ui` | Invoke "ui" via the Skill tool |
+| Create UI | `ui` | Consult UI/design guidance in `skills/ui/` before editing |
 | Implement authentication or payments | `auth` | Invoke "auth" via the Skill tool |
 | Configure deployment | `deploy` | Invoke "deploy" via the Skill tool |
 

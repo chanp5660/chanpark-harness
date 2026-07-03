@@ -96,7 +96,6 @@ Next: resolve model → delegate diff review to Worker (read-only) → summarize
 > This script appends `export ENABLE_PROMPT_CACHING_1H=1` to `env.local` (idempotent).
 > With the default 5-minute TTL cache, sessions exceeding 1 hour in breezing can accumulate cache misses
 > and increase input token costs by up to 12×, so opt in explicitly for long team runs.
-> See [`docs/long-running-harness.md`](../../docs/long-running-harness.md) for details.
 
 ## Execution
 

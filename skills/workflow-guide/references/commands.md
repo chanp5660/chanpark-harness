@@ -8,7 +8,7 @@ Details of the commands used in the PM ↔ Claude Code workflow.
 
 ### /setup
 
-Initial project setup (formerly `/harness-init`).
+Initial project setup.
 
 ```
 /setup

@@ -229,8 +229,6 @@ Worker expectations:
 4. Permission mode check is performed once at preflight (step 4) and not re-checked mid-turn.
 5. Worker launched in `bypassPermissions` mode still respects guard rails (R12) on protected branches (`main`/`master`). CC permission mode does not override deny (settings.json `permissions.deny` always takes precedence).
 
-Details: `docs/agent-view-policy.md`
-
 ## Stall Detection — 2-Layer Defense (CC 2.1.113+)
 
 When a Worker stops responding during a long-running stream, the defense is split into 2 layers.

@@ -35,7 +35,7 @@ A skill set for diagnosing and resolving CI/CD pipeline issues.
 1. **Test vs. Implementation judgment** (Step 0)
 2. Classify user intent (analyze or fix)
 3. Assess complexity (see below)
-4. Read the appropriate reference file from "Feature Overview" above, or launch the ci-cd-fixer sub-agent
+4. Read the appropriate reference file from "Feature Overview" above, or launch the chanpark-harness:debugger sub-agent
 5. Verify results and re-run if necessary
 
 ### Step 0: Test vs. Implementation Judgment (Quality Gate)
@@ -153,7 +153,7 @@ Changed files (--raw):
 
 ## Sub-Agent Integration
 
-Launch ci-cd-fixer via the Task tool when any of the following conditions are met:
+Launch the `chanpark-harness:debugger` agent via the Task tool when any of the following conditions are met:
 
 - The fix → re-run → failure loop has occurred **2 or more times**
 - Or the error spans multiple files and is complex
@@ -162,12 +162,12 @@ Launch ci-cd-fixer via the Task tool when any of the following conditions are me
 
 ```
 Task tool:
-  subagent_type="ci-cd-fixer"
+  subagent_type="chanpark-harness:debugger"
   prompt="Diagnose and fix the CI failure. Error log: {error_log}"
 ```
 
-ci-cd-fixer operates in safety-first mode (dry-run by default).
-See `agents/ci-cd-fixer.md` for details.
+The debugger agent specializes in root-cause analysis and build/compilation error resolution.
+See `agents/debugger.md` for details.
 
 ---
 

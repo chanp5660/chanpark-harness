@@ -44,7 +44,7 @@ Consolidates the following legacy skills:
 > MCP `alwaysLoad`, `${CLAUDE_EFFORT}`, `claude plugin prune`, `claude project purge`,
 > `ANTHROPIC_BEDROCK_SERVICE_TIER`, `claude_code.skill_activated.invocation_trigger`,
 > Windows PowerShell primary shell, and deferred tools for forked skills / subagents are
-> covered in `docs/claude-code-setup-mcp-telemetry-provider.md` as the authoritative source.
+> all supported in the current CC release; consult the official CC docs for per-feature details.
 
 ## Subcommand Details
 
@@ -176,8 +176,8 @@ Configure the agents/ setup.
 
 ```
 agents/
-├── worker.md      # implementation agent (task-worker + error-recovery)
-└── reviewer.md    # review agent (code-reviewer + plan-critic)
+├── worker.md      # implementation agent (chanpark-harness:worker + error-recovery)
+└── reviewer.md    # review agent (chanpark-harness:reviewer + plan-critic)
 ```
 
 ### localize — Rule Localization
@@ -198,8 +198,9 @@ EOF
 ## Plugin Installation (v2.1.71+ Marketplace)
 
 Marketplace stability was significantly improved in v2.1.71.
-The plugin / managed settings policy for Claude Code 2.1.117–2.1.118+ is
-covered in `docs/plugin-managed-settings-policy.md` as the authoritative source.
+For Claude Code 2.1.117–2.1.118+, plugins may ship a `settings.json` that is merged into
+the project's permission allowlist/denylist; entries in `.claude-plugin/settings.json` take
+effect automatically when the plugin is installed.
 
 ### Recommended Installation Method
 

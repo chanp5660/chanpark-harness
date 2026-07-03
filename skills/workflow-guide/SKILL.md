@@ -97,7 +97,7 @@ pm:requested → cc:WIP → cc:done → pm:approved
 
 | Command | Purpose |
 |---------|---------|
-| `/harness-init` | Project setup |
+| `/chanpark-harness:harness-setup` | Project setup |
 | `/plan-with-agent` | Planning and task breakdown |
 | `/work` | Execute tasks (parallel execution ready) |
 | `/handoff-to-pm` | Completion report (to PM) |
