@@ -56,9 +56,40 @@ PROJ_DIR="$(_get '.workspace.project_dir')"
 # --- Git (cached 5s to avoid spawning git on every keystroke) ---
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 REPO_NAME="$(basename "$REPO_ROOT" 2>/dev/null)"
-CACHE_FILE="${CHANPARK_HUD_GIT_CACHE:-/tmp/chanpark-hud-git-cache}"
-_cache_mtime() { stat -c %Y "$CACHE_FILE" 2>/dev/null || stat -f %m "$CACHE_FILE" 2>/dev/null || echo 0; }
+# Cache is namespaced per-user in a private directory (mode 0700) to prevent
+# cross-user git-state leaks and symlink-clobbering attacks on shared hosts.
+# CHANPARK_HUD_GIT_CACHE override is honoured only when the parent directory is
+# owned by the current user; otherwise the default path is used with a stderr note.
+_CHANPARK_HUD_CACHE_DIR="${XDG_RUNTIME_DIR:-/tmp}/chanpark-hud-$(id -u)"
+mkdir -p "$_CHANPARK_HUD_CACHE_DIR" && chmod 700 "$_CHANPARK_HUD_CACHE_DIR" 2>/dev/null || true
+_CHANPARK_HUD_CACHE_DEFAULT="${_CHANPARK_HUD_CACHE_DIR}/git-cache"
+if [ -n "${CHANPARK_HUD_GIT_CACHE:-}" ]; then
+    _override_parent="$(dirname "$CHANPARK_HUD_GIT_CACHE")"
+    if [ -O "$_override_parent" ]; then
+        CACHE_FILE="$CHANPARK_HUD_GIT_CACHE"
+    else
+        printf 'chanpark-hud: CHANPARK_HUD_GIT_CACHE parent dir not owned by current user; using default cache\n' >&2
+        CACHE_FILE="$_CHANPARK_HUD_CACHE_DEFAULT"
+    fi
+else
+    CACHE_FILE="$_CHANPARK_HUD_CACHE_DEFAULT"
+fi
+_cache_mtime() {
+    local ts=""
+    ts="$(stat -c %Y "$CACHE_FILE" 2>/dev/null || true)"
+    if [ -n "$ts" ] && printf '%s' "$ts" | grep -Eq '^[0-9]+$'; then printf '%s' "$ts"; return 0; fi
+    ts="$(stat -f %m "$CACHE_FILE" 2>/dev/null || true)"
+    if [ -n "$ts" ] && printf '%s' "$ts" | grep -Eq '^[0-9]+$'; then printf '%s' "$ts"; return 0; fi
+    printf '0'
+}
 if [ ! -f "$CACHE_FILE" ] || [ $(( $(date +%s) - $(_cache_mtime) )) -gt 5 ]; then
+    # Atomic write: write to temp file in the same dir then mv, so a concurrent
+    # reader never sees a partial cache file and mv defeats symlink-follow attacks.
+    _cache_write() {
+        local _tmp
+        _tmp="$(mktemp "$(dirname "$CACHE_FILE")/git-cache.XXXXXX" 2>/dev/null)" || return 1
+        printf '%s\n' "$1" > "$_tmp" && mv -f "$_tmp" "$CACHE_FILE" || { rm -f "$_tmp" 2>/dev/null; return 1; }
+    }
     if git rev-parse --git-dir >/dev/null 2>&1; then
         _br="$(git branch --show-current 2>/dev/null)"
         _sha="$(git rev-parse --short HEAD 2>/dev/null)"
@@ -72,12 +103,13 @@ if [ ! -f "$CACHE_FILE" ] || [ $(( $(date +%s) - $(_cache_mtime) )) -gt 5 ]; the
             _behind="$(printf '%s' "$_ab" | awk '{print $1+0}')"
             _ahead="$(printf '%s' "$_ab" | awk '{print $2+0}')"
         fi
-        printf '%s|%s|%s|%s|%s|%s|%s|%s\n' "$_br" "$_staged" "$_mod" "$_ahead" "$_behind" "$_unt" "$_stash" "$_sha" > "$CACHE_FILE"
+        _cache_write "${_br}|${_staged}|${_mod}|${_ahead}|${_behind}|${_unt}|${_stash}|${_sha}" || true
     else
-        echo "|||||||" > "$CACHE_FILE"
+        _cache_write "||||||||" || true
     fi
 fi
-IFS='|' read -r BRANCH STAGED MODIFIED AHEAD BEHIND UNTRACKED STASH SHA < "$CACHE_FILE"
+IFS='|' read -r BRANCH STAGED MODIFIED AHEAD BEHIND UNTRACKED STASH SHA < "$CACHE_FILE" || true
+BRANCH="${BRANCH:-}"; SHA="${SHA:-}"
 STAGED="${STAGED:-0}"; MODIFIED="${MODIFIED:-0}"; AHEAD="${AHEAD:-0}"; BEHIND="${BEHIND:-0}"; UNTRACKED="${UNTRACKED:-0}"; STASH="${STASH:-0}"
 
 # --- Plans.md task counts (A2: count only markdown status-column cells, not prose/legend) ---
@@ -191,7 +223,7 @@ case "$PRESET" in
   minimal)
     LINE="${CYAN}[$MODEL]${RESET} ctx:${CTX_COLOR}${PCT}%${RESET}"
     TB="$(tasks_badge short)"; [ -n "$TB" ] && LINE="${LINE} | ${TB}"
-    printf '%b\n' "$LINE"
+    printf '%s\n' "$LINE"
     ;;
   full|focused)
     # Line 1: model + repo/branch@sha + git-extra + agent/worktree + cwd
@@ -240,7 +272,7 @@ case "$PRESET" in
     # with CHANPARK_HUD_ONELINE=0. Needs $COLUMNS (CC v2.1.153+); unknown width → two rows.
     if [ "${CHANPARK_HUD_ONELINE:-1}" != "0" ] && [ "$CAP" -gt 0 ] 2>/dev/null \
        && [ $(( $(_vwidth "$LINE1") + 3 + $(_vwidth "$FULL2") )) -le "$CAP" ]; then
-        printf '%b\n' "${LINE1} ${DIM}|${RESET} ${FULL2}"
+        printf '%s\n' "${LINE1} ${DIM}|${RESET} ${FULL2}"
     else
         # Two rows: shed line-2 segments to fit $COLUMNS (lowest priority first:
         # time -> style -> lines -> WIP-title -> tasks; ctx/limits always kept).
@@ -251,11 +283,11 @@ case "$PRESET" in
                 [ "$(_vwidth "$LINE2")" -le "$CAP" ] && break
             done
         fi
-        printf '%b\n' "$LINE1"
-        printf '%b\n' "$LINE2"
+        printf '%s\n' "$LINE1"
+        printf '%s\n' "$LINE2"
     fi
     ;;
   *)
-    printf '%b\n' "${CYAN}[$MODEL]${RESET} ${DIM}(unknown HUD preset '$PRESET'; use minimal|focused|full)${RESET}"
+    printf '%s\n' "${CYAN}[$MODEL]${RESET} ${DIM}(unknown HUD preset '$PRESET'; use minimal|focused|full)${RESET}"
     ;;
 esac
