@@ -241,12 +241,44 @@ PYEOF
 }
 
 # ---------------------------------------------------------------------------
+# Check: marker-style — no mixed-case marker write form in shipped content
+# (pattern split to avoid self-match)
+# ---------------------------------------------------------------------------
+check_marker_style() {
+  local pat matches
+  pat='cc:D''one'
+  matches=$(grep -rn "$pat" skills templates scripts --exclude="check-regression-guard.sh" 2>/dev/null || true)
+  if [ -n "$matches" ]; then
+    echo "FAIL: marker-style — mixed-case marker found: $(echo "$matches" | head -3)"
+  else
+    echo "PASS: marker-style"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Check: template-registry — templates/ dir and template-registry.json consistent
+# ---------------------------------------------------------------------------
+check_template_registry() {
+  if [ ! -f scripts/ci/check-template-registry.sh ]; then
+    echo "SKIP: template-registry — checker script missing"
+    return
+  fi
+  if bash scripts/ci/check-template-registry.sh > /dev/null 2>&1; then
+    echo "PASS: template-registry"
+  else
+    echo "FAIL: template-registry — scripts/ci/check-template-registry.sh exited non-zero"
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Run all checks
 # ---------------------------------------------------------------------------
 run_check "identity"   check_identity
 run_check "grep-path"  check_grep_path
 run_check "sync-no-dup" check_sync_no_dup
 run_check "english-only" check_english_only
+run_check "marker-style" check_marker_style
+run_check "template-registry" check_template_registry
 
 # ---------------------------------------------------------------------------
 # Summary
