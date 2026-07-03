@@ -1,9 +1,9 @@
 # Claude Code Harness Configuration
 # https://github.com/Chachamaru127/claude-code-harness
 #
-# DERIVED FILE — do not edit by hand.
-# Source of truth: harness.toml (read by the harness Go binary).
-# To regenerate this file run: harness sync
+# Hand-maintained runtime config (read by scripts/config-utils.sh).
+# NOT derived from harness.toml — do not regenerate with 'harness sync'
+# (the regen template drops review/breezing/advisor/cleanup/monitor/orchestration values).
 
 # Safety settings
 safety:
@@ -12,13 +12,15 @@ safety:
 
 # Review settings
 review:
-  # Codex second opinion (requires Codex MCP server)
+  # Codex second opinion (requires Codex MCP server — disabled: mcp__codex__* is denied
+  # in .claude-plugin/settings.json and no MCP server is shipped with the plugin).
+  # To enable, add a Codex MCP server and update settings.json permission allowlist.
   codex:
-    enabled: true
+    enabled: false
     timeout_ms: 60000 # Codex MCP timeout (ms)
 
   # Default mode: "default" (4 perspectives) or "codex" (parallel MCP execution)
-  mode: codex
+  mode: default
 
 # Breezing settings (Agent Teams)
 breezing:
