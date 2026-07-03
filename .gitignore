@@ -1,6 +1,9 @@
 # Local/runtime state — never committed
 .claude/state/
 .claude/sessions/
+out/
+.harness-mem/
+.harness-worktrees/
 .claude/memory/session-log.md
 .omc/
 *.log
