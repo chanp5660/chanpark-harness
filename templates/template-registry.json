@@ -1,5 +1,4 @@
 {
-  "$schema": "./template-registry.schema.json",
   "description": "Template-to-output mapping. Update templateVersion when a template changes.",
   "templates": {
     "CLAUDE.md.template": {
@@ -152,6 +151,36 @@
       "output": ".claude-code-harness-version",
       "templateVersion": "2.5.23",
       "description": "Version file",
+      "tracked": false
+    },
+    "html/accept.html.template": {
+      "output": ".claude/state/views/accept.html",
+      "templateVersion": "1.0.0",
+      "description": "Acceptance review HTML render source (runtime only, not scaffolded)",
+      "tracked": false
+    },
+    "html/orchestration.html.template": {
+      "output": ".claude/state/views/orchestration.html",
+      "templateVersion": "1.0.0",
+      "description": "Orchestration HTML render source — upstream leftover, no active render call (runtime only, not scaffolded)",
+      "tracked": false
+    },
+    "html/plan-brief.html.template": {
+      "output": ".claude/state/views/plan-brief.html",
+      "templateVersion": "1.0.0",
+      "description": "Plan brief HTML render source (runtime only, not scaffolded)",
+      "tracked": false
+    },
+    "html/progress.html.template": {
+      "output": "out/progress-snapshot.html",
+      "templateVersion": "1.0.0",
+      "description": "Progress snapshot HTML render source (runtime only, not scaffolded)",
+      "tracked": false
+    },
+    "html/test-fixture.html.template": {
+      "output": ".claude/state/views/test-fixture.html",
+      "templateVersion": "1.0.0",
+      "description": "Test fixture HTML render source — upstream leftover, no active render call (runtime only, not scaffolded)",
       "tracked": false
     }
   }
