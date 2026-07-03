@@ -19,7 +19,7 @@
 #     "decisions":     [{"id": "D22", "title": "...", "relevance": "..."}, ...],
 #     "patterns":      [{"id": "P5",  "title": "...", "relevance": "..."}, ...],
 #     "plans_archive": [{"phase": "Phase 41", "archive_path": "...",
-#                         "outcome": "cc:done|cc:WIP|cc:TODO|skipped",
+#                         "outcome": "cc:done|cc:wip|cc:todo|cc:blocked|skipped|unknown",
 #                         "relevance": "..."}, ...]
 #   }
 # If --mem-results is omitted, all are treated as empty arrays (confidence uses only DoD / D-P components).
@@ -99,11 +99,11 @@ else
 fi
 
 # ---- Component (1): cc:done rate of similar past plans (max 40 points) ----
-# Note: ".outcome == \"cc:完了\"" preserves the legacy marker value for
-# backward-compatible reading of archived plan outcomes.
+# Count cc:done outcomes; also count legacy "cc:完了" for backward-compatible
+# reading of archived plan outcomes written before the EN migration.
 
 PAST_TOTAL="$(jq '.plans_archive | length' "$NORM_MEM")"
-PAST_DONE="$(jq '[.plans_archive[] | select(.outcome == "cc:完了")] | length' "$NORM_MEM")"
+PAST_DONE="$(jq '[.plans_archive[] | select(.outcome == "cc:done" or .outcome == "cc:完了")] | length' "$NORM_MEM")"
 
 if [[ "$PAST_TOTAL" -eq 0 ]]; then
   SCORE_PAST=0

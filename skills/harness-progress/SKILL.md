@@ -1,6 +1,6 @@
 ---
 name: harness-progress
-description: "Generate a Progress Tracker HTML for non-engineer vibecoders to glance at session progress (cc:WIP / cc:TODO / cc:DONE counts, percentage, elapsed/estimated minutes, cost so far/estimate, drift alerts). Uses Plans.md as source of truth, renders a single-file HTML with auto-regeneration support. Use when user asks for progress overview, session status snapshot, dashboard, or says: progress tracker, progress check, progress board, dashboard. Do NOT load for: actual implementation, code review, release work."
+description: "Generate a Progress Tracker HTML for non-engineer vibecoders to glance at session progress (cc:wip / cc:todo / cc:done counts, percentage, elapsed/estimated minutes, cost so far/estimate, drift alerts). Uses Plans.md as source of truth, renders a single-file HTML with auto-regeneration support. Use when user asks for progress overview, session status snapshot, dashboard, or says: progress tracker, progress check, progress board, dashboard. Do NOT load for: actual implementation, code review, release work."
 allowed-tools: ["Read", "Write", "Bash"]
 argument-hint: "[--out <path>] [--no-open]"
 ---
@@ -24,8 +24,8 @@ Following Plan Brief / Acceptance Demo, this is the **3rd HTML surface**, design
 > "How many tasks are done in this session, how far along are we, when will it finish, and how much has it cost?"
 
 **Does**:
-- Aggregate cc:TODO / cc:WIP / cc:DONE counts from Plans.md
-- Calculate progress_pct (completion rate) (cc:DONE ÷ total tasks × 100)
+- Aggregate cc:todo / cc:wip / cc:done counts from Plans.md
+- Calculate progress_pct (completion rate) (cc:done ÷ total tasks × 100)
 - Display elapsed minutes / estimated total minutes / cost so-far / cost estimate
 - Display drift alerts (populated from Phase 65.4.3 onward)
 
@@ -41,11 +41,11 @@ Detailed spec: [schemas/progress-snapshot.v1.schema.json](${CLAUDE_SKILL_DIR}/sc
 ```yaml
 schema:        progress-snapshot.v1
 project:       <basename of git repo>
-current_task:  <one-line summary of the first cc:WIP item, empty string if none>
-progress_pct:  <integer 0-100, cc:DONE ÷ total tasks × 100 rounded>
-todo_tasks:    [{number, title}]    ← cc:TODO items only
-wip_tasks:     [{number, title}]    ← cc:WIP items only
-done_tasks:    [{number, title, commit}]   ← cc:DONE [hash] items only, hash is 7 chars
+current_task:  <one-line summary of the first cc:wip item, empty string if none>
+progress_pct:  <integer 0-100, cc:done ÷ total tasks × 100 rounded>
+todo_tasks:    [{number, title}]    ← cc:todo items only
+wip_tasks:     [{number, title}]    ← cc:wip items only
+done_tasks:    [{number, title, commit}]   ← cc:done [hash] items only, hash is 7 chars
 elapsed_minutes:          <int, read from state file>
 estimated_total_minutes:  <int, read from state file>
 cost_so_far_usd:          <float, read from state file>

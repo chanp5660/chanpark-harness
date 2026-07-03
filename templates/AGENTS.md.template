@@ -76,14 +76,14 @@ PM                   Claude Code (Worker)
 
 ### Status Markers
 
-These markers are internal protocol values. Keep them as written unless the
-project explicitly adds tested aliases.
+These markers use lowercase canonical form. The binary matches
+case-insensitively, but all write instructions must use lowercase.
 
 | Marker | Meaning | Set by |
 |--------|---------|--------|
 | `pm:requested` | PM requested work | PM |
-| `cc:TODO` | Not started by Claude Code | Either agent |
-| `cc:WIP` | Claude Code is working | Claude Code |
+| `cc:todo` | Not started by Claude Code | Either agent |
+| `cc:wip` | Claude Code is working | Claude Code |
 | `cc:done` | Claude Code completed the work | Claude Code |
 | `pm:approved` | PM confirmed completion | PM |
 | `blocked` | Blocked | Either agent |
@@ -91,7 +91,7 @@ project explicitly adds tested aliases.
 ### State Flow
 
 ```
-pm:requested -> cc:WIP -> cc:done -> pm:approved
+pm:requested -> cc:wip -> cc:done -> pm:approved
 ```
 
 ---

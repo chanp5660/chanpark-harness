@@ -114,7 +114,7 @@
           "phase": { "type": "string" },
           "outcome": {
             "type": "string",
-            "enum": ["cc:done", "cc:WIP", "cc:TODO", "skipped", "unknown"]
+            "enum": ["cc:done", "cc:wip", "cc:todo", "cc:blocked", "skipped", "unknown"]
           },
           "relevance": { "type": "string" }
         }

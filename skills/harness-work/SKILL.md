@@ -195,7 +195,7 @@ All subsequent `node "${HARNESS_PLUGIN_ROOT}/scripts/..."` / `bash "${HARNESS_PL
 1. Read Plans.md and identify the target task.
    - **If Plans.md does not exist**: Automatically call `harness-plan create --ci` to generate Plans.md and continue.
    - If the header lacks DoD / Depends columns: print `Plans.md is in an old format. Please regenerate with harness-plan create.` → **stop**.
-   - **If the conversation contains tasks not listed in Plans.md**: Extract requirements from the preceding conversation context and auto-append to Plans.md as `cc:TODO`.
+   - **If the conversation contains tasks not listed in Plans.md**: Extract requirements from the preceding conversation context and auto-append to Plans.md as `cc:todo`.
      - Extraction logic: Detect action verbs in user messages (e.g. "add", "fix", "implement").
      - Appended entries must conform to the v2 format (Task / Content / DoD / Depends / Status).
      - After appending, display "Appended the following to Plans.md" to the user (5-second timeout prompt, default: continue).
@@ -210,7 +210,7 @@ All subsequent `node "${HARNESS_PLUGIN_ROOT}/scripts/..."` / `bash "${HARNESS_PL
    - If the spec is outdated or contradicts the task, update the spec before implementing.
    - For typo / format / dependency bump / docs-only / behavior-preserving refactor tasks, record the skip reason and continue.
    - Include `spec_path` or `spec_skip_reason` in the context passed to Worker / Reviewer.
-2. Update the task to `cc:WIP`.
+2. Update the task to `cc:wip`.
 3. **TDD Phase** (when `[skip:tdd]` is absent and a test framework is present):
    a. Create the test file first (Red).
    b. Confirm it fails.
@@ -233,10 +233,10 @@ All subsequent `node "${HARNESS_PLUGIN_ROOT}/scripts/..."` / `bash "${HARNESS_PL
    - On APPROVE, proceed to the next step. Do not finalize completion on self-check alone.
 10. Normalize and save the review artifact with `bash "${HARNESS_PLUGIN_ROOT}/scripts/write-review-result.sh"` (for browser profile, pass `--browser-result`; when `browser_verdict == PENDING_BROWSER`, use the static verdict).
 11. Auto-commit with `git commit` (skip with `--no-commit`).
-12. Update the task to `cc:Done` with the commit hash.
+12. Update the task to `cc:done` with the commit hash.
    - Get the most recent commit hash (7-character short form) with `git log --oneline -1`.
-   - Update Plans.md Status to `cc:Done [a1b2c3d]`.
-   - When there is no commit (`--no-commit`), use `cc:Done` without a hash.
+   - Update Plans.md Status to `cc:done [a1b2c3d]`.
+   - When there is no commit (`--no-commit`), use `cc:done` without a hash.
 13. **Rich completion report** (see "Completion Report Format").
 14. **Automatic re-planning on failure** (test/CI failures only):
     - Check the test execution results.
@@ -289,7 +289,7 @@ for task in execution_order:
 
     # B-2. Spawn Worker (foreground, worktree-isolated)
     # The Agent tool return value includes agentId — used by SendMessage in the fix loop
-    Plans.md: task.status = "cc:WIP"  # Update when starting (tasks not yet started remain cc:TODO)
+    Plans.md: task.status = "cc:wip"  # Update when starting (tasks not yet started remain cc:todo)
 
     # Propagate universal violations even when /harness-work is run successively
     # (Assume universal_violations = [] is initialized on first run)
@@ -336,7 +336,7 @@ for task in execution_order:
         self_review_failures += 1
         if self_review_failures > MAX_SELF_REVIEW_RETRIES:
             # Unverified items remain after 3 send-backs → escalate to Lead
-            Plans.md: task.status = "cc:TODO"  # Revert to pre-start state
+            Plans.md: task.status = "cc:todo"  # Revert to pre-start state
             raise EscalationError(f"self_review has unverified rules after 3 send-backs (rules: {[u['rule'] for u in unverified]})")
         # Send back to Worker (do not spawn Reviewer)
         SendMessage(
@@ -405,7 +405,7 @@ for task in execution_order:
             git worktree remove {worker_result.worktreePath} --force
         if worker_result.branch and worker_result.branch not in ["main", "master"] and worker_result.branch != TRUNK:
             git branch -D {worker_result.branch}
-        Plans.md: task.status = "cc:Done [{hash}]"
+        Plans.md: task.status = "cc:done [{hash}]"
         # Record auto-checkpoint (idempotency guard (c))
         # Call immediately after rewriting Plans.md. Fail-open (|| true) to not stop the loop on failure
         HASH=$(git rev-parse --short HEAD)
@@ -464,7 +464,7 @@ The generated artifact includes the following.
 **Phase C: Post-delegate (integration and reporting)**:
 1. Aggregate the commit logs for all tasks.
 2. Output the **rich completion report** (Breezing template in "Completion Report Format").
-3. Final verification of Plans.md (confirm all tasks are marked `cc:Done`).
+3. Final verification of Plans.md (confirm all tasks are marked `cc:done`).
 
 ## Handling CI Failures
 
@@ -483,7 +483,7 @@ When tests/CI fail after a task is complete, automatically generate a proposed f
 
 | Condition | Action |
 |------|----------|
-| Test fails after `cc:Done` | Save proposed fix task to state and wait for approval |
+| Test fails after `cc:done` | Save proposed fix task to state and wait for approval |
 | CI failure (fewer than 3 times) | Apply fix and increment failure count |
 | CI failure (3rd time) | Present proposed fix task + escalate |
 
@@ -495,7 +495,7 @@ When tests/CI fail after a task is complete, automatically generate a proposed f
    - Content: `fix: [original task name] - [failure cause category]`
    - DoD: tests/CI must pass
    - Depends: original task number
-3. When the user sends `approve fix <task_id>`, add it to Plans.md as `cc:TODO`.
+3. When the user sends `approve fix <task_id>`, add it to Plans.md as `cc:todo`.
 4. `reject fix <task_id>` discards the proposal. When there is only one pending item, `yes` / `no` also works.
 
 ## Review Loop
@@ -532,7 +532,7 @@ Improvement suggestions outside these criteria are returned as `recommendations`
 Retain the HEAD at task start as `BASE_REF` and review the diff against that ref.
 
 ```bash
-# Record base ref at task start (run before cc:WIP update in Step 2)
+# Record base ref at task start (run before cc:wip update in Step 2)
 BASE_REF=$(git rev-parse HEAD)
 ```
 
@@ -591,11 +591,11 @@ In Breezing mode, **Lead** runs the review loop (see Phase B above):
 2. Lead reviews with the Reviewer agent.
 3. REQUEST_CHANGES → Lead sends fix instructions to Worker via SendMessage → Worker amends.
 4. After fix, re-review (up to `MAX_REVIEWS = read_contract(contract_path, ".review.max_iterations") or 3` times).
-5. APPROVE → Lead cherry-picks into trunk (default branch) → updates Plans.md to `cc:Done [{hash}]`.
+5. APPROVE → Lead cherry-picks into trunk (default branch) → updates Plans.md to `cc:done [{hash}]`.
 
 ## Completion Report Format
 
-A visual summary automatically output when a task is complete (`cc:Done` + after commit).
+A visual summary automatically output when a task is complete (`cc:done` + after commit).
 Designed to communicate the changes and their impact to non-specialists as well.
 
 ### Template
@@ -631,7 +631,7 @@ Designed to communicate the changes and their impact to non-specialists as well.
 1. **What was done**: Auto-extracted from `git diff --stat HEAD~1` and commit message. Minimize technical jargon; start with a verb.
 2. **What changed**: Infer Before/After from the task's "Content" and "DoD". Emphasize changes to the user experience.
 3. **Changed files**: Retrieved from `git diff --name-only HEAD~1`. If more than 5 files, abbreviate and show the count.
-4. **Remaining work**: List `cc:TODO` / `cc:WIP` tasks in Plans.md. Explicitly indicate whether they are recorded in Plans.md.
+4. **Remaining work**: List `cc:todo` / `cc:wip` tasks in Plans.md. Explicitly indicate whether they are recorded in Plans.md.
 5. **Review**: Display the review result (APPROVE / REQUEST_CHANGES → APPROVE).
 
 ### Reporting in Parallel Mode

@@ -17,7 +17,7 @@ and validation.
    the skip reason in the task context or sprint contract.
 6. Resolve helper scripts through `HARNESS_PLUGIN_ROOT`, not the caller
    project's `scripts/` directory.
-7. Mark only the selected task as `cc:WIP`.
+7. Mark only the selected task as `cc:wip`.
 8. Generate and approve a sprint contract before implementation when the task
    needs reviewable DoD checks.
 
@@ -25,7 +25,7 @@ and validation.
 
 Use for one task. The parent session implements directly, validates, runs the
 review loop, commits unless `--no-commit` is set, and marks `Plans.md`
-`cc:Done [hash]`.
+`cc:done [hash]`.
 
 ## Parallel
 

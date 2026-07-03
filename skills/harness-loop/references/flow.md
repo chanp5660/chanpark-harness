@@ -434,7 +434,7 @@ fi
 Update Plans.md:
 
 ```bash
-# Update cc:WIP → cc:done [{hash}]
+# Update cc:wip → cc:done [{hash}]
 HASH=$(git rev-parse --short HEAD)
 # Update the relevant task line in Plans.md
 ```

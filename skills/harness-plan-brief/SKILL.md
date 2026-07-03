@@ -61,7 +61,7 @@ If no argument is provided, receive it interactively.
     { "id": "string", "title": "string", "relevance": "string" }
   ],
   "similar_past_plans": [
-    { "archive_path": "string", "phase": "string", "outcome": "cc:done|cc:WIP|cc:TODO|skipped", "relevance": "string" }
+    { "archive_path": "string", "phase": "string", "outcome": "cc:done|cc:wip|cc:todo|cc:blocked|skipped|unknown", "relevance": "string" }
   ],
   "project": "string",
   "generated_at": "ISO8601"

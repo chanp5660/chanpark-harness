@@ -123,7 +123,7 @@ Gather ideas and requirements, then generate an executable Plans.md.
 6. **spec.md / Plans.md dual-contract check** (Spec delta or Spec skip reason + Plans.md tasks)
 7. Priority matrix (Required / Recommended / Optional / Reject)
 8. TDD adoption decision (test design)
-9. Generate Plans.md (with `cc:TODO` markers)
+9. Generate Plans.md (with `cc:todo` markers)
 10. Guide next actions
 
 ### spec.md / Plans.md dual-contract check (default)
@@ -225,7 +225,7 @@ For product-impacting additions, output `Spec delta` or `Spec skip reason` as we
 /harness-plan add <task name>: <detailed description> [--phase <phase number>]
 ```
 
-Tasks are added with the `cc:TODO` marker.
+Tasks are added with the `cc:todo` marker.
 
 ### update — Marker Update
 
@@ -239,10 +239,10 @@ Marker mapping:
 
 | Command | Marker |
 |---------|--------|
-| `WIP` | `cc:WIP` |
+| `WIP` | `cc:wip` |
 | `done` | `cc:done` |
 | `blocked` | `blocked` |
-| `TODO` | `cc:TODO` |
+| `TODO` | `cc:todo` |
 
 ### sync — Progress Sync
 
@@ -313,8 +313,8 @@ Created: YYYY-MM-DD
 
 | Task | Description | DoD | Depends | Status |
 |------|-------------|-----|---------|--------|
-| N.1  | Description | Tests pass | - | cc:TODO |
-| N.2  | Description | 0 lint errors | N.1 | cc:WIP |
+| N.1  | Description | Tests pass | - | cc:todo |
+| N.2  | Description | 0 lint errors | N.1 | cc:wip |
 | N.3  | Description | Migration executable | N.1, N.2 | cc:done |
 ```
 
@@ -360,8 +360,8 @@ Reference:
 | Marker | Meaning |
 |--------|---------|
 | `pm:requested` | Requested by PM |
-| `cc:TODO` | Not started |
-| `cc:WIP` | In progress |
+| `cc:todo` | Not started |
+| `cc:wip` | In progress |
 | `cc:done` | Worker work complete |
 | `pm:approved` | PM review complete |
 | `blocked` | Blocked (reason must always be stated) |

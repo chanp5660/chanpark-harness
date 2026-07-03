@@ -21,8 +21,8 @@ _harness_version: "2.5.27"
 | Marker | Set by | Meaning |
 |---------|--------|------|
 | `pm:requested` | PM (PM Claude) | Task requested |
-| `cc:TODO` | Claude Code | Not started |
-| `cc:WIP` | Claude Code | In progress |
+| `cc:todo` | Claude Code | Not started |
+| `cc:wip` | Claude Code | In progress |
 | `cc:done` | Claude Code | Completed |
 | `pm:reviewed` | PM (PM Claude) | Review complete |
 
@@ -30,10 +30,10 @@ _harness_version: "2.5.27"
 
 ```markdown
 ## 🔴 In Progress
-(Tasks with cc:WIP)
+(Tasks with cc:wip)
 
 ## 🟡 Not Started
-(Tasks with cc:TODO, pm:requested)
+(Tasks with cc:todo, pm:requested)
 
 ## 🟢 Completed
 (Tasks with cc:done, pm:reviewed)
@@ -44,7 +44,7 @@ _harness_version: "2.5.27"
 
 ## Update Rules
 
-1. **Immediate update**: Apply `cc:WIP` when starting a task, and `cc:done` immediately upon completion.
+1. **Immediate update**: Apply `cc:wip` when starting a task, and `cc:done` immediately upon completion.
 2. **Add a summary**: Append a summary of the work done when marking a task complete.
 3. **Record the date**: Include a date in the completed section `(YYYY-MM-DD)`.
 4. **Archive**: Move completed tasks older than 7 days to the 📦 Archive.
@@ -62,9 +62,9 @@ _harness_version: "2.5.27"
 For large-scale projects, the following notation may be used **optionally**:
 
 ```markdown
-- [ ] T001: Authentication feature `cc:TODO`
-- [ ] T002: User API `cc:TODO` depends:T001
-- [ ] T003: Product API `cc:TODO` [P]
+- [ ] T001: Authentication feature `cc:todo`
+- [ ] T002: User API `cc:todo` depends:T001
+- [ ] T003: Product API `cc:todo` [P]
 ```
 
 | Notation | Meaning |

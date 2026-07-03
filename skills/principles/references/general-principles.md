@@ -40,8 +40,8 @@ Follow the settings in `claude-code-harness.config.json`:
 
 ### 1. Always Update Plans.md
 
-- When starting a task: `cc:TODO` → `cc:WIP`
-- When completing a task: `cc:WIP` → `cc:Done`
+- When starting a task: `cc:todo` → `cc:wip`
+- When completing a task: `cc:wip` → `cc:done`
 - When blocked: Add `blocked` and record the reason
 
 ### 2. Proceed Incrementally
