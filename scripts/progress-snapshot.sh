@@ -123,7 +123,7 @@ COST_ESTIMATE = to_float(os.environ["COST_ESTIMATE_PY"])
 #   "| 65.4.1 | <title> | <DoD> | <Depends> | cc:done [a1b2c3d] |"
 #   "| T001   | <title> | <DoD> | <Depends> | cc:blocked |"
 # ID may be numeric (65.4.1) or alphanumeric with leading letters (T001).
-# Status matching is case-insensitive (cc:TODO / cc:WIP / cc:Done / cc:BLOCKED all valid).
+# Status matching is case-insensitive (uppercase/legacy alias forms are accepted when reading).
 # Use the part of the title up to the first "。" as a one-line summary.
 
 ROW_RE = re.compile(
