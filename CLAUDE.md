@@ -53,22 +53,25 @@ debugging, security, docs, tests, search, git, writing, interactive QA).
   `.claude-code-harness.config.*` filenames are read by the binary — keep those names.
 - **Status markers are English**; canonical written form is lowercase
   (`cc:todo`/`cc:wip`/`cc:done`/`cc:blocked`) and PM markers `pm:requested`/`pm:approved`.
-  **Matching precision**: the committed binary's Plans.md counter paths are case-sensitive
-  and currently count only `cc:TODO`/`cc:WIP`/`cc:完了` — `cc:done` and `cc:blocked` are
-  not counted by any counter. Some individual binary matchers use `(?i)` (case-insensitive),
-  but this does not apply uniformly. The bash scripts read uppercase/legacy aliases too.
-  Target state (Phase 3 rebuild): case-insensitive counting of all four canonical markers.
+  **Matching precision (post-rebuild 2026-07-07)**: all binary counter paths match
+  case-insensitively and count all four canonical markers; `cc:完了` and
+  `pm:依頼中`/`pm:確認済`/`cursor:*` remain counted as legacy aliases. The bash scripts
+  read uppercase/legacy aliases too.
 - **Agent frontmatter**: full model IDs (`claude-opus-4-8`, `claude-sonnet-4-6`,
   `claude-haiku-4-5`), `effort`, and `disallowedTools` (read-only consults disallow
   `Write, Edit, Agent`; others disallow `Agent`). No `permissionMode`/`mcpServers`/`hooks`
   in plugin-shipped agents (security restriction).
 - **English only** for user-facing content (agents/skills/output-styles/templates); the
-  grep health check enforces this for those paths. The 4 committed binaries still emit
-  Japanese strings (e.g., `pm:依頼中` via `hook session-init`) — binary strings are pending
-  Phase 3 rebuild.
-- **Do not run `bin/harness sync`** until the Phase 3 binary rebuild is complete — the
-  current binary regenerates `plugin.json` from `harness.toml` and recreates the removed
-  duplicate `.claude-plugin/hooks.json`.
+  grep health check enforces this for those paths. The rebuilt binaries emit English on all
+  session-init/plans-watcher/monitor/TDD/CI surfaces; JP literals remain only as legacy
+  marker-counting aliases and in untargeted upstream handlers (see
+  `docs/patches/binary-rebuild/verification-3.3.md` V8 for the inventory).
+- **`bin/harness sync` is safe post-rebuild (2026-07-07)**: it writes only
+  `.claude-plugin/plugin.json` and `.claude-plugin/settings.json`, preserves unknown
+  plugin.json fields (`displayName`, `defaultEnabled`), and never creates
+  `.claude-plugin/hooks.json`. It OWNS and regenerates name/version/description/author/
+  homepage/repository/license/keywords/skills/outputStyles from `harness.toml [project]` —
+  keep that section aligned with the curated plugin.json.
 - Keep `bin/harness-*` executable (mode 0755) and marked binary in `.gitattributes`.
 
 ## Health checks

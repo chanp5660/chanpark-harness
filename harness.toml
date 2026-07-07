@@ -1,15 +1,15 @@
 # Harness v4 Configuration
 # Edit this file, then run `harness sync` to generate CC plugin files.
-# NOTE: the current binary's sync drops displayName/defaultEnabled and recreates .claude-plugin/hooks.json — do NOT run 'harness sync' until Phase 3 rebuild (see Plans.md gate).
+# NOTE: the rebuilt binary's sync (2026-07-07, v4.16.4+patches) preserves unknown plugin.json fields (displayName/defaultEnabled) and no longer creates .claude-plugin/hooks.json. Sync OWNS name/version/description/author/homepage/repository/license/keywords/skills/outputStyles — keep this [project] section aligned with the curated plugin.json before running 'harness sync'.
 
 [project]
 name = "chanpark-harness"
 version = "1.2.2"
-description = "Claude harness - A harness for solo developers (Vibecoders) to handle full-cycle contract development."
+description = "Personal multi-agent harness for Claude Code. claude-code-harness base (plan-work-review cycle, pre-built Go binary) merged with selected oh-my-claudecode consult agents and skills, modernized for the current Claude Code plugin spec."
 homepage = "https://github.com/chanp5660/chanpark-harness"
 repository = "https://github.com/chanp5660/chanpark-harness"
 license = "MIT"
-keywords = ["claude-code", "plugin", "vibecoder", "workflow", "plan-work-review"]
+keywords = ["claude-code", "plugin", "multi-agent", "harness", "plan-work-review", "orchestration"]
 outputStyles = "./output-styles/"
 
 [project.author]
