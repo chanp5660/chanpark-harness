@@ -41,7 +41,7 @@ Validation: team_validation_mode=subagent (architect + critic, 2026-07-03)
 | Task | Description | DoD | Depends | Status |
 |------|-------------|-----|---------|--------|
 | 4.1 | 삭제 후보 분석 리포트: 죽은 스크립트(~81건, 섀도잉 위험군 우선) 참조 그래프(hooks/monitors/binary strings/skills/templates/스크립트 상호참조) + 도달불가 스킬 9종 처분안(삭제/references 이동/플래그 수정) 작성 — **실행 아님, 결정 자료** `[tdd:skip:analysis-only]` | 후보별 참조 0건 근거 명시된 리포트 + 스킬별 처분안 제시 | - | cc:done [3cc9cec5] |
-| 4.2 | [결정 게이트] 사용자 승인 목록대로 삭제/이동 실행 + CLAUDE.md 레이아웃 표 갱신. 신규 바이너리 문자열 재확인 필수(새 바이너리가 참조하는 스크립트 보존) `[tdd:skip:no-test-framework-detected]` | 삭제 후 doctor/validate + 훅 스모크 + 회귀 가드 통과 | 4.1, 3.3 | cc:TODO |
+| 4.2 | [결정 게이트] 사용자 승인 목록대로 삭제/이동 실행 + CLAUDE.md 레이아웃 표 갱신. 신규 바이너리 문자열 재확인 필수(새 바이너리가 참조하는 스크립트 보존) `[tdd:skip:no-test-framework-detected]` | 삭제 후 doctor/validate + 훅 스모크 + 회귀 가드 통과 | 4.1, 3.3 | cc:done [2a06adaf] |
 | 4.3 | 죽은 참조 수정 (런타임 영향 우선): skills/ci ci-cd-fixer→실존 경로, scripts/harness-memd→`harness mem`, /harness-init·/harness-update→/harness-setup (BEST_PRACTICES·session·session-init·템플릿), harness-work Breezing 다이어그램 task-worker/code-reviewer→chanpark-harness:worker/reviewer, 9개 정책 문서 인용(인용 제거 또는 스텁 작성), skills-gate 템플릿 ui 지시 수정 `[tdd:skip:docs-only]` | 링크체크(1.1 가드 확장)에서 스킬·에이전트 내 사각 참조 0건 | - | cc:done [54035058] |
 | 4.4 | 설정 4중주 해소: .claude-code-harness.config.yaml 허위 "DERIVED" 헤더 사실화(수동 관리 선언 또는 템플릿 정합), codex enable/deny 모순 해소(기본 off), 루트 claude-code-harness.config.{example,schema}.json 삭제 `[tdd:skip:no-test-framework-detected]` | 설정 파일 간 모순 grep 검사 통과 + worker의 config-utils 경로 스모크 정상 | - | cc:done [bfb2009a] |
 
