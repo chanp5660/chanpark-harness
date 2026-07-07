@@ -9,7 +9,7 @@ effort: low
 
 # Maintenance
 
-A single-purpose skill for tidying up cluttered files. Invoke when the auto-cleanup-hook emits a warning or as routine housekeeping.
+A single-purpose skill for tidying up cluttered files. Invoke when the binary's `hook auto-cleanup` PostToolUse hook emits a warning or as routine housekeeping.
 
 > **Prerequisite**: Before any destructive operation (archive moves, line deletions), verify that important information from Plans.md / session-log.md has been promoted to the SSOT (decisions.md / patterns.md). If not yet synced, run `/memory sync` first.
 
@@ -36,9 +36,9 @@ Adding `--dry-run` lists what would be done without executing anything. Free-for
 
 See [cleanup.md](./references/cleanup.md) for per-target execution steps, thresholds, and archive destinations.
 
-## Integration with auto-cleanup-hook
+## Integration with the binary's auto-cleanup hook
 
-The PostToolUse hook (`scripts/auto-cleanup-hook.sh` / Go version `auto_cleanup_hook.go`) detects line-count overflows in Plans.md, session-log.md, and CLAUDE.md and returns feedback recommending archiving via `/maintenance`. When you see that warning, run the relevant subcommand.
+The binary's `hook auto-cleanup` PostToolUse hook detects line-count overflows in Plans.md, session-log.md, and CLAUDE.md and returns feedback recommending archiving via `/maintenance`. When you see that warning, run the relevant subcommand.
 
 ## Notes
 

@@ -2,11 +2,11 @@
 
 Detailed execution steps, thresholds, and archive destinations for each `/maintenance` subcommand.
 
-## Common: Environment Variables (shared SSOT with auto-cleanup-hook)
+## Common: Environment Variables (shared SSOT with the binary's auto-cleanup hook)
 
 | Variable | Default | Source |
 |----------|---------|--------|
-| `PLANS_MAX_LINES` | 200 | `scripts/auto-cleanup-hook.sh` |
+| `PLANS_MAX_LINES` | 200 | binary `hook auto-cleanup` |
 | `SESSION_LOG_MAX_LINES` | 500 | same |
 | `CLAUDE_MD_MAX_LINES` | 100 | same |
 | `ARCHIVE_AFTER_DAYS` | 7 | Age threshold for completed tasks in Plans.md |

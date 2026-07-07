@@ -91,6 +91,6 @@ review:
 
 hooks:
   enabled: true
-  post_tool_use:
-    - matcher: "Edit|Write"
-      script: "~/.claude/scripts/auto-cleanup-hook.sh"
+  # Line-count overflow detection (Plans.md, session-log.md, CLAUDE.md) is handled
+  # natively by the harness binary's `hook auto-cleanup` PostToolUse hook.
+  post_tool_use: []

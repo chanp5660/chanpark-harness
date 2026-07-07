@@ -337,7 +337,7 @@ fi
 INJECTION=""
 
 # ===== Work mode detection and a one-time harness-review required warning =====
-# As a safety net in case session-resume.sh does not fire after compact,
+# As a safety net for post-compact resume,
 # inject the warning once on UserPromptSubmit
 # Backward compatibility: prefer work-active.json, fall back to ultrawork-active.json
 WORK_FILE="${STATE_DIR}/work-active.json"

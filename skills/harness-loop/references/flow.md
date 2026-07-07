@@ -114,9 +114,7 @@ grep -E "cc:(WIP|TODO)" Plans.md | head -1
 - If a `cc:TODO` task exists: obtain task_id as the next target task
 - If neither: **all tasks complete** → loop ends normally
 
-> **41.1.2 prerequisite**: If `plans-watcher.sh` protects Plans.md with flock,
-> read Plans.md within that flock scope.
-> Before the 41.1.2 release, direct reads without flock are acceptable.
+> Read Plans.md directly; flock-based protection via a watcher script is no longer used.
 
 ### Step 2: Check for sprint-contract & Generate if Missing
 

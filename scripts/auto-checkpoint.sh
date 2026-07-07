@@ -15,7 +15,7 @@ PROJECT_ROOT="${PROJECT_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 # When Phase 60 (v2.20.10) migrated to managed-companion,
 # `scripts/harness-mem-client.sh` was dropped from the claude-harness distribution.
 # In the current architecture:
-#   - persistence goes through memory-bridge.sh (HTTP daemon API)
+#   - persistence goes through the binary's memory-bridge dispatch (HTTP daemon API)
 #   - management operations use `bin/harness mem ...` (Phase 60 contract)
 # This path is kept **only for test fixtures**:
 #   - default (env unset): empty -> skip the API call and only audit

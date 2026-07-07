@@ -158,13 +158,7 @@ cleanup_private_paths_in_dir() {
 # Critical files to sync to distribution cache
 critical_files=(
   "scripts/lib/harness-mem-bridge.sh"
-  "scripts/hook-handlers/memory-bridge.sh"
   "scripts/hook-handlers/memory-session-start.sh"
-  "scripts/hook-handlers/memory-user-prompt.sh"
-  "scripts/hook-handlers/memory-post-tool-use.sh"
-  "scripts/hook-handlers/memory-stop.sh"
-  "scripts/hook-handlers/memory-codex-notify.sh"
-  "scripts/hook-handlers/runtime-reactive.sh"
   "hooks/hooks.json"
   ".claude-plugin/settings.json"
   ".claude-plugin/plugin.json"
