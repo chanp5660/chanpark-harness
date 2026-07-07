@@ -21,7 +21,7 @@ The only compiled artifact is the committed harness Go binary in `bin/`.
 | `.claude-plugin/marketplace.json` | Self-marketplace catalog entry |
 | `.claude-plugin/settings.json` | Permission allowlist/denylist shipped with the plugin |
 | `agents/` | 13 agents (harness `worker`/`reviewer`/`advisor` + 10 OMC consults) |
-| `skills/` | 30 skills (`harness-*`, sessions, memory, guides, `hud`, OMC gap skills) |
+| `skills/` | 22 skills (`harness-*`, `session`, `memory`, `maintenance`, `ui`, plus OMC gap skills) |
 | `hooks/hooks.json` | Automation hooks; exec the Go binary, no-op if absent |
 | `monitors/monitors.json` | Auto-armed `harness-session-monitor` (`when: always`) running `harness hook session-monitor` — emits the "Session Start - Project State" block (Plans.md drift, harness-mem health, advisor/reviewer state) |
 | `bin/` | `harness` shim + pre-built Go binaries (4 platforms) |
@@ -29,7 +29,7 @@ The only compiled artifact is the committed harness Go binary in `bin/`.
 | `harness.toml` | Config SoT read by the binary |
 | `templates/` | Scaffolding templates used by `harness-setup` |
 | `output-styles/` | `harness-ops` output style |
-| `scripts/` | Live helpers invoked directly by hooks (4 scripts), by the Go binary (sync-plugin-cache.sh, template-tracker.sh, check-residue.sh, ci/check-consistency.sh, session-relay-watch.sh), and by skills/agents (~44); plus legacy upstream scripts pending cleanup (Phase 4). Some retain upstream Japanese comments. |
+| `scripts/` | Live helpers invoked directly by hooks (4 scripts), by the Go binary (sync-plugin-cache.sh, template-tracker.sh, check-residue.sh, ci/check-consistency.sh, session-relay-watch.sh), and by skills/agents (~44). Some retain upstream Japanese comments. |
 
 ## Canonical workflow (what the plugin promotes)
 

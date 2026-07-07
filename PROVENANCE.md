@@ -175,3 +175,21 @@ Policy: **decide case by case.** Default instinct is to install standalone plugi
 rather than absorb them here (absorption adds localization + rebrand + maintenance cost).
 Only fold a component into this repo when it fills a plan-work-review workflow gap *and*
 benefits from unified naming / model routing enough to justify the transform cost.
+
+## Dead-code pruning — 2026-07-07 (task 4.2)
+
+Removed ~96 dead upstream scripts and 8 skill directories per analysis in
+`docs/reports/dead-code-disposition-2026-07-03.md`:
+
+- **Scripts deleted**: 94 of 97 dead scripts from §5 appendix (97 total minus 3 kept as
+  live CI infrastructure: `check-baseline.sh`, `check-regression-guard.sh`,
+  `check-template-registry.sh`). Also deleted: `scripts/sandbox-test/` (3 fixture files),
+  `scripts/lib/codex-hardening-contract.txt`, and 2 QUESTIONABLE-resolved items
+  (`auto-cleanup-hook.sh`, `session-state.sh`). Total removed: ~101 files, ~17,238 lines.
+- **Skills removed** (6 dirs): `session-control`, `session-state`, `agent-browser`,
+  `principles`, `vibecoder-guide`, `workflow-guide`.
+- **Skills moved** (2): `session-init` and `session-memory` SKILL.md content relocated to
+  `skills/session/references/` (content was document-consumed by the live session skill).
+- **Skills fixed** (1): `ui` — `disable-model-invocation` set to `false` so the skill is
+  model-invocable as documented in the skills-gate template.
+- Skill count after pruning: 30 → 22.
