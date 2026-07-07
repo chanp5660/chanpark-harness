@@ -32,8 +32,8 @@ Validation: team_validation_mode=subagent (architect + critic, 2026-07-03)
 | Task | Description | DoD | Depends | Status |
 |------|-------------|-----|---------|--------|
 | 3.1 | upstream 캐치업 조사 + 패치 세트: PROVENANCE.md 절차로 Go 소스 확보, 발산도 평가(대규모 발산·cgo 의존 추가 시 **폴백**: bash 래퍼 후처리 전략을 보고하고 재결정). 패치 범위: 카운터 `(?i)` + cc:done + cc:blocked 집계, 일본어 사용자 문자열 영어화(pm:requested/pm:approved 범례), ci-cd-fixer 스티어링 제거, sync의 `.claude-plugin/hooks.json` 중복 생성 제거, setup-codex/opencode 참조 정리 `[tdd:skip:upstream-source]` | 패치 diff 작성 완료 + 발산도 리포트 승인 | 2.1 | cc:done |
-| 3.2 | 4플랫폼 재빌드(CGO_ENABLED=0) + bin/ 커밋(0755, .gitattributes) — Optional: linux-arm64 신규 추가(~16MB 증가, 별도 승인) `[tdd:skip:build-artifact]` | 각 바이너리 `grep -a` CJK 0건 + 샌드박스에서 소문자 Plans.md 카운트 정상 | 3.1 | cc:TODO |
-| 3.3 | 재빌드 검증 + sync 금지 해제: 재현 스위트(1.1) 전건 통과 — session-init 범례 영어, 소문자/cc:done/cc:blocked 카운트, sync 정체성 유지·중복 파일 미생성 `[tdd:skip:verification-task]` | 회귀 가드 + 재현 스위트 exit 0, Plans.md 상단 sync 금지 문구 제거 | 3.2 | cc:TODO |
+| 3.2 | 4플랫폼 재빌드(CGO_ENABLED=0) + bin/ 커밋(0755, .gitattributes) — Optional: linux-arm64 신규 추가(~16MB 증가, 별도 승인) `[tdd:skip:build-artifact]` | 각 바이너리 `grep -a` CJK 0건 + 샌드박스에서 소문자 Plans.md 카운트 정상 | 3.1 | cc:done [861b2f34] |
+| 3.3 | 재빌드 검증 + sync 금지 해제: 재현 스위트(1.1) 전건 통과 — session-init 범례 영어, 소문자/cc:done/cc:blocked 카운트, sync 정체성 유지·중복 파일 미생성 `[tdd:skip:verification-task]` | 회귀 가드 + 재현 스위트 exit 0, Plans.md 상단 sync 금지 문구 제거 | 3.2 | cc:done [95b7ff5e] |
 
 ## Phase 4: 죽은 코드·참조 정리 (Recommended)
 
