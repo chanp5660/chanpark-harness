@@ -1,0 +1,110 @@
+diff --git a/go/internal/ci/ci.go b/go/internal/ci/ci.go
+index 7eabb80c..85ebac01 100644
+--- a/go/internal/ci/ci.go
++++ b/go/internal/ci/ci.go
+@@ -292,9 +292,9 @@ func (h *CIStatusHandler) buildFailureContext(stateDir, bashCmd string) string {
+ 		}
+ 
+ 		return fmt.Sprintf(
+-			"[CI 失敗を検知しました]\nCI ステータス: %s\nトリガーコマンド: %s\n\n"+
+-				"推奨アクション: /breezing または ci-cd-fixer エージェントを spawn して CI 障害を自動修復してください。\n"+
+-				"  例: ci-cd-fixer に「CI が失敗しました。ログを確認して修正してください。」と依頼",
++			"[CI failure detected]\nCI status: %s\nTrigger command: %s\n\n"+
++				"Recommended action: launch the chanpark-harness:debugger agent to diagnose and fix the CI failure.\n"+
++				"  Example: ask chanpark-harness:debugger to \"investigate the failed CI logs and fix the root cause\".",
+ 			sig.Conclusion, bashCmd,
+ 		)
+ 	}
+diff --git a/go/internal/ci/ci_test.go b/go/internal/ci/ci_test.go
+index 2e35a157..71f58386 100644
+--- a/go/internal/ci/ci_test.go
++++ b/go/internal/ci/ci_test.go
+@@ -162,7 +162,7 @@ func TestCIStatusHandler_Handle_PushWithFailureSignal(t *testing.T) {
+ 		t.Errorf("Decision = %q, want approve", resp.Decision)
+ 	}
+ 	// additionalContext に CI 失敗メッセージが含まれること
+-	if !strings.Contains(resp.AdditionalContext, "CI 失敗を検知しました") {
++	if !strings.Contains(resp.AdditionalContext, "CI failure detected") {
+ 		t.Errorf("AdditionalContext should mention CI failure, got: %q", resp.AdditionalContext)
+ 	}
+ 	if !strings.Contains(resp.AdditionalContext, "failure") {
+diff --git a/go/internal/hookhandler/breezing_signal_injector.go b/go/internal/hookhandler/breezing_signal_injector.go
+index 98a98f1e..e98112ac 100644
+--- a/go/internal/hookhandler/breezing_signal_injector.go
++++ b/go/internal/hookhandler/breezing_signal_injector.go
+@@ -87,7 +87,7 @@ func (h *BreezingSignalInjectorHandler) Handle(r io.Reader, w io.Writer) error {
+ 	// consumed_at を設定してシグナルをマーク済みにする
+ 	_ = h.markSignalsConsumed(signalsFile)
+ 
+-	header := fmt.Sprintf("[breezing-signal-injector] %d 件の未消費シグナルがあります:\n", len(unconsumedSignals))
++	header := fmt.Sprintf("[breezing-signal-injector] %d unconsumed signal(s):\n", len(unconsumedSignals))
+ 	fullMessage := header + strings.Join(messageParts, "")
+ 
+ 	resp := injectorResponse{SystemMessage: fullMessage}
+@@ -140,22 +140,22 @@ func (h *BreezingSignalInjectorHandler) formatSignalMessage(sig breezingSignal)
+ 		}
+ 		triggerCmd := sig.TriggerCommand
+ 		return fmt.Sprintf(
+-			"[SIGNAL:ci_failure_detected] CI が失敗しました（%s）。トリガー: %s。ci-cd-fixer エージェントで自動修復することを検討してください。\n",
++			"[SIGNAL:ci_failure_detected] CI failed (%s). Trigger: %s. Consider launching the chanpark-harness:debugger agent to diagnose and fix the failure.\n",
+ 			conclusion, triggerCmd,
+ 		)
+ 	case "retake_requested":
+ 		return fmt.Sprintf(
+-			"[SIGNAL:retake_requested] タスク #%s のやり直しが要求されました。理由: %s\n",
++			"[SIGNAL:retake_requested] Task #%s was sent back for rework. Reason: %s\n",
+ 			sig.TaskID, sig.Reason,
+ 		)
+ 	case "reviewer_approved":
+ 		return fmt.Sprintf(
+-			"[SIGNAL:reviewer_approved] タスク #%s がレビュアーに承認されました。\n",
++			"[SIGNAL:reviewer_approved] Task #%s was approved by the reviewer.\n",
+ 			sig.TaskID,
+ 		)
+ 	case "escalation_required":
+ 		return fmt.Sprintf(
+-			"[SIGNAL:escalation_required] タスク #%s でエスカレーションが必要です。理由: %s\n",
++			"[SIGNAL:escalation_required] Task #%s requires escalation. Reason: %s\n",
+ 			sig.TaskID, sig.Reason,
+ 		)
+ 	default:
+diff --git a/go/internal/hookhandler/breezing_signal_injector_test.go b/go/internal/hookhandler/breezing_signal_injector_test.go
+index 4da9b1f9..6d2e384e 100644
+--- a/go/internal/hookhandler/breezing_signal_injector_test.go
++++ b/go/internal/hookhandler/breezing_signal_injector_test.go
+@@ -284,7 +284,7 @@ func TestBreezingSignalInjector_MultipleUnconsumedSignals(t *testing.T) {
+ 	}
+ 
+ 	// 3件のシグナルがヘッダーに反映されること
+-	if !strings.Contains(resp.SystemMessage, "3 件") {
+-		t.Errorf("expected '3 件' in header, got: %s", resp.SystemMessage)
++	if !strings.Contains(resp.SystemMessage, "3 unconsumed signal") {
++		t.Errorf("expected '3 unconsumed signal' in header, got: %s", resp.SystemMessage)
+ 	}
+ }
+diff --git a/go/internal/hookhandler/ci_status_checker.go b/go/internal/hookhandler/ci_status_checker.go
+index 7479f1cd..5fb413b7 100644
+--- a/go/internal/hookhandler/ci_status_checker.go
++++ b/go/internal/hookhandler/ci_status_checker.go
+@@ -193,7 +193,7 @@ func (h *CIStatusCheckerHandler) checkRecentCIFailure(stateDir, bashCmd string)
+ 
+ 	conclusion, _ := sig["conclusion"].(string)
+ 	return fmt.Sprintf(
+-		"[CI 失敗を検知しました]\nCI ステータス: %s\nトリガーコマンド: %s\n\n推奨アクション: /breezing または ci-cd-fixer エージェントを spawn して CI 障害を自動修復してください。\n  例: ci-cd-fixer に「CI が失敗しました。ログを確認して修正してください。」と依頼",
++		"[CI failure detected]\nCI status: %s\nTrigger command: %s\n\nRecommended action: launch the chanpark-harness:debugger agent to diagnose and fix the CI failure.\n  Example: ask chanpark-harness:debugger to \"investigate the failed CI logs and fix the root cause\".",
+ 		conclusion, bashCmd,
+ 	)
+ }
+diff --git a/go/internal/hookhandler/ci_status_checker_test.go b/go/internal/hookhandler/ci_status_checker_test.go
+index 26594678..1cb87af3 100644
+--- a/go/internal/hookhandler/ci_status_checker_test.go
++++ b/go/internal/hookhandler/ci_status_checker_test.go
+@@ -202,7 +202,7 @@ func TestCIStatusChecker_WithExistingFailureSignal(t *testing.T) {
+ 		t.Errorf("expected decision=approve, got %s", resp.Decision)
+ 	}
+ 	// CI 失敗コンテキストが注入されること
+-	if !strings.Contains(resp.AdditionalContext, "CI 失敗を検知しました") {
++	if !strings.Contains(resp.AdditionalContext, "CI failure detected") {
+ 		t.Errorf("expected CI failure context injected, got: %s", resp.AdditionalContext)
+ 	}
+ 	if !strings.Contains(resp.AdditionalContext, "failure") {

@@ -1,0 +1,624 @@
+diff --git a/go/internal/event/post_compact.go b/go/internal/event/post_compact.go
+index a87dd05f..4c73e31c 100644
+--- a/go/internal/event/post_compact.go
++++ b/go/internal/event/post_compact.go
+@@ -207,7 +207,8 @@ func (h *PostCompactHandler) getWIPSummary(plansFile string) string {
+ 	scanner := bufio.NewScanner(f)
+ 	for scanner.Scan() {
+ 		line := strings.TrimSpace(scanner.Text())
+-		if strings.Contains(line, "cc:WIP") || strings.Contains(line, "cc:TODO") {
++		lower := strings.ToLower(line)
++		if strings.Contains(lower, "cc:wip") || strings.Contains(lower, "cc:todo") || strings.Contains(lower, "cc:blocked") {
+ 			wipLines = append(wipLines, line)
+ 			if len(wipLines) >= 20 {
+ 				break
+diff --git a/go/internal/hookhandler/plans_watcher.go b/go/internal/hookhandler/plans_watcher.go
+index 5a35540d..adc624bf 100644
+--- a/go/internal/hookhandler/plans_watcher.go
++++ b/go/internal/hookhandler/plans_watcher.go
+@@ -145,6 +145,7 @@ type plansState struct {
+ 	CcTodo      int    `json:"cc_todo"`
+ 	CcWip       int    `json:"cc_wip"`
+ 	CcDone      int    `json:"cc_done"`
++	CcBlocked   int    `json:"cc_blocked"`
+ 	PmConfirmed int    `json:"pm_confirmed"`
+ }
+ 
+@@ -320,27 +321,32 @@ func isPlansFileWithRoot(changedFile, plansFile, projectRoot string) bool {
+ 	return isPlansFile(absChanged, plansFile)
+ }
+ 
+-// countMarker は Plans.md 内の marker 文字列の出現回数を返す。
++// countMarker returns the number of case-insensitive occurrences of marker in Plans.md.
+ func countMarker(plansFile, marker string) int {
+ 	data, err := os.ReadFile(plansFile)
+ 	if err != nil {
+ 		return 0
+ 	}
+-	re := regexp.MustCompile(regexp.QuoteMeta(marker))
++	re := regexp.MustCompile("(?i)" + regexp.QuoteMeta(marker))
+ 	return len(re.FindAllIndex(data, -1))
+ }
+ 
+-// collectPlansState は Plans.md のマーカーを集計する。
++// collectPlansState aggregates the status markers in Plans.md.
++// Canonical markers are the lowercase English forms (cc:todo / cc:wip /
++// cc:done / cc:blocked, pm:requested / pm:approved); matching is
++// case-insensitive and the legacy Japanese / cursor:* forms are counted
++// as compatibility aliases.
+ func collectPlansState(plansFile string) (plansState, error) {
+ 	if _, err := os.Stat(plansFile); err != nil {
+ 		return plansState{}, fmt.Errorf("plans file not found: %w", err)
+ 	}
+ 
+-	pmPending := countMarker(plansFile, "pm:依頼中") + countMarker(plansFile, "cursor:依頼中")
+-	ccTodo := countMarker(plansFile, "cc:TODO")
+-	ccWip := countMarker(plansFile, "cc:WIP")
+-	ccDone := countMarker(plansFile, "cc:完了")
+-	pmConfirmed := countMarker(plansFile, "pm:確認済") + countMarker(plansFile, "cursor:確認済")
++	pmPending := countMarker(plansFile, "pm:requested") + countMarker(plansFile, "pm:依頼中") + countMarker(plansFile, "cursor:依頼中")
++	ccTodo := countMarker(plansFile, "cc:todo")
++	ccWip := countMarker(plansFile, "cc:wip")
++	ccDone := countMarker(plansFile, "cc:done") + countMarker(plansFile, "cc:完了")
++	ccBlocked := countMarker(plansFile, "cc:blocked")
++	pmConfirmed := countMarker(plansFile, "pm:approved") + countMarker(plansFile, "pm:確認済") + countMarker(plansFile, "cursor:確認済")
+ 
+ 	return plansState{
+ 		Timestamp:   time.Now().UTC().Format(time.RFC3339),
+@@ -348,6 +354,7 @@ func collectPlansState(plansFile string) (plansState, error) {
+ 		CcTodo:      ccTodo,
+ 		CcWip:       ccWip,
+ 		CcDone:      ccDone,
++		CcBlocked:   ccBlocked,
+ 		PmConfirmed: pmConfirmed,
+ 	}, nil
+ }
+@@ -381,25 +388,26 @@ func buildSummaryMessage(state plansState, hasNewTasks, hasCompletedTasks bool)
+ 	var sb strings.Builder
+ 
+ 	sb.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+-	sb.WriteString("Plans.md 更新検知\n")
++	sb.WriteString("Plans.md update detected\n")
+ 	sb.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+ 
+ 	if hasNewTasks {
+-		sb.WriteString("新規タスク: PM から依頼あり\n")
+-		sb.WriteString("   → /sync-status で状況を確認し、/work で着手してください\n")
++		sb.WriteString("New task: request from PM\n")
++		sb.WriteString("   → Check the status with /sync-status and start with /work\n")
+ 	}
+ 
+ 	if hasCompletedTasks {
+-		sb.WriteString("タスク完了: PM へ報告可能\n")
+-		sb.WriteString("   → /handoff-to-pm-claude（または /handoff-to-cursor）で報告してください\n")
++		sb.WriteString("Task completed: ready to report to PM\n")
++		sb.WriteString("   → Report with /handoff-to-pm-claude (or /handoff-to-cursor)\n")
+ 	}
+ 
+-	sb.WriteString("\n現在のステータス:\n")
+-	sb.WriteString("   pm:依頼中      : " + strconv.Itoa(state.PmPending) + " 件\n")
+-	sb.WriteString("   cc:TODO        : " + strconv.Itoa(state.CcTodo) + " 件\n")
+-	sb.WriteString("   cc:WIP         : " + strconv.Itoa(state.CcWip) + " 件\n")
+-	sb.WriteString("   cc:完了        : " + strconv.Itoa(state.CcDone) + " 件\n")
+-	sb.WriteString("   pm:確認済      : " + strconv.Itoa(state.PmConfirmed) + " 件\n")
++	sb.WriteString("\nCurrent status:\n")
++	sb.WriteString("   pm:requested   : " + strconv.Itoa(state.PmPending) + "\n")
++	sb.WriteString("   cc:todo        : " + strconv.Itoa(state.CcTodo) + "\n")
++	sb.WriteString("   cc:wip         : " + strconv.Itoa(state.CcWip) + "\n")
++	sb.WriteString("   cc:done        : " + strconv.Itoa(state.CcDone) + "\n")
++	sb.WriteString("   cc:blocked     : " + strconv.Itoa(state.CcBlocked) + "\n")
++	sb.WriteString("   pm:approved    : " + strconv.Itoa(state.PmConfirmed) + "\n")
+ 	sb.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+ 
+ 	return sb.String()
+@@ -422,22 +430,22 @@ func writePMNotification(cwd string, state plansState, hasNewTasks, hasCompleted
+ 	ts := time.Now().Format("2006-01-02 15:04:05")
+ 
+ 	var sb strings.Builder
+-	sb.WriteString("# PM への通知\n\n")
+-	sb.WriteString("**生成日時**: " + ts + "\n\n")
+-	sb.WriteString("## ステータス変更\n\n")
++	sb.WriteString("# Notification to PM\n\n")
++	sb.WriteString("**Generated**: " + ts + "\n\n")
++	sb.WriteString("## Status changes\n\n")
+ 
+ 	if hasNewTasks {
+-		sb.WriteString("### 新規タスク\n\n")
+-		sb.WriteString("PM から新しいタスクが依頼されました（pm:依頼中 / 互換: cursor:依頼中）。\n\n")
++		sb.WriteString("### New tasks\n\n")
++		sb.WriteString("A new task has been requested by PM (pm:requested).\n\n")
+ 	}
+ 
+ 	if hasCompletedTasks {
+-		sb.WriteString("### 完了タスク\n\n")
+-		sb.WriteString("Impl Claude がタスクを完了しました。レビューをお願いします（cc:完了）。\n\n")
++		sb.WriteString("### Completed tasks\n\n")
++		sb.WriteString("Impl Claude has completed the task. Please review (cc:done).\n\n")
+ 	}
+ 
+ 	sb.WriteString("---\n\n")
+-	sb.WriteString("**次のアクション**: PM Claude でレビューし、必要なら再依頼（/handoff-to-impl-claude）。\n")
++	sb.WriteString("**Next action**: review in PM Claude and re-request if needed (/handoff-to-impl-claude).\n")
+ 
+ 	content := []byte(sb.String())
+ 	if err := os.WriteFile(pmPath, content, 0o644); err != nil {
+diff --git a/go/internal/hookhandler/plans_watcher_test.go b/go/internal/hookhandler/plans_watcher_test.go
+index 2ce50a34..7f8f466e 100644
+--- a/go/internal/hookhandler/plans_watcher_test.go
++++ b/go/internal/hookhandler/plans_watcher_test.go
+@@ -136,8 +136,8 @@ func TestHandlePlansWatcher_NewTaskDetected(t *testing.T) {
+ 	}
+ 
+ 	// 新規タスクが検出されること
+-	if !strings.Contains(result.HookSpecificOutput.AdditionalContext, "新規タスク") {
+-		t.Errorf("expected '新規タスク' in additionalContext, got %q",
++	if !strings.Contains(result.HookSpecificOutput.AdditionalContext, "New task") {
++		t.Errorf("expected 'New task' in additionalContext, got %q",
+ 			result.HookSpecificOutput.AdditionalContext)
+ 	}
+ 
+@@ -146,8 +146,8 @@ func TestHandlePlansWatcher_NewTaskDetected(t *testing.T) {
+ 	if err != nil {
+ 		t.Fatalf("pm-notification.md not created: %v", err)
+ 	}
+-	if !strings.Contains(string(data), "新規タスク") {
+-		t.Errorf("pm-notification.md should contain '新規タスク', got: %s", string(data))
++	if !strings.Contains(string(data), "New task") {
++		t.Errorf("pm-notification.md should contain 'New task', got: %s", string(data))
+ 	}
+ }
+ 
+@@ -231,8 +231,8 @@ func TestHandlePlansWatcher_CompletedTaskDetected(t *testing.T) {
+ 		t.Fatalf("invalid JSON output: %v", jsonErr)
+ 	}
+ 
+-	if !strings.Contains(result.HookSpecificOutput.AdditionalContext, "タスク完了") {
+-		t.Errorf("expected 'タスク完了' in additionalContext, got %q",
++	if !strings.Contains(result.HookSpecificOutput.AdditionalContext, "Task completed") {
++		t.Errorf("expected 'Task completed' in additionalContext, got %q",
+ 			result.HookSpecificOutput.AdditionalContext)
+ 	}
+ }
+@@ -320,14 +320,14 @@ func TestHandlePlansWatcher_StatusSummary(t *testing.T) {
+ 
+ 	ctx := result.HookSpecificOutput.AdditionalContext
+ 	// サマリにステータスカウントが含まれること
+-	if !strings.Contains(ctx, "cc:TODO") {
++	if !strings.Contains(ctx, "cc:todo") {
+ 		t.Errorf("expected 'cc:TODO' in summary, got %q", ctx)
+ 	}
+-	if !strings.Contains(ctx, "cc:WIP") {
++	if !strings.Contains(ctx, "cc:wip") {
+ 		t.Errorf("expected 'cc:WIP' in summary, got %q", ctx)
+ 	}
+-	if !strings.Contains(ctx, "cc:完了") {
+-		t.Errorf("expected 'cc:完了' in summary, got %q", ctx)
++	if !strings.Contains(ctx, "cc:done") {
++		t.Errorf("expected 'cc:done' in summary, got %q", ctx)
+ 	}
+ }
+ 
+@@ -459,8 +459,8 @@ func TestHandlePlansWatcher_CursorCompatMarker(t *testing.T) {
+ 	}
+ 
+ 	// cursor:依頼中 も新規タスクとして検出されること
+-	if !strings.Contains(result.HookSpecificOutput.AdditionalContext, "新規タスク") {
+-		t.Errorf("expected '新規タスク' for cursor:依頼中, got %q",
++	if !strings.Contains(result.HookSpecificOutput.AdditionalContext, "New task") {
++		t.Errorf("expected 'New task' for cursor:依頼中, got %q",
+ 			result.HookSpecificOutput.AdditionalContext)
+ 	}
+ }
+@@ -515,8 +515,8 @@ func TestHandlePlansWatcher_CustomPlansDirectory(t *testing.T) {
+ 	}
+ 
+ 	// 新規タスクが検出されること（カスタムパスの Plans.md が認識される）
+-	if !strings.Contains(result.HookSpecificOutput.AdditionalContext, "新規タスク") {
+-		t.Errorf("expected '新規タスク' in additionalContext for custom plansDirectory, got %q",
++	if !strings.Contains(result.HookSpecificOutput.AdditionalContext, "New task") {
++		t.Errorf("expected 'New task' in additionalContext for custom plansDirectory, got %q",
+ 			result.HookSpecificOutput.AdditionalContext)
+ 	}
+ }
+diff --git a/go/internal/hookhandler/runtime_reactive.go b/go/internal/hookhandler/runtime_reactive.go
+index 3c8f2556..872be5bf 100644
+--- a/go/internal/hookhandler/runtime_reactive.go
++++ b/go/internal/hookhandler/runtime_reactive.go
+@@ -164,9 +164,10 @@ func buildReactiveMessage(eventName, filePath, locale string) string {
+ 	case "FileChanged":
+ 		return buildFileChangedMessage(filePath, locale)
+ 	case "CwdChanged":
++		// English-only build: the ja variant intentionally mirrors the English text.
+ 		return localizedHarnessMessage(locale,
+ 			"The working directory changed. If you moved to another repository or worktree, re-read AGENTS.md, Plans.md, and local rules before continuing.",
+-			"作業ディレクトリが切り替わりました。別リポジトリや worktree に移動した場合は AGENTS.md、Plans.md、ローカルルールを再確認してください。")
++			"The working directory changed. If you moved to another repository or worktree, re-read AGENTS.md, Plans.md, and local rules before continuing.")
+ 	case "TaskCreated":
+ 		// TaskCreated はログ記録のみ（メッセージなし）
+ 		return ""
+@@ -178,16 +179,18 @@ func buildReactiveMessage(eventName, filePath, locale string) string {
+ func buildFileChangedMessage(filePath, locale string) string {
+ 	// Plans.md の変更
+ 	if filePath == "Plans.md" || strings.HasSuffix(filePath, "/Plans.md") {
++		// English-only build: the ja variant intentionally mirrors the English text.
+ 		return localizedHarnessMessage(locale,
+ 			"Plans.md was updated. Re-read the latest task status before the next implementation or review step.",
+-			"Plans.md が更新されました。次の実装やレビュー前に最新のタスク状態を読み直してください。")
++			"Plans.md was updated. Re-read the latest task status before the next implementation or review step.")
+ 	}
+ 
+ 	// AGENTS.md, CLAUDE.md, .claude/rules/, hooks.json, settings.json の変更
+ 	if isRuleOrConfigFile(filePath) {
++		// English-only build: the ja variant intentionally mirrors the English text.
+ 		return localizedHarnessMessage(locale,
+ 			"Working rules or Harness settings were updated. Use the latest rules for the next operation.",
+-			"作業ルールまたは Harness 設定が更新されました。次の操作では最新ルールを前提に進めてください。")
++			"Working rules or Harness settings were updated. Use the latest rules for the next operation.")
+ 	}
+ 
+ 	return ""
+diff --git a/go/internal/hookhandler/runtime_reactive_test.go b/go/internal/hookhandler/runtime_reactive_test.go
+index 2d742efe..7db15183 100644
+--- a/go/internal/hookhandler/runtime_reactive_test.go
++++ b/go/internal/hookhandler/runtime_reactive_test.go
+@@ -222,7 +222,7 @@ func TestHandleRuntimeReactive_LocaleJapaneseEnv(t *testing.T) {
+ 	if err := HandleRuntimeReactive(strings.NewReader(payload), &out); err != nil {
+ 		t.Fatalf("unexpected error: %v", err)
+ 	}
+-	assertReactiveHookOutput(t, out.String(), "CwdChanged", "作業ディレクトリが切り替わりました")
++	assertReactiveHookOutput(t, out.String(), "CwdChanged", "The working directory changed")
+ }
+ 
+ func TestHandleRuntimeReactive_LocaleJapaneseConfig(t *testing.T) {
+@@ -237,7 +237,7 @@ func TestHandleRuntimeReactive_LocaleJapaneseConfig(t *testing.T) {
+ 	if err := HandleRuntimeReactive(strings.NewReader(payload), &out); err != nil {
+ 		t.Fatalf("unexpected error: %v", err)
+ 	}
+-	assertReactiveHookOutput(t, out.String(), "FileChanged", "Harness 設定")
++	assertReactiveHookOutput(t, out.String(), "FileChanged", "Harness settings")
+ }
+ 
+ func TestNormalizeReactivePath(t *testing.T) {
+diff --git a/go/internal/hookhandler/sprint_contract.go b/go/internal/hookhandler/sprint_contract.go
+index 91657913..88f62846 100644
+--- a/go/internal/hookhandler/sprint_contract.go
++++ b/go/internal/hookhandler/sprint_contract.go
+@@ -132,7 +132,7 @@ var (
+ 	uxRegressionRe      = regexp.MustCompile(`(?i)browser|ui|layout|responsive|playwright|chrome|画面|レイアウト`)
+ 	advisorRequiredRe   = regexp.MustCompile(`(?is)<!--\s*advisor:required\s*-->`)
+ 	headingTaskRe       = regexp.MustCompile(`^\s{0,3}(#{2,6})\s+([A-Za-z0-9][A-Za-z0-9_.-]*)(?:\s*[:：]\s*|\s+)(.*)$`)
+-	headingStatusRe     = regexp.MustCompile(`\b(?:cc:TODO|cc:WIP|cc:完了|pm:依頼中|pm:確認済|cursor:依頼中|cursor:確認済|cc:done|pm:requested|pm:approved|cc:blocked|blocked)(?:\s*\[[^\]]+\])?`)
++	headingStatusRe     = regexp.MustCompile(`(?i)\b(?:cc:todo|cc:wip|cc:完了|pm:依頼中|pm:確認済|cursor:依頼中|cursor:確認済|cc:done|pm:requested|pm:approved|cc:blocked|blocked)(?:\s*\[[^\]]+\])?`)
+ 	headingDependsRe    = regexp.MustCompile(`(?i)^\s*(?:depends|依存)\s*[:：]\s*(.+?)\s*$`)
+ )
+ 
+diff --git a/go/internal/hookhandler/stop_session_evaluator.go b/go/internal/hookhandler/stop_session_evaluator.go
+index be249d3f..25a4d8d8 100644
+--- a/go/internal/hookhandler/stop_session_evaluator.go
++++ b/go/internal/hookhandler/stop_session_evaluator.go
+@@ -85,7 +85,7 @@ func (h *StopSessionEvaluatorHandler) Handle(in io.Reader, out io.Writer) error
+ 	wipCount := h.countWIPTasks(projectRoot)
+ 	if wipCount > 0 {
+ 		msg := fmt.Sprintf(
+-			"[StopSession] %d WIP タスクが残っています。Plans.md を確認してください。",
++			"[StopSession] %d WIP task(s) remain. Check Plans.md before stopping.",
+ 			wipCount,
+ 		)
+ 		return writeJSON(out, stopSessionResponse{
+@@ -154,7 +154,7 @@ func (h *StopSessionEvaluatorHandler) countWIPTasks(projectRoot string) int {
+ 		count := 0
+ 		scanner := bufio.NewScanner(f)
+ 		for scanner.Scan() {
+-			if strings.Contains(scanner.Text(), "cc:WIP") {
++			if strings.Contains(strings.ToLower(scanner.Text()), "cc:wip") {
+ 				count++
+ 			}
+ 		}
+diff --git a/go/internal/hookhandler/tdd_order_check.go b/go/internal/hookhandler/tdd_order_check.go
+index 53abfa58..ac61ccca 100644
+--- a/go/internal/hookhandler/tdd_order_check.go
++++ b/go/internal/hookhandler/tdd_order_check.go
+@@ -37,8 +37,8 @@ var testFilePatterns = []*regexp.Regexp{
+ 	regexp.MustCompile(`/tests?/`),
+ }
+ 
+-// tddSkipMarkerRe は Plans.md 中の [skip:tdd] + cc:WIP の組み合わせを検出するパターン。
+-var tddSkipMarkerRe = regexp.MustCompile(`\[skip:tdd\].*cc:WIP|cc:WIP.*\[skip:tdd\]`)
++// tddSkipMarkerRe detects the [skip:tdd] + cc:wip combination in Plans.md (case-insensitive).
++var tddSkipMarkerRe = regexp.MustCompile(`(?i)\[skip:tdd\].*cc:WIP|cc:WIP.*\[skip:tdd\]`)
+ 
+ // sessionChangesFile はセッション中に編集されたファイルを記録するファイルパス。
+ const sessionChangesFile = ".claude/state/session-changes.json"
+@@ -50,11 +50,13 @@ func tddWarningMessage(locale string) string {
+ 			"Recommended: create or update a test file (*.test.ts, *.spec.ts, *_test.go, test_*.py) before implementing the source change.\n\n"+
+ 			"To skip this reminder, add a [skip:tdd] marker to the relevant task in Plans.md.\n\n"+
+ 			"This is a warning only; it does not block the tool call.",
+-		"TDD はデフォルトで有効です。テストを先に書くことを推奨します。\n\n"+
+-			"現在、本体ファイルを編集しましたが、対応するテストファイルがまだ編集されていません。\n\n"+
+-			"推奨: テストファイル（*.test.ts, *.spec.ts, *_test.go, test_*.py）を先に作成してから、本体を実装してください。\n\n"+
+-			"スキップする場合は Plans.md の該当タスクに [skip:tdd] マーカーを追加してください。\n\n"+
+-			"これは警告であり、ブロックはしません。")
++		// English-only build: the ja variant is intentionally replaced with the
++		// same English text (user-facing content must be English).
++		"TDD is enabled by default. Write the test first when possible.\n\n"+
++			"You edited an implementation file, but the corresponding test file has not been edited yet.\n\n"+
++			"Recommended: create or update a test file (*.test.ts, *.spec.ts, *_test.go, test_*.py) before implementing the source change.\n\n"+
++			"To skip this reminder, add a [skip:tdd] marker to the relevant task in Plans.md.\n\n"+
++			"This is a warning only; it does not block the tool call.")
+ }
+ 
+ // HandleTDDOrderCheck は tdd-order-check.sh の Go 移植。
+@@ -168,7 +170,7 @@ func hasActiveWIPTask(projectRoot string) bool {
+ 	if err != nil {
+ 		return false
+ 	}
+-	return strings.Contains(string(data), "cc:WIP")
++	return strings.Contains(strings.ToLower(string(data)), "cc:wip")
+ }
+ 
+ // isTDDSkipped は Plans.md の cc:WIP タスクに [skip:tdd] マーカーがあるかを確認する。
+diff --git a/go/internal/hookhandler/tdd_order_check_test.go b/go/internal/hookhandler/tdd_order_check_test.go
+index 85e3ff90..28d0169e 100644
+--- a/go/internal/hookhandler/tdd_order_check_test.go
++++ b/go/internal/hookhandler/tdd_order_check_test.go
+@@ -212,8 +212,8 @@ func TestHandleTDDOrderCheck_WarningLocaleJapaneseEnv(t *testing.T) {
+ 	if result.Decision != "approve" {
+ 		t.Fatalf("decision = %q, want approve", result.Decision)
+ 	}
+-	if !strings.Contains(result.SystemMessage, "TDD はデフォルトで有効です") {
+-		t.Fatalf("ja env systemMessage should be Japanese, got %q", result.SystemMessage)
++	if !strings.Contains(result.SystemMessage, "TDD is enabled by default") {
++		t.Fatalf("ja env systemMessage should fall back to English (English-only build), got %q", result.SystemMessage)
+ 	}
+ }
+ 
+@@ -223,8 +223,8 @@ func TestHandleTDDOrderCheck_WarningLocaleJapaneseConfig(t *testing.T) {
+ 	t.Setenv("PROJECT_ROOT", "")
+ 
+ 	result := runTDDWarningForLocaleTest(t, "i18n:\n  language: ja\n")
+-	if !strings.Contains(result.SystemMessage, "TDD はデフォルトで有効です") {
+-		t.Fatalf("config ja systemMessage should be Japanese, got %q", result.SystemMessage)
++	if !strings.Contains(result.SystemMessage, "TDD is enabled by default") {
++		t.Fatalf("config ja systemMessage should fall back to English (English-only build), got %q", result.SystemMessage)
+ 	}
+ }
+ 
+diff --git a/go/internal/session/init.go b/go/internal/session/init.go
+index b07c5938..f1d88ede 100644
+--- a/go/internal/session/init.go
++++ b/go/internal/session/init.go
+@@ -81,7 +81,7 @@ func (h *InitHandler) Handle(r io.Reader, w io.Writer) error {
+ 		return writeJSON(w, initResponse{
+ 			HookSpecificOutput: initHookOutput{
+ 				HookEventName:     "SessionStart",
+-				AdditionalContext: "[subagent] 軽量初期化完了",
++				AdditionalContext: "[subagent] lightweight initialization complete",
+ 			},
+ 		})
+ 	}
+@@ -174,31 +174,39 @@ func (h *InitHandler) initSessionFile(stateDir string) error {
+ 	return writeFileAtomic(sessionFile, append(data, '\n'), 0600)
+ }
+ 
+-// buildPlansInfo は Plans.md を読んで WIP/TODO カウントの情報文字列を返す。
++// buildPlansInfo reads Plans.md and returns a one-line marker count summary.
++// Matching is case-insensitive; legacy Japanese / cursor:* marker forms are
++// counted as aliases of the canonical lowercase English markers.
+ func buildPlansInfo(plansFile string) string {
+ 	if _, err := os.Stat(plansFile); err != nil {
+-		return "Plans.md: 未検出"
++		return "Plans.md: not found"
+ 	}
+ 
+-	wipCount := countMatches(plansFile, "cc:WIP", "pm:依頼中", "cursor:依頼中")
+-	todoCount := countMatches(plansFile, "cc:TODO")
++	todoCount := countMatches(plansFile, "cc:todo")
++	wipCount := countMatches(plansFile, "cc:wip")
++	doneCount := countMatches(plansFile, "cc:done", "cc:完了")
++	blockedCount := countMatches(plansFile, "cc:blocked")
++	pmPendingCount := countMatches(plansFile, "pm:requested", "pm:依頼中", "cursor:依頼中")
+ 
+-	return fmt.Sprintf("Plans.md: 進行中 %d / 未着手 %d", wipCount, todoCount)
++	return fmt.Sprintf("Plans.md: todo %d / wip %d / done %d / blocked %d / pm-requested %d",
++		todoCount, wipCount, doneCount, blockedCount, pmPendingCount)
+ }
+ 
+-// buildAdditionalContext はセッション初期化の additionalContext を構築する。
++// buildAdditionalContext builds the additionalContext for session initialization.
+ func buildAdditionalContext(plansInfo string) string {
+ 	var sb strings.Builder
+-	sb.WriteString("# [claude-code-harness] セッション初期化\n\n")
++	sb.WriteString("# [claude-code-harness] Session Initialization\n\n")
+ 	sb.WriteString(plansInfo + "\n")
+-	sb.WriteString("\n## マーカー凡例\n")
+-	sb.WriteString("| マーカー | 状態 | 説明 |\n")
+-	sb.WriteString("|---------|------|------|\n")
+-	sb.WriteString("| `cc:TODO` | 未着手 | Impl（Claude Code）が実行予定 |\n")
+-	sb.WriteString("| `cc:WIP` | 作業中 | Impl が実装中 |\n")
+-	sb.WriteString("| `cc:blocked` | ブロック中 | 依存タスク待ち |\n")
+-	sb.WriteString("| `pm:依頼中` | PM から依頼 | 2-Agent 運用時 |\n")
+-	sb.WriteString("\n> **互換**: `cursor:依頼中` / `cursor:確認済` は `pm:*` と同義として扱います。\n")
++	sb.WriteString("\n## Marker Legend\n")
++	sb.WriteString("| Marker | State | Description |\n")
++	sb.WriteString("|--------|-------|-------------|\n")
++	sb.WriteString("| `cc:todo` | To do | Scheduled for implementation by Claude Code |\n")
++	sb.WriteString("| `cc:wip` | In progress | Currently being implemented |\n")
++	sb.WriteString("| `cc:done` | Done | Completed, awaiting review |\n")
++	sb.WriteString("| `cc:blocked` | Blocked | Waiting on a dependency task |\n")
++	sb.WriteString("| `pm:requested` | Requested by PM | Used in 2-agent workflow |\n")
++	sb.WriteString("| `pm:approved` | Approved by PM | Reviewed and accepted |\n")
++	sb.WriteString("\n> **Compat**: legacy Japanese and `cursor:*` marker forms are still counted as aliases of the markers above.\n")
+ 	return sb.String()
+ }
+ 
+@@ -250,7 +258,9 @@ func isSymlink(path string) bool {
+ 	return fi.Mode()&os.ModeSymlink != 0
+ }
+ 
+-// countMatches は patterns のいずれかを含む行数の合計を返す。
++// countMatches returns the number of lines containing any of the patterns.
++// Matching is case-insensitive so that e.g. cc:todo, cc:TODO and cc:Todo
++// are all counted as the same marker.
+ func countMatches(filePath string, patterns ...string) int {
+ 	f, err := os.Open(filePath)
+ 	if err != nil {
+@@ -261,9 +271,9 @@ func countMatches(filePath string, patterns ...string) int {
+ 	count := 0
+ 	scanner := bufio.NewScanner(f)
+ 	for scanner.Scan() {
+-		line := scanner.Text()
++		line := strings.ToLower(scanner.Text())
+ 		for _, p := range patterns {
+-			if strings.Contains(line, p) {
++			if strings.Contains(line, strings.ToLower(p)) {
+ 				count++
+ 				break
+ 			}
+diff --git a/go/internal/session/init_test.go b/go/internal/session/init_test.go
+index 0ff6f812..99925261 100644
+--- a/go/internal/session/init_test.go
++++ b/go/internal/session/init_test.go
+@@ -59,7 +59,7 @@ func TestInitHandler_NewSession(t *testing.T) {
+ 		t.Errorf("expected Plans.md info in context, got %q", resp.HookSpecificOutput.AdditionalContext)
+ 	}
+ 	// マーカー凡例が含まれるか
+-	if !strings.Contains(resp.HookSpecificOutput.AdditionalContext, "cc:TODO") {
++	if !strings.Contains(resp.HookSpecificOutput.AdditionalContext, "cc:todo") {
+ 		t.Errorf("expected marker legend in context")
+ 	}
+ 
+@@ -107,11 +107,11 @@ func TestInitHandler_WithPlans(t *testing.T) {
+ 	ctx := resp.HookSpecificOutput.AdditionalContext
+ 	// WIP=1 (cc:WIP) + pm:依頼中=1 → 進行中 2
+ 	// TODO=2
+-	if !strings.Contains(ctx, "進行中 2") {
+-		t.Errorf("expected 進行中 2 in context, got %q", ctx)
++	if !strings.Contains(ctx, "wip 1") {
++		t.Errorf("expected wip 1 in context, got %q", ctx)
+ 	}
+-	if !strings.Contains(ctx, "未着手 2") {
+-		t.Errorf("expected 未着手 2 in context, got %q", ctx)
++	if !strings.Contains(ctx, "todo 2") {
++		t.Errorf("expected todo 2 in context, got %q", ctx)
+ 	}
+ }
+ 
+diff --git a/go/internal/session/monitor.go b/go/internal/session/monitor.go
+index f5bb429b..614c449a 100644
+--- a/go/internal/session/monitor.go
++++ b/go/internal/session/monitor.go
+@@ -280,10 +280,10 @@ func (h *MonitorHandler) collectPlansState(plansFile string) plansStateJSON {
+ 		return plansStateJSON{Exists: false}
+ 	}
+ 
+-	wipCount := countMatches(plansFile, "cc:WIP")
+-	todoCount := countMatches(plansFile, "cc:TODO")
+-	pendingCount := countMatches(plansFile, "pm:依頼中", "cursor:依頼中")
+-	completedCount := countMatches(plansFile, "cc:完了")
++	wipCount := countMatches(plansFile, "cc:wip")
++	todoCount := countMatches(plansFile, "cc:todo")
++	pendingCount := countMatches(plansFile, "pm:requested", "pm:依頼中", "cursor:依頼中")
++	completedCount := countMatches(plansFile, "cc:done", "cc:完了")
+ 
+ 	return plansStateJSON{
+ 		Exists:         true,
+@@ -424,15 +424,15 @@ func (h *MonitorHandler) generateToolingPolicy(policyFile string) {
+ // writeSummary はセッション状態サマリーを w に書き出す。
+ func (h *MonitorHandler) writeSummary(w io.Writer, projectName string, git gitStateJSON, plans plansStateJSON) {
+ 	fmt.Fprintln(w, "")
+-	fmt.Fprintln(w, "セッション開始 - プロジェクト状態")
++	fmt.Fprintln(w, "Session Start - Project State")
+ 	fmt.Fprintln(w, strings.Repeat("─", 36))
+-	fmt.Fprintf(w, "プロジェクト: %s\n", projectName)
+-	fmt.Fprintf(w, "ブランチ: %s\n", git.Branch)
++	fmt.Fprintf(w, "Project: %s\n", projectName)
++	fmt.Fprintf(w, "Branch: %s\n", git.Branch)
+ 
+ 	if plans.Exists {
+ 		total := plans.WIPTasks + plans.TODOTasks + plans.PendingTasks
+ 		if total > 0 {
+-			fmt.Fprintf(w, "Plans.md: WIP %d件 / TODO %d件\n", plans.WIPTasks, plans.TODOTasks+plans.PendingTasks)
++			fmt.Fprintf(w, "Plans.md: WIP %d / TODO %d\n", plans.WIPTasks, plans.TODOTasks+plans.PendingTasks)
+ 		}
+ 	}
+ 
+diff --git a/go/internal/session/summary.go b/go/internal/session/summary.go
+index 3e7500a8..9220d77b 100644
+--- a/go/internal/session/summary.go
++++ b/go/internal/session/summary.go
+@@ -231,7 +231,8 @@ func (h *SummaryHandler) readWIPTasks(plansFile string) []string {
+ 	count := 0
+ 	for scanner.Scan() {
+ 		line := scanner.Text()
+-		if strings.Contains(line, "cc:WIP") || strings.Contains(line, "pm:依頼中") || strings.Contains(line, "cursor:依頼中") {
++		lower := strings.ToLower(line)
++		if strings.Contains(lower, "cc:wip") || strings.Contains(lower, "pm:requested") || strings.Contains(line, "pm:依頼中") || strings.Contains(line, "cursor:依頼中") {
+ 			tasks = append(tasks, line)
+ 			count++
+ 			if count >= 20 {
+@@ -254,12 +255,12 @@ func (h *SummaryHandler) ensureSessionLog(logFile string) error {
+ 
+ 	header := `# Session Log
+ 
+-セッション単位の作業ログ（基本はローカル運用向け）。
+-重要な意思決定は ` + "`.claude/memory/decisions.md`" + `、再利用できる解法は ` + "`.claude/memory/patterns.md`" + ` に昇格してください。
++Per-session work log (intended for local use).
++Promote important decisions to ` + "`.claude/memory/decisions.md`" + ` and reusable solutions to ` + "`.claude/memory/patterns.md`" + `.
+ 
+ ## Index
+ 
+-- （必要に応じて追記）
++- (add entries as needed)
+ 
+ ---
+ `
+@@ -278,7 +279,7 @@ func (h *SummaryHandler) appendSessionLog(logFile string, entry sessionLogEntry)
+ 	}
+ 	defer f.Close()
+ 
+-	fmt.Fprintf(f, "\n## セッション: %s\n\n", entry.EndedAt)
++	fmt.Fprintf(f, "\n## Session: %s\n\n", entry.EndedAt)
+ 	fmt.Fprintf(f, "- session_id: `%s`\n", entry.SessionID)
+ 	if entry.ProjectName != "" {
+ 		fmt.Fprintf(f, "- project: `%s`\n", entry.ProjectName)
+@@ -293,33 +294,33 @@ func (h *SummaryHandler) appendSessionLog(logFile string, entry sessionLogEntry)
+ 	}
+ 	fmt.Fprintf(f, "- changes: %d\n", len(entry.ChangedFiles))
+ 
+-	fmt.Fprintf(f, "\n### 変更ファイル\n")
++	fmt.Fprintf(f, "\n### Changed files\n")
+ 	if len(entry.ChangedFiles) > 0 {
+ 		for _, file := range entry.ChangedFiles {
+ 			fmt.Fprintf(f, "- `%s`\n", file)
+ 		}
+ 	} else {
+-		fmt.Fprintln(f, "- （なし）")
++		fmt.Fprintln(f, "- (none)")
+ 	}
+ 
+-	fmt.Fprintf(f, "\n### 重要な変更（important=true）\n")
++	fmt.Fprintf(f, "\n### Important changes (important=true)\n")
+ 	if len(entry.ImportantFiles) > 0 {
+ 		for _, file := range entry.ImportantFiles {
+ 			fmt.Fprintf(f, "- `%s`\n", file)
+ 		}
+ 	} else {
+-		fmt.Fprintln(f, "- （なし）")
++		fmt.Fprintln(f, "- (none)")
+ 	}
+ 
+-	fmt.Fprintf(f, "\n### 次回への引き継ぎ（任意）\n")
++	fmt.Fprintf(f, "\n### Handoff to next session (optional)\n")
+ 	if len(entry.WIPTasks) > 0 {
+-		fmt.Fprintf(f, "\n**Plans.md のWIP/依頼中（抜粋）**:\n\n```\n")
++		fmt.Fprintf(f, "\n**Plans.md WIP/requested tasks (excerpt)**:\n\n```\n")
+ 		for _, task := range entry.WIPTasks {
+ 			fmt.Fprintln(f, task)
+ 		}
+ 		fmt.Fprintf(f, "```\n")
+ 	} else {
+-		fmt.Fprintln(f, "- （必要に応じて追記）")
++		fmt.Fprintln(f, "- (add as needed)")
+ 	}
+ 
+ 	fmt.Fprintln(f, "\n---")

@@ -1,0 +1,51 @@
+diff --git a/go/cmd/harness/migration_report.go b/go/cmd/harness/migration_report.go
+index eca7169b..87dc35ea 100644
+--- a/go/cmd/harness/migration_report.go
++++ b/go/cmd/harness/migration_report.go
+@@ -102,24 +102,24 @@ func buildExistingUserMigrationReport(projectRoot string, env migrationReportEnv
+ 
+ 	codexSkills := filepath.Join(env.CodexHome, "skills")
+ 	report.Entries = append(report.Entries, reportDuplicateLocalSkills(codexSkills))
+-	report.Entries = append(report.Entries, reportOldSymlinks("Codex old symlinks", codexSkills, "Run scripts/setup-codex.sh --user to copy real skill directories; restore from CODEX_HOME backups if needed."))
++	report.Entries = append(report.Entries, reportOldSymlinks("Codex old symlinks", codexSkills, "Replace old symlinks with real skill directories manually; restore from CODEX_HOME backups if needed."))
+ 	report.Entries = append(report.Entries, migrationReportEntry{
+ 		Area:             "Codex backup path",
+ 		Status:           "ok",
+ 		Path:             filepath.Join(env.CodexHome, "backups", "setup-codex"),
+-		Evidence:         "scripts/setup-codex.sh stores replaced user-mode files outside the skill scan path",
++		Evidence:         "Replaced user-mode files are stored outside the skill scan path",
+ 		Impact:           "Existing Codex skills are moved aside before replacement instead of being deleted.",
+ 		BackupLocation:   filepath.Join(env.CodexHome, "backups", "setup-codex"),
+ 		RollbackProposal: "Move the backed-up skill or config entry back into CODEX_HOME after inspecting it.",
+ 	})
+ 
+ 	opencodeSkills := filepath.Join(projectRoot, ".opencode", "skills")
+-	report.Entries = append(report.Entries, reportOldSymlinks("OpenCode old symlinks", opencodeSkills, "Re-run scripts/setup-opencode.sh; inspect .opencode/*.backup.<timestamp> before restoring."))
++	report.Entries = append(report.Entries, reportOldSymlinks("OpenCode old symlinks", opencodeSkills, "Inspect .opencode/*.backup.<timestamp> before restoring; replace old symlinks manually."))
+ 	report.Entries = append(report.Entries, migrationReportEntry{
+ 		Area:             "OpenCode backup path",
+ 		Status:           "ok",
+ 		Path:             filepath.Join(projectRoot, ".opencode"),
+-		Evidence:         "scripts/setup-opencode.sh creates timestamped backups such as .opencode/skills.backup.<timestamp> and .opencode/plugins/harness-bootstrap.mjs.backup.<timestamp>",
++		Evidence:         "Timestamped backups such as .opencode/skills.backup.<timestamp> and .opencode/plugins/harness-bootstrap.mjs.backup.<timestamp> may exist",
+ 		Impact:           "Existing OpenCode files are moved aside before replacement.",
+ 		BackupLocation:   ".opencode/*.backup.<timestamp>",
+ 		RollbackProposal: "Move the timestamped backup back to its original path after confirming it belongs to Harness.",
+@@ -362,7 +362,7 @@ func reportDuplicateLocalSkills(skillsDir string) migrationReportEntry {
+ 			Evidence:         "No Codex skill entries were available to inspect",
+ 			Impact:           "Duplicate local skills cannot be ruled out.",
+ 			BackupLocation:   filepath.Join(filepath.Dir(skillsDir), "backups", "setup-codex"),
+-			RollbackProposal: "Run scripts/setup-codex.sh --user after reviewing CODEX_HOME.",
++			RollbackProposal: "Review CODEX_HOME and restore skills from its backups manually.",
+ 			SupportBoundary:  "not_observed != absent",
+ 		}
+ 	}
+@@ -389,7 +389,7 @@ func reportDuplicateLocalSkills(skillsDir string) migrationReportEntry {
+ 			Evidence:         strings.Join(duplicates, "; "),
+ 			Impact:           "Codex may show duplicate aliases or route to an older skill body.",
+ 			BackupLocation:   filepath.Join(filepath.Dir(skillsDir), "backups", "setup-codex"),
+-			RollbackProposal: "Run scripts/setup-codex.sh --user; it moves duplicate Harness skill aliases into backups before copying current skills.",
++			RollbackProposal: "Move duplicate Harness skill aliases into the backup directory manually, keeping only the current skills.",
+ 		}
+ 	}
+ 	return migrationReportEntry{

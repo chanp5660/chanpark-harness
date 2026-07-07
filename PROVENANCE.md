@@ -33,14 +33,14 @@ next update from here, then bump it.
 
 | upstream | baseline SHA | tag | recorded |
 |----------|--------------|-----|----------|
-| harness | `c2dbd939c2eb338e18db03079ee2d240d363e1fd` | v4.15.0 | 2026-06-19 |
+| harness | `c220671ec53e9bb298b6f2a473950024caee78a9` | v4.16.4 | 2026-07-07 |
 | omc | `50f6ff05eb5d9ebed66f05d8c4580c0b119f37af` | v4.14.7 | 2026-06-19 |
 
-> ⚠️ **Honest caveat for the first sync.** These SHAs are the upstream HEAD *observed on
-> 2026-06-19*, not a verified reconcile point — the original manual port predates them and
-> may already lag behind v4.15.0 / v4.14.7. Treat the next sync as a one-time **catch-up
-> review**: diff the full range and decide per file. After that, these markers are accurate
-> and each later sync is a small incremental diff.
+> ⚠️ **Honest caveat, updated 2026-07-07.** The harness baseline is now a **verified
+> reconcile point for `go/` (the built binaries) only** — see "Binary rebuild" below. The
+> md/script components remain the original manual port and were never re-reconciled;
+> treat their next sync as the one-time **catch-up review** (diff the full range, decide
+> per file). The omc SHA is still the 2026-06-19 observed HEAD, not a verified point.
 
 ## Component → upstream map
 
@@ -193,3 +193,36 @@ Removed ~96 dead upstream scripts and 8 skill directories per analysis in
 - **Skills fixed** (1): `ui` — `disable-model-invocation` set to `false` so the skill is
   model-invocable as documented in the skills-gate template.
 - Skill count after pruning: 30 → 22.
+
+## Binary rebuild — harness baseline bump (2026-07-07)
+
+### Baseline update
+
+- **claude-code-harness baseline**: `c2dbd939c2eb338e18db03079ee2d240d363e1fd` (observed 2026-06-19, between v4.15.0 and v4.16.0; previous honest-caveat: unverified reconcile point)
+  → **`c220671ec53e9bb298b6f2a473950024caee78a9` (tag `v4.16.4`, 2026-06-28)** — verified reconcile point for the Go binaries: this is the exact ref the committed `bin/harness-*` binaries are built from (plus the local patch set, see below). Divergence absorbed: 30 upstream commits (9 touching `go/`), dominated by upstream security additions (commit-guard audit v4.16.1, runtime-floor egress rules v4.16.2/v4.16.4).
+
+### Finding recorded 2026-07-07: previous binaries came from a lost fork
+
+The previously committed binaries (built 2026-06-19) did **not** correspond to any pristine upstream ref. Feature probing dated them to the v4.16.1 era, but they embedded partially-anglicized strings (e.g. `A new task has been requested by PM (pm:依頼中 / compat: cursor:依頼中).`, `# [claude-code-harness] Session Initialization`) that exist nowhere in upstream history — evidence of an intermediate, partially-localized fork whose source was never committed to this repo. That fork is unrecoverable; the 2026-07-07 rebuild supersedes it with a fully documented, reproducible patch set.
+
+### Binary build recipe (reproducible)
+
+1. Clone upstream `github.com/Chachamaru127/claude-code-harness`, checkout `v4.16.4` (`c220671e`).
+2. Apply `docs/patches/binary-rebuild/binary-rebuild.patch` (combined; equivalently the four per-area patches `p1-p2-markers-and-english.patch`, `p3-p6-sync.patch`, `p4-ci-advice.patch`, `p5-migration-report.patch` — each applies independently to the pristine tag).
+3. Build (go >= 1.25.0; built with go1.25.5), matching upstream `go/scripts/build-all.sh` semantics:
+   `cd go && CGO_ENABLED=0 GOOS=<os> GOARCH=<arch> go build -buildvcs=false -ldflags "-s -w -X main.version=4.16.4" -o ../bin/harness-<os>-<arch>[.exe] ./cmd/harness/`
+   for linux/amd64, darwin/amd64, darwin/arm64, windows/amd64.
+
+### Patch set summary (docs/patches/binary-rebuild/)
+
+- **P1** counters: case-insensitive marker matching everywhere; all four canonical lowercase markers (`cc:todo/cc:wip/cc:done/cc:blocked`) counted, `cc:完了` kept as done-alias, `pm:requested`/`pm:approved` primary with JP/`cursor:*` compat aliases.
+- **P2** English user-facing strings: session-init legend, plans-watcher summary + pm-notification.md, session-monitor "Session Start - Project State" block, session-log.md content, runtime-reactive messages, TDD gate, stop-evaluator message.
+- **P3** `harness sync` no longer generates the `.claude-plugin/hooks.json` duplicate.
+- **P4** CI-failure advice: `ci-cd-fixer`/`/breezing` steering replaced with `chanpark-harness:debugger`, English.
+- **P5** `scripts/setup-codex.sh` / `scripts/setup-opencode.sh` references neutralized in migration-report advice.
+- **P6** (fix beyond the original scope): `harness sync` plugin.json regeneration now preserves unknown manifest fields (`displayName`, `defaultEnabled`, custom keys); sync OWNS exactly `name, version, description, author, homepage, repository, license, keywords, skills, outputStyles`. Upstream at v4.16.4 dropped all unknown fields.
+- Upstream test suite: green on the patched tree (assertions updated where strings intentionally changed).
+
+### Upstream reconcile note
+
+Future upstream pulls of `go/` should diff from `c220671e` (v4.16.4) and re-apply the patch set above; re-run the 3.3 verification suite (`docs/…/verification-3.3.md` procedure) after any rebuild.

@@ -1,0 +1,237 @@
+diff --git a/go/cmd/harness/sync.go b/go/cmd/harness/sync.go
+index 5cf5bd3b..f9c18a43 100644
+--- a/go/cmd/harness/sync.go
++++ b/go/cmd/harness/sync.go
+@@ -13,10 +13,13 @@ import (
+ // runSync implements the "harness sync" subcommand.
+ //
+ // It reads harness.toml from the project root, then generates:
+-//   - .claude-plugin/plugin.json   ← [project] section
+-//   - .claude-plugin/hooks.json    ← copy of hooks/hooks.json, only when that source exists (plugin-development repos)
++//   - .claude-plugin/plugin.json   ← [project] section (unknown existing fields are preserved)
+ //   - .claude-plugin/settings.json ← [agent] + [env] + [safety.permissions] + [safety.sandbox]
+ //
++// Note: earlier versions also copied hooks/hooks.json to .claude-plugin/hooks.json.
++// That duplicate is no longer generated — Claude Code auto-discovers hooks/hooks.json,
++// and the copy only created drift between the two files.
++//
+ // The project root is determined by the first argument (or cwd if omitted).
+ // Exit 0 on success, exit 1 on any error.
+ func runSync(args []string) {
+@@ -42,10 +45,6 @@ func runSync(args []string) {
+ 		errs = append(errs, fmt.Errorf("plugin.json: %w", err))
+ 	}
+ 
+-	if err := syncHooksJSON(projectRoot); err != nil {
+-		errs = append(errs, fmt.Errorf("hooks.json sync: %w", err))
+-	}
+-
+ 	if err := generateSettingsJSON(projectRoot, cfg); err != nil {
+ 		errs = append(errs, fmt.Errorf("settings.json: %w", err))
+ 	}
+@@ -110,6 +109,16 @@ type pluginJSON struct {
+ 	OutputStyles string   `json:"outputStyles,omitempty"`
+ }
+ 
++// pluginJSONOwnedKeys lists the plugin.json keys that `harness sync` OWNS and
++// regenerates from harness.toml on every run. Any other key present in an
++// existing .claude-plugin/plugin.json (e.g. displayName, defaultEnabled) is
++// preserved verbatim so that sync never clobbers manifest fields it does not
++// model.
++var pluginJSONOwnedKeys = []string{
++	"name", "version", "description", "author", "homepage",
++	"repository", "license", "keywords", "skills", "outputStyles",
++}
++
+ func generatePluginJSON(projectRoot string, cfg *config.Config) error {
+ 	// Author: preserve object form if URL is set, otherwise use string
+ 	var author interface{}
+@@ -140,61 +149,45 @@ func generatePluginJSON(projectRoot string, cfg *config.Config) error {
+ 		OutputStyles: cfg.Project.OutputStyles,
+ 	}
+ 
+-	data, err := marshalPretty(p)
++	// Convert the owned fields to a generic map so they can be merged over the
++	// existing manifest without dropping fields sync does not model.
++	ownedData, err := json.Marshal(p)
+ 	if err != nil {
+-		return err
++		return fmt.Errorf("JSON marshal: %w", err)
+ 	}
+-
+-	dest := filepath.Join(projectRoot, ".claude-plugin", "plugin.json")
+-	if err := writeFile(dest, data); err != nil {
+-		return err
++	var owned map[string]interface{}
++	if err := json.Unmarshal(ownedData, &owned); err != nil {
++		return fmt.Errorf("JSON remarshal: %w", err)
+ 	}
+ 
+-	fmt.Printf("  wrote %s\n", rel(projectRoot, dest))
+-	return nil
+-}
+-
+-// ---------------------------------------------------------------------------
+-// hooks.json sync
+-// ---------------------------------------------------------------------------
++	dest := filepath.Join(projectRoot, ".claude-plugin", "plugin.json")
+ 
+-// syncHooksJSON copies hooks/hooks.json to .claude-plugin/hooks.json.
+-// Phase 35.2 uses the existing hooks.json as a static template.
+-// Phase 35.3 will make hooks generation dynamic based on harness.toml [hooks].
+-//
+-// hooks/hooks.json only exists in plugin-development repos (this repo's own
+-// layout). Fresh user projects bootstrapped by the Setup hook / `harness init`
+-// have no hooks/ directory, so a missing source with no existing destination
+-// means "nothing to sync" rather than an error. A missing source while
+-// .claude-plugin/hooks.json exists still fails: that shape only occurs when a
+-// plugin repo lost its SSOT source, and silently skipping would freeze the
+-// orphaned copy.
+-func syncHooksJSON(projectRoot string) error {
+-	src := filepath.Join(projectRoot, "hooks", "hooks.json")
+-	dst := filepath.Join(projectRoot, ".claude-plugin", "hooks.json")
+-
+-	data, err := os.ReadFile(src)
+-	if err != nil {
+-		if os.IsNotExist(err) {
+-			if _, statErr := os.Stat(dst); statErr == nil {
+-				return fmt.Errorf("read %s: %w (existing %s would be orphaned; restore the hooks/hooks.json SSOT)", src, err, rel(projectRoot, dst))
+-			}
+-			fmt.Printf("  skipped hooks.json sync (%s not found)\n", rel(projectRoot, src))
+-			return nil
+-		}
+-		return fmt.Errorf("read %s: %w", src, err)
++	merged := map[string]interface{}{}
++	if existing, readErr := os.ReadFile(dest); readErr == nil {
++		// Preserve unknown fields (displayName, defaultEnabled, ...) from the
++		// existing manifest. Parse errors are ignored: an unreadable manifest
++		// falls back to clean regeneration from harness.toml.
++		_ = json.Unmarshal(existing, &merged)
++	}
++	// Owned keys are fully regenerated: delete first so that a value cleared
++	// in harness.toml is also removed from plugin.json (omitempty).
++	for _, k := range pluginJSONOwnedKeys {
++		delete(merged, k)
++	}
++	for k, v := range owned {
++		merged[k] = v
+ 	}
+ 
+-	// Validate that the source is valid JSON before copying
+-	if !json.Valid(data) {
+-		return fmt.Errorf("%s is not valid JSON", src)
++	data, err := marshalPretty(merged)
++	if err != nil {
++		return err
+ 	}
+ 
+-	if err := writeFile(dst, data); err != nil {
++	if err := writeFile(dest, data); err != nil {
+ 		return err
+ 	}
+ 
+-	fmt.Printf("  wrote %s (copied from %s)\n", rel(projectRoot, dst), rel(projectRoot, src))
++	fmt.Printf("  wrote %s\n", rel(projectRoot, dest))
+ 	return nil
+ }
+ 
+diff --git a/go/cmd/harness/sync_test.go b/go/cmd/harness/sync_test.go
+index c48b9e3a..a8c111eb 100644
+--- a/go/cmd/harness/sync_test.go
++++ b/go/cmd/harness/sync_test.go
+@@ -240,22 +240,18 @@ func TestSync_GeneratesSettingsJSON(t *testing.T) {
+ 	}
+ }
+ 
+-func TestSync_CopiesHooksJSON(t *testing.T) {
++func TestSync_DoesNotCopyHooksJSON(t *testing.T) {
+ 	dir := setupProjectDir(t, fullTOML)
+ 	runSync([]string{dir})
+ 
+-	// Both files must exist and have identical content
+-	srcData, err := os.ReadFile(filepath.Join(dir, "hooks", "hooks.json"))
+-	if err != nil {
++	// The hooks/hooks.json SSOT must be left alone and NOT duplicated into
++	// .claude-plugin/hooks.json (Claude Code auto-discovers hooks/hooks.json;
++	// the copy only created drift).
++	if _, err := os.ReadFile(filepath.Join(dir, "hooks", "hooks.json")); err != nil {
+ 		t.Fatalf("read hooks/hooks.json: %v", err)
+ 	}
+-	dstData, err := os.ReadFile(filepath.Join(dir, ".claude-plugin", "hooks.json"))
+-	if err != nil {
+-		t.Fatalf("read .claude-plugin/hooks.json: %v", err)
+-	}
+-
+-	if string(srcData) != string(dstData) {
+-		t.Errorf("hooks.json files differ:\nsrc: %s\ndst: %s", srcData, dstData)
++	if _, err := os.Stat(filepath.Join(dir, ".claude-plugin", "hooks.json")); !os.IsNotExist(err) {
++		t.Errorf("sync must not create .claude-plugin/hooks.json (stat err = %v)", err)
+ 	}
+ }
+ 
+@@ -276,37 +272,43 @@ func setupFreshProjectDir(t *testing.T, tomlContent string) string {
+ 	return dir
+ }
+ 
+-func TestSyncHooksJSON_SkipsWhenSourceAndDestMissing(t *testing.T) {
+-	dir := t.TempDir()
++func TestGeneratePluginJSON_PreservesUnknownFields(t *testing.T) {
++	dir := setupProjectDir(t, fullTOML)
+ 
+-	if err := syncHooksJSON(dir); err != nil {
+-		t.Fatalf("syncHooksJSON should skip when hooks/hooks.json is absent, got: %v", err)
++	// Pre-existing manifest with fields sync does not model.
++	pluginDir := filepath.Join(dir, ".claude-plugin")
++	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
++		t.Fatalf("mkdir .claude-plugin: %v", err)
+ 	}
+-
+-	if _, err := os.Stat(filepath.Join(dir, ".claude-plugin", "hooks.json")); !os.IsNotExist(err) {
+-		t.Errorf("skip must not create .claude-plugin/hooks.json (stat err = %v)", err)
++	existing := `{"name":"old-name","displayName":"My Plugin","defaultEnabled":true,"customField":{"nested":true}}`
++	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.json"), []byte(existing), 0o644); err != nil {
++		t.Fatalf("write plugin.json: %v", err)
+ 	}
+-}
+ 
+-func TestSyncHooksJSON_FailsWhenDestWouldBeOrphaned(t *testing.T) {
+-	dir := t.TempDir()
++	runSync([]string{dir})
+ 
+-	// Destination exists but the SSOT source is gone — a plugin repo that
+-	// accidentally deleted hooks/hooks.json. This must stay an error.
+-	pluginDir := filepath.Join(dir, ".claude-plugin")
+-	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+-		t.Fatalf("mkdir .claude-plugin: %v", err)
++	data, err := os.ReadFile(filepath.Join(pluginDir, "plugin.json"))
++	if err != nil {
++		t.Fatalf("read plugin.json: %v", err)
+ 	}
+-	if err := os.WriteFile(filepath.Join(pluginDir, "hooks.json"), []byte(`{"hooks":{}}`), 0o644); err != nil {
+-		t.Fatalf("write .claude-plugin/hooks.json: %v", err)
++	var got map[string]interface{}
++	if err := json.Unmarshal(data, &got); err != nil {
++		t.Fatalf("plugin.json is not valid JSON: %v", err)
+ 	}
+ 
+-	err := syncHooksJSON(dir)
+-	if err == nil {
+-		t.Fatal("syncHooksJSON should fail when destination exists without its source")
++	// Unknown fields preserved.
++	if got["displayName"] != "My Plugin" {
++		t.Errorf("displayName should be preserved, got %v", got["displayName"])
++	}
++	if got["defaultEnabled"] != true {
++		t.Errorf("defaultEnabled should be preserved, got %v", got["defaultEnabled"])
++	}
++	if _, ok := got["customField"]; !ok {
++		t.Errorf("customField should be preserved")
+ 	}
+-	if !strings.Contains(err.Error(), "orphaned") {
+-		t.Errorf("error should explain the orphaned destination, got: %v", err)
++	// Owned fields regenerated from harness.toml.
++	if got["name"] == "old-name" {
++		t.Errorf("name should be regenerated from harness.toml, still %v", got["name"])
+ 	}
+ }
+ 
