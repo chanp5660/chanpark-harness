@@ -51,4 +51,4 @@ The binary's `hook auto-cleanup` PostToolUse hook detects line-count overflows i
 
 - `memory` — SSOT promotion (updates decisions.md / patterns.md) before cleaning Plans.md
 - `harness-setup` — periodic maintenance right after setup can also be triggered via `harness-setup`
-- `session-init` — controls maintenance recommendation notifications at session start
+- `session` — controls maintenance recommendation notifications at session start

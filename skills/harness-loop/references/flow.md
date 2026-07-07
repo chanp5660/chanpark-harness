@@ -158,8 +158,8 @@ bash "${HARNESS_PLUGIN_ROOT}/scripts/ensure-sprint-contract-ready.sh" "${CONTRAC
 Step 4. harness-mem resume-pack reload:
   Call the mcp__harness__harness_mem_resume_pack tool.
   Required arguments:
-    - project: the current project name (follow the implementation example in the existing session-init skill.
-              Example: get the repository root with `basename $(git rev-parse --show-toplevel)` and pass it)
+    - project: the current project name (e.g. get the repository root with
+              `basename $(git rev-parse --show-toplevel)` and pass it)
   optional: session_id (when resuming from a previous session)
 
   Example (pseudocode):
@@ -174,7 +174,7 @@ Re-inject the following via the `harness-mem resume-pack` equivalent:
 
 - `decisions.md` — architecture decisions
 - `patterns.md` — reusable patterns
-- `session-state` — the previous work state
+- `session` state — the previous work state
 - The most recent cycle's `checkpoint` — what was completed
 
 > **Note**: Reload the resume pack after Step 3 (contract readiness check).

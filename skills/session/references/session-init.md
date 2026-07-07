@@ -1,12 +1,7 @@
----
-name: session-init
-description: "Internal sub-skill for session startup checks, Plans.md status, git state, and harness-mem resume pack. Invoked by session/startup workflows only. Do NOT load for: implementation, reviews, or mid-session tasks."
-allowed-tools: ["Read", "Write", "Bash", "mcp__harness__harness_mem_resume_pack", "mcp__harness__harness_mem_sessions_list", "mcp__harness__harness_mem_health"]
-user-invocable: false
-disable-model-invocation: true
----
+# Session Init Reference
 
-# Session Init Skill
+> Moved from the retired `session-init` skill. This content is referenced from
+> [../SKILL.md](../SKILL.md) as implementation detail for session initialization.
 
 A skill that performs environment checks and current task status assessment at the start of a session.
 
@@ -123,7 +118,7 @@ Extract the following from Plans.md:
 ### Step 3: Output Status Report
 
 ```markdown
-## 🚀 Session Start
+## Session Start
 
 **Date/Time**: {{YYYY-MM-DD HH:MM}}
 **Branch**: {{branch}}
@@ -131,7 +126,7 @@ Extract the following from Plans.md:
 
 ---
 
-### 📋 Today's Tasks
+### Today's Tasks
 
 **Priority Tasks**:
 - {{tasks marked pm:requested or cc:WIP}}
@@ -141,7 +136,7 @@ Extract the following from Plans.md:
 
 ---
 
-### ⚠️ Notes
+### Notes
 
 {{Important constraints and prohibited actions from AGENTS.md}}
 

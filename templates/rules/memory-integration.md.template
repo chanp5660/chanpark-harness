@@ -28,7 +28,7 @@ Cross-session quality and context preservation features allow past learnings to 
 
 ## How to Use Skills
 
-### 1. At session start (session-init)
+### 1. At session start (session initialization)
 
 Past context is automatically displayed when a session starts:
 

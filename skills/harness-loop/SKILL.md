@@ -257,4 +257,4 @@ This is determined using `trigger_hash = task_id + reason_code + normalized_erro
 - `harness-work` — task implementation skill executed on each cycle
 - `harness-plan` — planning for tasks targeted by the loop
 - `harness-review` — review of individual tasks
-- `session-control` — session state management
+- `session` — session state management

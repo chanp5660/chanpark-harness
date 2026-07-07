@@ -134,7 +134,7 @@ When Claude-mem is enabled, skills leverage past memories to improve quality.
 | `impl` | Automatically references past implementation patterns and gotchas |
 | `harness-review` | References past similar review findings |
 | `verify` | References past build error solutions |
-| `session-init` | Displays guardrail trigger history and work summaries |
+| `session` | Displays guardrail trigger history and work summaries |
 
 ### Usage example
 

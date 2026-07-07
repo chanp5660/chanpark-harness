@@ -3,7 +3,7 @@ name: ui
 description: "Explicit helper for UI components, hero sections, forms, feedback, and contact surfaces. Do NOT load for: authentication, backend implementation, database work, or business logic."
 allowed-tools: ["Read", "Write", "Edit", "Bash"]
 user-invocable: false
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 # UI Skills

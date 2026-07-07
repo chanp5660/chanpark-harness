@@ -62,8 +62,8 @@ Sends a message to all active sessions.
 
 | Feature | Description | Reference |
 |---------|-------------|-----------|
-| **Initialization** | Start new session, load context | See [../session-init/SKILL.md](../session-init/SKILL.md) |
-| **Memory** | Persist learnings across sessions | See [../session-memory/SKILL.md](../session-memory/SKILL.md) |
+| **Initialization** | Start new session, load context | See [references/session-init.md](references/session-init.md) |
+| **Memory** | Persist learnings across sessions | See [references/session-memory.md](references/session-memory.md) |
 | **State Control** | Resume/fork session based on flags | See [references/session-control.md](${CLAUDE_SKILL_DIR}/references/session-control.md) |
 | **Communication** | Cross-session messaging | Built-in via `/session broadcast`; see subcommands above |
 
@@ -178,12 +178,11 @@ Session end
 | `.claude/state/session.events.jsonl` | Event log for cross-session communication |
 | `.claude/memory/*.md` | Persistent memory files |
 
-## Migration Note
+## Layout Note
 
-This skill consolidates:
-- `session-init` → Session initialization
-- `session-memory` → Memory persistence
-- `session-control` → Resume/fork control
-- `session-state` → State machine and lifecycle transitions
+This skill consolidates the full session lifecycle. Reference documents:
+- [references/session-init.md](references/session-init.md) — session initialization detail
+- [references/session-memory.md](references/session-memory.md) — memory persistence detail
+- [references/session-control.md](references/session-control.md) — resume/fork control
 
-The individual sub-skills remain active for internal auto-delegation; this unified `/session` skill is the recommended user-facing interface.
+The unified `/session` skill is the recommended user-facing interface.

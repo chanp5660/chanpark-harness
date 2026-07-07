@@ -1,12 +1,7 @@
----
-name: session-memory
-description: "Internal sub-skill for cross-session handoff, durable learning, and memory persistence. Invoked by session/memory workflows only. Do NOT load for: implementation, review, ad-hoc notes, or SSOT editing."
-allowed-tools: ["Read", "Write", "Edit", "Bash"]
-user-invocable: false
-disable-model-invocation: true
----
+# Session Memory Reference
 
-# Session Memory Skill
+> Moved from the retired `session-memory` skill. This content is referenced from
+> [../SKILL.md](../SKILL.md) as implementation detail for cross-session memory persistence.
 
 A skill for managing learning and memory across sessions.
 Records and retrieves past work, decisions, and learned patterns.
@@ -219,48 +214,6 @@ claude --resume
 ```
 
 > `/recap` only reviews within the current session. For content from previous sessions, use `session-log.md` or context inheritance via `claude --resume`.
-
----
-
-## Usage Examples
-
-### Starting from Where We Left Off
-
-```
-User: "continue from last session"
-
-Claude Code:
-📋 Last Session (2024-01-15)
-
-Completed tasks:
-- User authentication
-- Login page
-
-Incomplete:
-- Logout functionality
-- Password reset
-
-Say "implement logout" to continue.
-```
-
-### Checking Project Status
-
-```
-User: "tell me about this project"
-
-Claude Code:
-📁 Project: my-blog
-
-Tech stack:
-- Next.js + Tailwind CSS + Supabase
-
-Current phase: Core feature development
-Progress: 40% complete
-
-Recent decisions:
-- Adopted Supabase Auth
-- Using App Router
-```
 
 ---
 
