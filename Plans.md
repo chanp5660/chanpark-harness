@@ -53,6 +53,12 @@ Validation: team_validation_mode=subagent (architect + critic, 2026-07-03)
 | 5.3 | template-registry 정합: html 5종 등록 + $schema 포인터 해소(작성 또는 제거) + check-template-registry를 회귀 가드에 편입 `[tdd:skip:config-only]` | `scripts/ci/check-template-registry.sh` exit 0 | - | cc:done [533cab15] |
 | 5.4 | 소형 버그 일괄: session-state.sh 최상위 `local` 제거, hud-onboarding-nudge `/hud off` 후 재알림(옵트아웃 마커) + jq/grep null 판정 통일, `[claude-code-harness]` 브랜딩 stderr 3곳, plan-brief 문장분리(`.` 추가), Stop/PreCompact 프롬프트 마커 표기 정합 `[tdd:skip:no-test-framework-detected]` | 각 항목 재현 시나리오 통과 (session-state 오류경로 전이표 출력 등) | 2.2 | cc:done [306eefd1] |
 
+## Phase 6: 릴리스 후속 (post-v1.3.0)
+
+| Task | Description | DoD | Depends | Status |
+|------|-------------|-----|---------|--------|
+| 6.1 | 바이너리 비대상 핸들러의 잔여 **표시용** 일본어 영어화(P7) + 4플랫폼 재빌드. 보존 필수: 매칭용 별칭 리터럴(cc:完了/pm:依頼中/pm:確認済/cursor:*), locale=="ja" 분기, 입력 매칭 키워드(はい/いいえ 등), NER 태그 — PROVENANCE.md "Binary localization note" 규칙 준수 `[tdd:skip:build-artifact]` | verification V8 재실행 시 표시용 JP 문자열 0건 + 기존 8종 검증 회귀 없음 + upstream 테스트 그린 | 3.3 | cc:done [ff3ed0eb] |
+
 ---
 
 ## Marker Legend
