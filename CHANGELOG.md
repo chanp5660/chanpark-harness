@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-07-08
+
 ### Changed
 
 - Binaries rebuilt with patch P7: all remaining user-facing Japanese display strings
@@ -101,6 +103,7 @@ superseded by 1.3.0._
 Earlier releases (v1.0.0 – v1.2.1) predate this changelog; see the
 [GitHub releases](https://github.com/chanp5660/chanpark-harness/releases) and git history.
 
-[Unreleased]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/chanp5660/chanpark-harness/compare/v1.2.1...v1.3.0
 [1.2.2]: https://github.com/chanp5660/chanpark-harness/compare/v1.2.1...78b87488
