@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Binaries rebuilt with patch P7: all remaining user-facing Japanese display strings
+  translated to English (96 lines across 21 source files; display-category CJK now 0).
+  Preserved by design: legacy marker-alias literals (`cc:完了`, `pm:依頼中`, `cursor:*`),
+  `locale=="ja"` i18n branches, and input-matching keyword lists. Inventory and
+  verification: `docs/patches/binary-rebuild/{p7-classification,verification-6.1}.md`.
+
 ## [1.3.0] - 2026-07-07
 
 Remediation release from a max-effort multi-agent review: 20 tasks across 5 phases
