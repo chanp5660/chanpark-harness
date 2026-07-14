@@ -17,10 +17,20 @@ if /I "%PROCESSOR_ARCHITEW6432%"=="ARM64" set "ARCH=arm64"
 
 set "BINARY=%SCRIPT_DIR%harness-windows-%ARCH%.exe"
 
-if exist "%BINARY%" (
-  "%BINARY%" %*
-  exit /b %ERRORLEVEL%
-)
+rem No native arm64 binary is shipped (bin/ would grow ~11MB for every user, and
+rem every consumer clones the whole repo). Windows 11 on ARM runs the x64 build
+rem under emulation, so fall back to it rather than giving up. If an arm64 binary
+rem is ever added to bin/, the check above picks it up and this never fires.
+if not exist "%BINARY%" set "BINARY=%SCRIPT_DIR%harness-windows-amd64.exe"
 
+if not exist "%BINARY%" goto :nobinary
+
+rem Dispatch outside a parenthesized block on purpose: cmd.exe expands %ERRORLEVEL%
+rem when it PARSES a block, so `if exist (...) ... exit /b %ERRORLEVEL%` would return
+rem the errorlevel from before the binary ran, not the binary's own exit code.
+"%BINARY%" %*
+exit /b %ERRORLEVEL%
+
+:nobinary
 echo chanpark-harness: no binary for windows-%ARCH% at %BINARY% (command %1 skipped). 1>&2
 exit /b 0
