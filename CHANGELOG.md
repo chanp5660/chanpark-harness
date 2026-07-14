@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.4] - 2026-07-14
+
+### Added
+
+- `bin/harness.cmd` — a Windows shim, so a bare `harness <cmd>` works from cmd.exe and
+  PowerShell. `bin/` previously shipped only the extension-less `/bin/sh` shim plus the
+  platform `.exe`, and Windows' `PATHEXT` cannot resolve an extension-less file: with `bin/`
+  on PATH the command still failed, and `harness doctor` reported `[FAIL] bin/harness in
+  PATH`. The new shim mirrors the sh shim, including its contract on a missing binary
+  (diagnostic on stderr, empty stdout, `exit 0`, never JSON — so Claude Code hooks read it
+  as "no decision"). `.gitattributes` pins `*.cmd` to CRLF, which cmd.exe requires. Closes #2.
+
+### Fixed
+
+- The Windows shim now falls back to `harness-windows-amd64.exe` on ARM64. It resolved
+  `harness-windows-arm64.exe`, which is not shipped, and then gave up — even though Windows 11
+  on ARM runs the x64 build under emulation. Shipping a native arm64 binary would add ~11MB to
+  `bin/` for every user (consumers clone the whole repo), so the fallback buys ARM64 support at
+  zero size cost. If an arm64 binary is ever added, the arch check picks it up first.
+- The Windows shim propagates the binary's exit code. The dispatch sat inside an
+  `if exist (...)` block, and cmd.exe expands `%ERRORLEVEL%` when it *parses* a parenthesized
+  block — so `exit /b %ERRORLEVEL%` returned the errorlevel from before the binary ran, not the
+  binary's own. Hooks read that exit code to decide whether to act.
+
 ## [1.3.3] - 2026-07-14
 
 ### Fixed
@@ -160,7 +184,8 @@ superseded by 1.3.0._
 Earlier releases (v1.0.0 – v1.2.1) predate this changelog; see the
 [GitHub releases](https://github.com/chanp5660/chanpark-harness/releases) and git history.
 
-[Unreleased]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.3...HEAD
+[Unreleased]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.4...HEAD
+[1.3.4]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.3...v1.3.4
 [1.3.3]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.0...v1.3.1
