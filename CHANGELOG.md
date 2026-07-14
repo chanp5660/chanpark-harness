@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-07-14
+
+### Fixed
+
+- Stop / PreCompact WIP guard no longer fails on projects without a `Plans.md`. The two
+  haiku `agent` hooks (`Stop[0].hooks[3]`, `PreCompact[0].hooks[2]`) never defined a
+  file-absent branch, so the model improvised per run — either a bogus "cannot verify"
+  block, or a silent fail-open that would also mask a genuinely moved/unreadable
+  `Plans.md`. Both are replaced by the deterministic `scripts/hook-handlers/wip-guard.sh`,
+  which handles four explicit paths: file absent → silent allow (project does not use
+  harness planning; not an error), file unreadable → block with "WIP status unknown",
+  file clean → silent allow, WIP present → block (Stop) / warn (PreCompact). The
+  harness-loop lock-ownership suppression in PreCompact is preserved.
+- WIP detection no longer counts markers quoted inside a task's *description*. The status
+  is now read from the table row's status cell (last non-empty column) with inline code
+  spans stripped, fixing false "plans drift: WIP=n" reports on plans whose tasks discuss
+  the markers themselves.
+
+### Changed
+
+- `Plans.md` lookup order is now explicit: `$HARNESS_PLANS_FILE` → `<project>/Plans.md`
+  → `<project>/docs/Plans.md`. Previously undefined.
+- Replacing the two `agent` hooks with `command` hooks removes a haiku invocation on
+  every session stop and every compaction.
+- New opt-out: `HARNESS_DISABLE_WIP_GUARD=1` disables the guard.
+
 ## [1.3.1] - 2026-07-08
 
 ### Changed
@@ -103,7 +129,8 @@ superseded by 1.3.0._
 Earlier releases (v1.0.0 – v1.2.1) predate this changelog; see the
 [GitHub releases](https://github.com/chanp5660/chanpark-harness/releases) and git history.
 
-[Unreleased]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.2...HEAD
+[1.3.2]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/chanp5660/chanpark-harness/compare/v1.2.1...v1.3.0
 [1.2.2]: https://github.com/chanp5660/chanpark-harness/compare/v1.2.1...78b87488
