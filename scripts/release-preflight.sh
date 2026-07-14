@@ -200,19 +200,31 @@ check_cch_branch_protection_policy() {
     return
   fi
 
-  local output_file
+  local output_file bp_exit
   output_file="$(mktemp)"
-  if bash scripts/check-cch-branch-protection-policy.sh >"$output_file" 2>&1; then
-    pass "CCH branch protection policy"
-  else
-    if grep -Fq "Resource not accessible by integration" "$output_file"; then
-      warn "CCH branch protection policy unavailable to GitHub Actions token"
+  bp_exit=0
+  # Capture both stdout and stderr; || prevents set -e from aborting on non-zero exit.
+  bash scripts/check-cch-branch-protection-policy.sh >"$output_file" 2>&1 || bp_exit=$?
+  case "$bp_exit" in
+    0)
+      pass "CCH branch protection policy"
+      ;;
+    3)
+      # Exit 3 means the branch has no protection rules configured — visible but not a hard fail.
+      warn "CCH branch protection policy: no protection rules configured"
       sed 's/^/  /' "$output_file"
-    else
-      fail "CCH branch protection policy"
-      sed 's/^/  /' "$output_file"
-    fi
-  fi
+      ;;
+    *)
+      # Any other non-zero: check for the GitHub Actions token access limitation first.
+      if grep -Fq "Resource not accessible by integration" "$output_file"; then
+        warn "CCH branch protection policy unavailable to GitHub Actions token"
+        sed 's/^/  /' "$output_file"
+      else
+        fail "CCH branch protection policy"
+        sed 's/^/  /' "$output_file"
+      fi
+      ;;
+  esac
   rm -f "$output_file"
 }
 

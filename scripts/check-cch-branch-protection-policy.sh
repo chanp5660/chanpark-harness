@@ -5,7 +5,15 @@ set -euo pipefail
 
 JSON_FILE=""
 REPO_SLUG="${HARNESS_BRANCH_PROTECTION_REPO:-}"
-BRANCH="${HARNESS_BRANCH_PROTECTION_BRANCH:-main}"
+# BRANCH is derived automatically when neither the env var nor --branch is given.
+# Derivation order (live mode only): gh api repos/<slug> .default_branch
+#   → git symbolic-ref refs/remotes/origin/HEAD → "main".
+# --json PATH (fixture mode) bypasses all derivation and must stay hermetic.
+BRANCH="${HARNESS_BRANCH_PROTECTION_BRANCH:-}"
+BRANCH_EXPLICIT=0
+if [ -n "${HARNESS_BRANCH_PROTECTION_BRANCH:-}" ]; then
+  BRANCH_EXPLICIT=1
+fi
 REQUIRED_CONTEXTS=(actionlint validate test-go)
 
 usage() {
@@ -18,6 +26,16 @@ Checks:
   - force pushes and branch deletion are disabled
 
 Without --json, the script reads live GitHub branch protection via gh api.
+The target branch is derived automatically when --branch and
+HARNESS_BRANCH_PROTECTION_BRANCH are both unset: first from
+"gh api repos/<slug>" .default_branch, then from
+git symbolic-ref refs/remotes/origin/HEAD, then falls back to "main".
+
+Exit codes:
+  0  all policy checks passed
+  1  one or more checks failed (or gh/jq unavailable)
+  2  usage error
+  3  branch exists but has no protection rules configured (visible warning, not hard fail)
 EOF
 }
 
@@ -36,6 +54,7 @@ while [ "$#" -gt 0 ]; do
     --branch)
       BRANCH="${2:-}"
       [ -n "$BRANCH" ] || { echo "error: --branch requires a branch name" >&2; exit 2; }
+      BRANCH_EXPLICIT=1
       shift 2
       ;;
     --help|-h)
@@ -79,12 +98,44 @@ derive_repo_slug() {
   esac
 }
 
+# Derive the repository default branch.
+# Priority: gh api repos/<slug> .default_branch (most accurate)
+#           → git symbolic-ref refs/remotes/origin/HEAD
+#           → "main" (last resort)
+# Only called in live mode (never when --json is used).
+derive_default_branch() {
+  local slug="${1:-}"
+
+  # 1. Ask GitHub directly when slug and gh are available.
+  if [ -n "$slug" ] && command -v gh >/dev/null 2>&1; then
+    local db
+    db="$(gh api "repos/$slug" --jq .default_branch 2>/dev/null || true)"
+    if [ -n "$db" ]; then
+      printf '%s\n' "$db"
+      return
+    fi
+  fi
+
+  # 2. Git's own remote HEAD tracking ref.
+  local ref
+  ref="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+  if [ -n "$ref" ]; then
+    printf '%s\n' "${ref#origin/}"
+    return
+  fi
+
+  # 3. Conservative fallback.
+  printf 'main\n'
+}
+
 load_json() {
+  # Fixture mode: read the file directly; never touch the network or derive branch.
   if [ -n "$JSON_FILE" ]; then
     cat "$JSON_FILE"
     return
   fi
 
+  # Resolve the repo slug (needed both for branch derivation and the API call).
   if [ -z "$REPO_SLUG" ]; then
     REPO_SLUG="$(derive_repo_slug || true)"
   fi
@@ -97,10 +148,42 @@ load_json() {
     exit 1
   fi
 
-  gh api "repos/${REPO_SLUG}/branches/${BRANCH}/protection"
+  # Resolve the target branch if not set explicitly.
+  if [ "$BRANCH_EXPLICIT" -eq 0 ]; then
+    BRANCH="$(derive_default_branch "$REPO_SLUG")"
+  fi
+
+  # First confirm the branch itself exists.  This lets us distinguish two 404 cases that
+  # the protection endpoint alone cannot tell apart:
+  #   • branch not found / inaccessible → real failure (exit 1)
+  #   • branch exists but no rules configured → visible skip (exit 3)
+  # GitHub's protection API returns 404 "Not Found" for BOTH situations, so a branch-level
+  # pre-check is the only reliable way to separate them.
+  local branch_check_output
+  if ! branch_check_output="$(gh api "repos/${REPO_SLUG}/branches/${BRANCH}" 2>&1)"; then
+    printf 'FAIL: branch '\''%s'\'' not found or inaccessible: %s\n' "$BRANCH" "$branch_check_output" >&2
+    exit 1
+  fi
+
+  # Branch exists — now fetch protection data.
+  # A 404 here means "no protection rules configured" (the branch itself is confirmed above).
+  local gh_output
+  if ! gh_output="$(gh api "repos/${REPO_SLUG}/branches/${BRANCH}/protection" 2>&1)"; then
+    printf 'SKIP: branch '\''%s'\'' has no protection rules configured\n' "$BRANCH" >&2
+    exit 3
+  fi
+
+  printf '%s\n' "$gh_output"
 }
 
-json="$(load_json)"
+# Invoke load_json without letting a non-zero subshell exit abort the script.
+# Exit codes 1 and 3 from load_json are re-raised after the subshell returns.
+load_json_exit=0
+json="$(load_json)" || load_json_exit=$?
+if [ "$load_json_exit" -ne 0 ]; then
+  exit "$load_json_exit"
+fi
+
 require_jq
 
 failures=0

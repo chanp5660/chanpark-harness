@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-07-14
+
+### Fixed
+
+- **`wip-guard.sh` no longer blocks the Stop hook forever.** The guard introduced in 1.3.2
+  was written against the *table* dialect of `Plans.md` and broke the *checklist* dialect —
+  the one `templates/Plans.md.template` itself emits. Three defects, all user-visible:
+  - It stripped inline code spans from the whole line before matching, which destroyed the
+    marker in `- [ ] Task \`cc:wip\``. Genuinely in-progress tasks went undetected.
+  - It counted HTML comment lines (`<!-- cc:wip ... -->`) as WIP tasks. Since
+    `templates/Plans.md.template` ships such a comment, **every project scaffolded from the
+    template blocked its Stop hook out of the box**, reporting a phantom task by line number.
+  - It ignored `stop_hook_active` in the Stop payload, so once it blocked it re-blocked on
+    every retry — an unbreakable loop with no way out short of disabling the guard.
+
+  Detection is now dialect-aware: HTML comments and fenced code blocks are skipped; table
+  rows read the status from the last non-empty cell (code spans stripped per-cell, so a
+  description quoting a marker cannot shadow the real status); checklist items keep their
+  code spans and take the **last** `cc:` marker on the line as the status. `stop_hook_active:
+  true` now allows immediately, breaking the loop.
+- WIP task lists in the block/warn message are joined correctly. `paste -sd ', '` treats its
+  argument as a *rotating* delimiter list under POSIX, so three tasks rendered as `a,b c`.
+  Lists are now comma-separated, and a truncated list says how many more were omitted rather
+  than silently showing the first 20.
+- `check-cch-branch-protection-policy.sh` no longer fails on every repository whose default
+  branch is not `main`. The branch is derived (`gh api .default_branch` → `origin/HEAD` →
+  `main`), and "branch not found" (a real error, exit 1) is now distinguished from "branch
+  has no protection rules configured" (exit 3), which `release-preflight.sh` reports as a
+  warning instead of a hard failure. Previously `set -euo pipefail` aborted on the `gh` 404
+  before any check ran, so the failure carried no diagnostic at all.
+
 ## [1.3.2] - 2026-07-14
 
 ### Fixed
@@ -129,7 +160,8 @@ superseded by 1.3.0._
 Earlier releases (v1.0.0 – v1.2.1) predate this changelog; see the
 [GitHub releases](https://github.com/chanp5660/chanpark-harness/releases) and git history.
 
-[Unreleased]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.2...HEAD
+[Unreleased]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.3...HEAD
+[1.3.3]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/chanp5660/chanpark-harness/compare/v1.2.1...v1.3.0
