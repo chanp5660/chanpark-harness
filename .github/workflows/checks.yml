@@ -42,8 +42,15 @@ jobs:
       - name: Release version surfaces agree
         run: python3 scripts/check-release-version-sync.py
 
+      # doctor's "bin/harness in PATH" check asks whether a harness binary is
+      # reachable on $PATH. On a workstation that is satisfied by the installed
+      # plugin cache copy; a clean runner has no installed plugin, so bin/ has to
+      # go on PATH for the check to have anything to find. Reproduced locally by
+      # stripping the cache entry from PATH.
       - name: harness doctor
-        run: CLAUDE_PLUGIN_ROOT="$PWD" ./bin/harness doctor
+        run: |
+          export PATH="$PWD/bin:$PATH"
+          CLAUDE_PLUGIN_ROOT="$PWD" ./bin/harness doctor
 
       - name: harness validate
         run: CLAUDE_PLUGIN_ROOT="$PWD" ./bin/harness validate
