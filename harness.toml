@@ -14,6 +14,9 @@ outputStyles = "./output-styles/"
 
 [project.author]
 name = "ChanPark"
+# The binary's sync emits only name/url here — an `email` key is read but never
+# written to plugin.json, so keeping one would be inert config that silently
+# loses the value on the next sync.
 url = "https://github.com/chanp5660"
 
 [env]

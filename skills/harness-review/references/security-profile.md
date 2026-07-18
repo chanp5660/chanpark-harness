@@ -3,9 +3,47 @@
 A security-dedicated review profile invoked by `harness-review --security`.
 Based on OWASP Top 10, it comprehensively checks authentication, authorization, secrets, and dependency vulnerabilities.
 
+## Review scope (authorized defensive review)
+
+This profile is authorized to review **the chanpark-harness plugin's own code and any
+project the user has explicitly designated as a review target**, from the perspective of
+**authorized defensive code review**. Generating attack code, assisting intrusion into
+third-party systems, and probing unauthorized systems for vulnerabilities are outside this
+profile's scope. **Findings describe what is weak and how to fix it — they do not include
+executable exploit payloads or attack PoC**. This is audit-only behavior; the agent does
+not send requests or launch processes.
+
+This scope declaration is the formal response to issue #172 (cases where the reviewer's
+security review false-triggers Anthropic's cyber-safeguard).
+
 > **Read-only constraint**: Reviewers operating under this profile
 > use only Read / Grep / Glob / Bash (read-only commands).
 > Write / Edit / write-side Bash commands are never executed.
+
+---
+
+## Fresh-context isolation and findings feedback contract (model-safeguard mitigation)
+
+Anthropic's cyber-safeguard evaluates not only the latest message but the **entire context
+the model reads** (conversation history, memory, already-read files, git status). Because
+security reviews structurally contain dense security vocabulary, the following mitigations
+are fixed. These are mitigations, not guarantees.
+
+1. **Isolated execution**: security review runs under `context: fork`
+   (`skills/harness-review/SKILL.md` frontmatter), so it does not inherit the parent
+   conversation history. The reviewer subagent is **pinned to a non-Fable model** in
+   `agents/reviewer.md` and does not inherit the parent model. Together these structurally
+   reduce the volume of security vocabulary the classifier reads.
+
+2. **Neutral findings feedback**: what is returned to the parent orchestrator is limited to
+   **verdict (`APPROVE | REQUEST_CHANGES`) + count + `file:line` reference +
+   a one-line remediation**. Exploit payloads, PoC code, and verbatim threat scenario text
+   must not flow into the parent context (`review-result.v1` `critical_issues[]` /
+   `major_issues[]` use `file:line` + a short remediation). Verbatim dumps are the primary
+   cause of flipping the parent session model.
+
+3. **Model pin is a safeguard invariant**: the `model:` field in `agents/reviewer.md` must
+   not be changed to `inherit` or a Fable-tier model.
 
 ---
 

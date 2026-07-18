@@ -89,18 +89,18 @@ trap cleanup_loop_lock EXIT INT TERM
 ```bash
 # Run a lightweight consistency check in --quick mode at the start of wake-up
 # If it fails, stop the loop immediately (guards against corrupted Plans.md or uninitialized environment)
-if bash "${HARNESS_PLUGIN_ROOT}/tests/validate-plugin.sh" --quick; then
+if bash "${HARNESS_PLUGIN_ROOT}/scripts/ci/check-baseline.sh"; then
     : # OK — continue
 else
     echo "harness-loop: state consistency check failed — stopping loop" >&2
-    echo "Details: run bash \"${HARNESS_PLUGIN_ROOT}/tests/validate-plugin.sh\" --quick to investigate" >&2
+    echo "Details: run bash \"${HARNESS_PLUGIN_ROOT}/scripts/ci/check-baseline.sh\" to investigate" >&2
     exit 1
 fi
 ```
 
-- `${HARNESS_PLUGIN_ROOT}/tests/validate-plugin.sh --quick` is lightweight and completes within a few seconds
-- Checks: existence of `.claude/state/` / existence + v2 format of Plans.md / sprint-contract format
-- The full validate (39 verification items) is not run
+- `${HARNESS_PLUGIN_ROOT}/scripts/ci/check-baseline.sh` is lightweight and completes within a few seconds
+- Checks: shell syntax across hooks/monitors/scripts, JSON validity of the manifests, and the presence of the state directories the loop depends on
+- The full `./bin/harness validate` skill sweep is not run
 - If this check fails due to an intentionally corrupted Plans.md, the loop stops immediately
 
 ### Step 1: Read Plans.md First

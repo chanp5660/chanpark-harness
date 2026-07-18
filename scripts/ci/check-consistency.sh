@@ -6,6 +6,24 @@
 # Exit codes:
 #   0 - All checks passed
 #   1 - Inconsistencies found
+#
+# ---------------------------------------------------------------------------
+# FORK NOTE (chanpark-harness, 2026-07-18)
+#
+# This is an UNPORTED upstream script. It currently reports ~44 problems and
+# exits 1 BY DESIGN in this fork: its remaining assertions target upstream-only
+# assets that chanpark-harness deliberately does not ship —
+#   - templates/locales/ja/*      (this fork is English-only)
+#   - templates/cursor/*          (Cursor mirror not ported)
+#   - dual description-ja / description-en SKILL.md metadata
+#   - upstream README.md marketing strings and release links
+#   - tests/test-i18n-*.sh and tests/test-setup-language-rendering.sh
+#
+# Do NOT wire this into a merge gate or CI required check — see the gate table
+# in skills/harness-work/SKILL.md for the checks that are actually green here.
+# Keep the file: the Go binary references this path. Run it for information
+# only, or as the starting point if the upstream-only checks are ever pruned.
+# ---------------------------------------------------------------------------
 
 set -euo pipefail
 

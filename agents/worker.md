@@ -10,7 +10,7 @@ tools:
   - Glob
 disallowedTools:
   - Agent
-model: claude-sonnet-4-6
+model: claude-sonnet-5
 effort: medium
 maxTurns: 100
 color: yellow
@@ -293,7 +293,7 @@ git switch -c harness-work/<task-id>
     { "rule": "plans-cc-markers-untouched", "verified": true, "evidence": "git diff HEAD -- Plans.md | grep -E '^[+-].*cc:' → 0 lines" },
     { "rule": "all-declared-symbols-called", "verified": true, "evidence": "Newly exported symbols are referenced from tests/ or docs (paths confirmed via grep)" },
     { "rule": "dod-items-verified-with-evidence", "verified": true, "evidence": "Actual command output or literal test results attached to briefing for each DoD item (a)(b)(c)" },
-    { "rule": "no-existing-test-regression", "verified": true, "evidence": "bash tests/validate-plugin.sh → PASS, bash scripts/ci/check-consistency.sh → PASS" },
+    { "rule": "no-existing-test-regression", "verified": true, "evidence": "bash scripts/ci/check-baseline.sh → PASS, bash scripts/ci/check-regression-guard.sh → PASS, CLAUDE_PLUGIN_ROOT=\"$PWD\" ./bin/harness validate → PASS" },
     { "rule": "tdd-red-evidence-attached", "verified": true, "evidence": "FAIL record present in .claude/state/tdd-red-log/43.3.1.jsonl, or literal failing test output attached to worker-report" }
   ]
 }
@@ -307,7 +307,7 @@ git switch -c harness-work/<task-id>
 | `plans-cc-markers-untouched` | Worker has not overwritten cc:* marker lines in Plans.md | Result of grepping `git diff HEAD -- Plans.md` with the NG-1 regex |
 | `all-declared-symbols-called` | New exports / functions / classes have a call path from tests / docs / other modules | List of call sites from `grep -rn <symbol>` |
 | `dod-items-verified-with-evidence` | Each DoD item has a corresponding execution command or literal evidence | Command output, file diff, tests PASS line |
-| `no-existing-test-regression` | All existing tests PASS, validate-plugin.sh PASS | Final line of `bash tests/validate-plugin.sh` |
+| `no-existing-test-regression` | All existing tests PASS, baseline + regression guards PASS | Final line of `bash scripts/ci/check-baseline.sh` and `bash scripts/ci/check-regression-guard.sh` |
 | `tdd-red-evidence-attached` | Active only when `tdd.enforce.enabled=true`. Evidence that a failing test was confirmed before implementation for a TDD-required task | FAIL record in `.claude/state/tdd-red-log/<task-id>.jsonl`, or literal failing test output |
 
 Per-project additional rules are overridden via `[worker.self_review]` in `harness.toml` (`harness-setup init` generates a template).

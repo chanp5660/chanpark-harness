@@ -64,11 +64,20 @@ Before merging Worker output into main, Lead must pass a **two-stage gate: visua
 | Gate | Command | What it detects |
 |--------|----------|----------------|
 | Visual diff | `git show <sha>` | Whether changes are as intended, no unintended file touches, support tier wording unchanged |
-| Contract grep | `bash tests/test-support-claim-wording.sh` | Breakage of public support claim wording |
-| Contract grep | `bash scripts/ci/check-consistency.sh` | Breakage of fixed-string contracts in i18n / locale / mirror / capability matrix |
-| Contract grep | `bash tests/validate-plugin.sh` | Plugin distribution contract and hook wiring |
+| Contract grep | `bash scripts/ci/check-baseline.sh` | Shell/JSON syntax breakage across hooks, monitors, and scripts |
+| Contract grep | `bash scripts/ci/check-regression-guard.sh` | Identity drift (harness.toml vs plugin.json), absolute-path greps, sync creating `.claude-plugin/hooks.json`, CJK in English-only paths |
+| Contract grep | `bash scripts/ci/check-template-registry.sh` | Template registry drift |
+| Contract grep | `python3 scripts/check-release-version-sync.py` | The four version surfaces disagreeing |
+| Manifest | `CLAUDE_PLUGIN_ROOT="$PWD" ./bin/harness doctor` | Config, hook wiring, and manifest sanity |
+| Skills | `CLAUDE_PLUGIN_ROOT="$PWD" ./bin/harness validate` | SKILL.md validity across all skills |
 
 **Cherry-pick only when all gates PASS**.
+
+> `scripts/ci/check-consistency.sh` is deliberately **not** a gate here. It is an
+> unported upstream script whose remaining assertions target upstream-only assets
+> (`templates/locales/ja/`, `templates/cursor/`, dual `description-ja`/`description-en`
+> metadata, upstream README strings, i18n test scripts we never ported). It exits 1 by
+> design in this fork. Run it for information, never as a merge condition.
 
 ## Options
 

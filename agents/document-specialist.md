@@ -1,7 +1,7 @@
 ---
 name: document-specialist
 description: Finds and synthesizes information from local repo docs, curated documentation backends, and official external references for API/framework/package research.
-model: claude-sonnet-4-6
+model: claude-sonnet-5
 effort: medium
 disallowedTools:
   - Write

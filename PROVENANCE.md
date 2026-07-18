@@ -34,13 +34,16 @@ next update from here, then bump it.
 | upstream | baseline SHA | tag | recorded |
 |----------|--------------|-----|----------|
 | harness | `c220671ec53e9bb298b6f2a473950024caee78a9` | v4.16.4 | 2026-07-07 |
-| omc | `50f6ff05eb5d9ebed66f05d8c4580c0b119f37af` | v4.14.7 | 2026-06-19 |
+| omc | `590fb988931d34a12604be0ca4215c818079018e` | v4.15.4 | 2026-07-18 |
 
-> ⚠️ **Honest caveat, updated 2026-07-07.** The harness baseline is now a **verified
+> ⚠️ **Honest caveat, updated 2026-07-18.** The harness baseline is a **verified
 > reconcile point for `go/` (the built binaries) only** — see "Binary rebuild" below. The
 > md/script components remain the original manual port and were never re-reconciled;
 > treat their next sync as the one-time **catch-up review** (diff the full range, decide
-> per file). The omc SHA is still the 2026-06-19 observed HEAD, not a verified point.
+> per file). The omc baseline was bumped to `590fb988` (v4.15.4, 2026-07-18): the
+> **specifically ported agents and skills** had zero commits in the 50f6ff05..590fb988
+> range (verified by path-restricted `git log`). **Non-ported omc skills did change** in
+> that range; those are outside our scope and were not reviewed.
 
 ## Component → upstream map
 
@@ -54,16 +57,25 @@ actually ported.
 - `monitors/monitors.json` — `harness-session-monitor` (auto-armed, `when: always`); SSOT is
   the file, not `plugin.json` (upstream deliberately removed the `monitors` manifest block)
 - `agents/`: `worker.md`, `reviewer.md`, `advisor.md`
-- `skills/`: `harness-*`, `session*`, `memory`, `maintenance`, `hud`, `principles`,
-  `routing-rules.md`, `workflow-guide`, `vibecoder-guide`
+- `skills/`: `harness-*`, `session`, `memory`, `maintenance`, `breezing`, `ci`, `ui`,
+  `routing-rules.md`
+  - *Removed 2026-07-07 (dead-code pruning)*: `principles`, `workflow-guide`,
+    `vibecoder-guide`, `session-control`, `session-state` — absent from this repo;
+    do not scope these paths in reconcile diffs
 - `output-styles/`, `templates/`, `scripts/` (some retain upstream JP comments)
 
 ### From omc (gap-filler)
 - `agents/`: `architect.md`, `analyst.md`, `debugger.md`, `document-specialist.md`,
   `explore.md`, `git-master.md`, `qa-tester.md`, `security-reviewer.md`,
   `test-engineer.md`, `writer.md`
-- `skills/`: `ai-slop-cleaner`, `breezing`, `ci`, `deep-interview`, `skill`, `skillify`,
-  `trace`, `agent-browser`, `ui`, and other non-`harness-*` gap skills
+- `skills/`: `ai-slop-cleaner`, `deep-interview`, `skill`, `skillify`, `trace`
+  - *Removed 2026-07-07 (dead-code pruning)*: `agent-browser` — absent from this repo
+
+### Locally authored (no upstream source)
+- `skills/hud`, `hud/statusline.sh` — written in commit `bdb0621e` (2026-06-18) as a
+  portable bash+jq replacement for omc's Node-bound HUD (`dist/hud/index.js`). Absent
+  from harness baseline `c220671e`; our implementation is unrelated to omc's version.
+  Do not diff either upstream for this path.
 
 > Some files are blended (e.g. a harness skill with omc ideas grafted in). When a file's
 > origin is ambiguous, check both upstreams' diffs before porting.
@@ -176,6 +188,17 @@ rather than absorb them here (absorption adds localization + rebrand + maintenan
 Only fold a component into this repo when it fills a plan-work-review workflow gap *and*
 benefits from unified naming / model routing enough to justify the transform cost.
 
+### Declined port — omc `merge-readiness` (2026-07-18)
+
+The omc `skills/merge-readiness/SKILL.md` (added in the 50f6ff05..590fb988 range) requires:
+- `src/hooks/merge-readiness/*.ts` (e.g. `mcq.ts`) compiled and served as MCP tools
+  (`merge_readiness_start` and at least 3 sibling tools) — violates the no-build portability rule
+- State persistence under `.omc/state/` (omc-branded path requiring rebranding)
+- `OMC_*` environment variables
+
+Declined 2026-07-18. Revisit if omc ships a build-free variant (pure-markdown skill with
+LLM-side scoring, no compiled hook code).
+
 ## Dead-code pruning — 2026-07-07 (task 4.2)
 
 Removed ~96 dead upstream scripts and 8 skill directories per analysis in
@@ -193,6 +216,21 @@ Removed ~96 dead upstream scripts and 8 skill directories per analysis in
 - **Skills fixed** (1): `ui` — `disable-model-invocation` set to `false` so the skill is
   model-invocable as documented in the skills-gate template.
 - Skill count after pruning: 30 → 22.
+
+## Ours-only, upstream-deleted components
+
+The following files we carry are **absent from the harness upstream** at the current
+reconcile point. A future reconcile must NOT treat their absence in upstream diffs as a
+missing port — they are intentionally kept here.
+
+| file / path | deleted upstream | notes |
+|-------------|-----------------|-------|
+| `skills/session/` | commit `12311072` (Phase 91.7, 2026-06-06) | actively used skill |
+| `scripts/check-residue.sh` | commit `12311072` (same batch) | live CI helper |
+| `scripts/session-relay-send.sh` | absent from harness HEAD; present at baseline `c220671e` | live session relay helper |
+| `scripts/session-relay-watch.sh` | absent from harness HEAD; present at baseline `c220671e` | live session relay helper |
+
+Do **not** delete these files during a reconcile pass.
 
 ## Binary rebuild — harness baseline bump (2026-07-07)
 
@@ -226,3 +264,22 @@ The previously committed binaries (built 2026-06-19) did **not** correspond to a
 ### Upstream reconcile note
 
 Future upstream pulls of `go/` should diff from `c220671e` (v4.16.4) and re-apply the patch set above; re-run the 3.3 verification suite (`docs/…/verification-3.3.md` procedure) after any rebuild.
+
+## Divergence decision — 2026-07-18
+
+The harness upstream is at **v5.2.0** (`harness-upstream/main`, +469 commits from our
+baseline `c220671e`). The divergence is heavily concentrated in `go/` (109 commits,
++25,476/−2,699 lines). The md/script surfaces we ported are near-unchanged.
+
+**Why we do not chase upstream:**
+
+- `go/cmd/harness/sync.go:166–167` at v5.2.0 **still copies `hooks/hooks.json` into
+  `.claude-plugin/`** — the duplication our patch P3 removed.
+- `go/internal/plans/plans.go` at v5.2.0 **still uses uppercase `cc:TODO` and Japanese
+  `cc:完了` as first-class primary markers** — the case-sensitivity our patch P1 fixed.
+- `go/cmd/harness/sync.go` at v5.2.0 **still drops unknown `plugin.json` fields** such
+  as `displayName` and `defaultEnabled` — the preservation our patch P6 added.
+
+Re-porting `go/` at this point would require re-applying all of patches P1–P6. Decision:
+**hold as an intentional fork**; port selectively when specific upstream fixes are
+relevant; do not chase version parity.

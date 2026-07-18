@@ -17,7 +17,7 @@ Validation: team_validation_mode=subagent (architect + critic, 2026-07-03)
 | 1.2 | 정체성 정렬 일괄: harness.toml `[project]` name/version/homepage/repository/author → chanpark-harness/1.2.2/ChanPark **및** scripts/sync-plugin-cache.sh의 grep(`claude-code-harness`)·PLUGIN_NAME·MARKETPLACE_NAME·VERSION 소스(→plugin.json 버전) 수정 `[tdd:skip:no-test-framework-detected]` | 샌드박스 사본에서 `harness sync` 후 plugin.json 정체성 유지 + `hook setup-init` exit 0·캐시 동기화 수행 (실저장소 sync는 금지 유지) | 1.1 | cc:done [646d43f8] |
 | 1.3 | hooks.json(65)·monitors.json(1)의 `/usr/bin/grep` → PATH `grep` 치환 `[tdd:skip:no-test-framework-detected]` | `grep -c '/usr/bin/grep' hooks/hooks.json monitors/monitors.json` = 0 + 샌드박스 훅 커맨드 시뮬 정상 실행 | 1.1 | cc:done [b1159579] |
 | 1.4 | release-preflight.sh PROJECT_ROOT 기본값을 `$(pwd)`로 (SKILL.md:454 문서와 일치; 현재는 플러그인 체크아웃 자체를 검사) `[tdd:skip:no-test-framework-detected]` | 외부 디렉터리에서 인자 없이 실행 시 그 디렉터리를 검사함을 실행으로 확인 | 1.1 | cc:done [2b7f1966] |
-| 1.5 | progress-snapshot.sh 파서 수정: 체크리스트 형식(`- [ ] … cc:todo`)·T001형 ID 파싱 + cc:blocked 분류를 카운트/total/alerts에 반영 `[tdd:skip:no-test-framework-detected]` | 픽스처 Plans.md에서 todo/wip/done/blocked 4값 정확 + blocked>0 시 pct<100 및 alerts 비어있지 않음 | 1.1 | cc:done [2fb3396b] |
+| 1.5 | progress-snapshot.sh 파서 수정: 체크리스트 형식(`- [ ] … cc&#58;todo`)·T001형 ID 파싱 + cc&#58;blocked 분류를 카운트/total/alerts에 반영 `[tdd:skip:no-test-framework-detected]` | 픽스처 Plans.md에서 todo/wip/done/blocked 4값 정확 + blocked>0 시 pct<100 및 alerts 비어있지 않음 | 1.1 | cc&#58;done [2fb3396b] |
 | 1.6 | hud/statusline.sh 하드닝: per-user 0700 캐시 디렉터리 + 원자적 쓰기(mktemp+mv, statusline-harness.sh의 강화 패턴 이식) + BRANCH/SHA 기본값 + `%b`→`%s` + CHANPARK_HUD_GIT_CACHE 오버라이드 소유권 검증 `[tdd:skip:no-test-framework-detected]` | 리뷰 재현 3종(chmod 000 캐시 / 심링크 클로버 / `\n` 포함 WIP 제목) 전건 통과, statusline 정상 출력 | 1.1 | cc:done [413f1902] |
 
 ## Phase 2: 마커 스펙 정합 (Required)
@@ -25,13 +25,13 @@ Validation: team_validation_mode=subagent (architect + critic, 2026-07-03)
 | Task | Description | DoD | Depends | Status |
 |------|-------------|-----|---------|--------|
 | 2.1 | 마커 스펙 확정 + CLAUDE.md 정정 (Spec delta 적용): canonical 소문자 유지 선언, 바이너리 실측 행동 정밀 기술(**카운터 경로는 case-sensitive·cc:done 미집계** — 일부 개별 매처만 `(?i)`), scripts/ "binary fallbacks" 서술을 실제 역할로 정정, sync 금지 게이트 문서화 `[tdd:skip:docs-only]` | CLAUDE.md에 실측과 불일치하는 서술 0건 (리뷰 증거 대조) | - | cc:done [db590669] |
-| 2.2 | 스킬·템플릿 마커 표기 통일: `cc:Done` 전면 제거, harness-work/plan/loop/principles/progress + templates/rules·AGENTS.md.template를 Plans.md.template(소문자 canonical)과 정합 + plan-brief-context schema enum(소문자화·cc:blocked 추가)·plan-brief-compile done-rate(cc:完了→영어) 수정 `[tdd:skip:docs-only]` | 마커 lint(1.1 가드)에 `cc:Done` 0건 + 표기 규약 단일 grep 검사 통과 | 2.1 | cc:done [cfc03692] |
+| 2.2 | 스킬·템플릿 마커 표기 통일: `cc&#58;Done` 전면 제거, harness-work/plan/loop/principles/progress + templates/rules·AGENTS.md.template를 Plans.md.template(소문자 canonical)과 정합 + plan-brief-context schema enum(소문자화·cc&#58;blocked 추가)·plan-brief-compile done-rate(cc&#58;完了→영어) 수정 `[tdd:skip:docs-only]` | 마커 lint(1.1 가드)에 `cc&#58;Done` 0건 + 표기 규약 단일 grep 검사 통과 | 2.1 | cc&#58;done [cfc03692] |
 
 ## Phase 3: 바이너리 재빌드 — 결정 게이트 (Required, 착수 전 사용자 승인)
 
 | Task | Description | DoD | Depends | Status |
 |------|-------------|-----|---------|--------|
-| 3.1 | upstream 캐치업 조사 + 패치 세트: PROVENANCE.md 절차로 Go 소스 확보, 발산도 평가(대규모 발산·cgo 의존 추가 시 **폴백**: bash 래퍼 후처리 전략을 보고하고 재결정). 패치 범위: 카운터 `(?i)` + cc:done + cc:blocked 집계, 일본어 사용자 문자열 영어화(pm:requested/pm:approved 범례), ci-cd-fixer 스티어링 제거, sync의 `.claude-plugin/hooks.json` 중복 생성 제거, setup-codex/opencode 참조 정리 `[tdd:skip:upstream-source]` | 패치 diff 작성 완료 + 발산도 리포트 승인 | 2.1 | cc:done |
+| 3.1 | upstream 캐치업 조사 + 패치 세트: PROVENANCE.md 절차로 Go 소스 확보, 발산도 평가(대규모 발산·cgo 의존 추가 시 **폴백**: bash 래퍼 후처리 전략을 보고하고 재결정). 패치 범위: 카운터 `(?i)` + cc&#58;done + cc&#58;blocked 집계, 일본어 사용자 문자열 영어화(pm&#58;requested/pm&#58;approved 범례), ci-cd-fixer 스티어링 제거, sync의 `.claude-plugin/hooks.json` 중복 생성 제거, setup-codex/opencode 참조 정리 `[tdd:skip:upstream-source]` | 패치 diff 작성 완료 + 발산도 리포트 승인 | 2.1 | cc&#58;done |
 | 3.2 | 4플랫폼 재빌드(CGO_ENABLED=0) + bin/ 커밋(0755, .gitattributes) — Optional: linux-arm64 신규 추가(~16MB 증가, 별도 승인) `[tdd:skip:build-artifact]` | 각 바이너리 `grep -a` CJK 0건 + 샌드박스에서 소문자 Plans.md 카운트 정상 | 3.1 | cc:done [861b2f34] |
 | 3.3 | 재빌드 검증 + sync 금지 해제: 재현 스위트(1.1) 전건 통과 — session-init 범례 영어, 소문자/cc:done/cc:blocked 카운트, sync 정체성 유지·중복 파일 미생성 `[tdd:skip:verification-task]` | 회귀 가드 + 재현 스위트 exit 0, Plans.md 상단 sync 금지 문구 제거 | 3.2 | cc:done [95b7ff5e] |
 
@@ -57,7 +57,7 @@ Validation: team_validation_mode=subagent (architect + critic, 2026-07-03)
 
 | Task | Description | DoD | Depends | Status |
 |------|-------------|-----|---------|--------|
-| 6.1 | 바이너리 비대상 핸들러의 잔여 **표시용** 일본어 영어화(P7) + 4플랫폼 재빌드. 보존 필수: 매칭용 별칭 리터럴(cc:完了/pm:依頼中/pm:確認済/cursor:*), locale=="ja" 분기, 입력 매칭 키워드(はい/いいえ 등), NER 태그 — PROVENANCE.md "Binary localization note" 규칙 준수 `[tdd:skip:build-artifact]` | verification V8 재실행 시 표시용 JP 문자열 0건 + 기존 8종 검증 회귀 없음 + upstream 테스트 그린 | 3.3 | cc:done [ff3ed0eb] |
+| 6.1 | 바이너리 비대상 핸들러의 잔여 **표시용** 일본어 영어화(P7) + 4플랫폼 재빌드. 보존 필수: 매칭용 별칭 리터럴(cc&#58;完了/pm&#58;依頼中/pm&#58;確認済/cursor&#58;*), locale=="ja" 분기, 입력 매칭 키워드(はい/いいえ 등), NER 태그 — PROVENANCE.md "Binary localization note" 규칙 준수 `[tdd:skip:build-artifact]` | verification V8 재실행 시 표시용 JP 문자열 0건 + 기존 8종 검증 회귀 없음 + upstream 테스트 그린 | 3.3 | cc&#58;done [ff3ed0eb] |
 
 ---
 
@@ -65,7 +65,7 @@ Validation: team_validation_mode=subagent (architect + critic, 2026-07-03)
 
 | Marker | 의미 |
 |--------|------|
-| cc:TODO | 미착수 |
-| cc:WIP | 진행 중 |
-| cc:done | 완료 |
+| cc&#58;TODO | 미착수 |
+| cc&#58;WIP | 진행 중 |
+| cc&#58;done | 완료 |
 | blocked | 차단 (사유 필수) |

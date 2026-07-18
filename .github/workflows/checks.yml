@@ -1,0 +1,118 @@
+name: checks
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: consistency + manifest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shell tooling
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck jq
+
+      # The bin/harness shim exits 0 with empty stdout when no platform binary is
+      # present, so `doctor`/`validate` would silently pass on a broken checkout.
+      # Assert the binary actually dispatches before trusting anything below.
+      - name: Guard — harness binary dispatches
+        run: |
+          set -euo pipefail
+          test -x bin/harness-linux-amd64 || { echo "::error::bin/harness-linux-amd64 missing or not executable"; exit 1; }
+          version="$(./bin/harness --version)"
+          test -n "$version" || { echo "::error::bin/harness produced no output — the shim is no-opping"; exit 1; }
+          echo "harness $version"
+
+      - name: check-baseline
+        run: bash scripts/ci/check-baseline.sh
+
+      - name: check-regression-guard
+        run: bash scripts/ci/check-regression-guard.sh
+
+      - name: check-template-registry
+        run: bash scripts/ci/check-template-registry.sh
+
+      - name: Release version surfaces agree
+        run: python3 scripts/check-release-version-sync.py
+
+      - name: harness doctor
+        run: CLAUDE_PLUGIN_ROOT="$PWD" ./bin/harness doctor
+
+      - name: harness validate
+        run: CLAUDE_PLUGIN_ROOT="$PWD" ./bin/harness validate
+
+      # English-only invariant for user-facing content. scripts/ is exempt by
+      # design — it still carries upstream Japanese comments.
+      - name: No CJK in English-only paths
+        run: |
+          set -euo pipefail
+          if hits="$(grep -rlP '[\x{3040}-\x{30ff}\x{4e00}-\x{9fff}]' agents skills output-styles templates || true)"; then
+            if [ -n "$hits" ]; then
+              echo "::error::CJK found in English-only paths:"
+              echo "$hits"
+              exit 1
+            fi
+          fi
+          echo "clean"
+
+      # Plans.md marker counters match `?cc:TODO`? / `?cc:WIP`? as unanchored,
+      # case-insensitive substrings. Marker names quoted as prose or in the
+      # legend get counted as open work and raise a false drift alert, so they
+      # must be escaped (cc&#58;todo). Real status columns are unaffected.
+      - name: Plans.md quotes no live marker tokens outside status columns
+        run: |
+          set -uo pipefail
+          # Blank the trailing status cell first, then look at what remains. A
+          # row may legitimately carry a real marker in its status column while
+          # also quoting one in its description — filtering whole lines would
+          # miss exactly that case.
+          bad="$(sed -E 's/\|[[:space:]]*(cc:(todo|wip|done|blocked))[[:space:]]*(\[[0-9a-f]+\])?[[:space:]]*\|[[:space:]]*$/| |/I' Plans.md \
+                 | grep -nEi '`?cc:(todo|wip)`?|pm:(requested|依頼中)' || true)"
+          if [ -n "$bad" ]; then
+            echo "::error::Plans.md quotes marker tokens outside a status column — escape the colon as &#58;"
+            echo "$bad"
+            exit 1
+          fi
+          echo "clean"
+
+  # check-consistency.sh is an unported upstream script that exits 1 by design in
+  # this fork: ~44 of its assertions target upstream-only assets (ja locales,
+  # cursor templates, dual description-ja/-en metadata, upstream README strings).
+  # Running it as pass/fail would be permanently red and carry no signal, so it is
+  # ratcheted instead: the known-expected count must not GROW. A new inconsistency
+  # pushes the count past the baseline and fails the job. Lower the baseline
+  # whenever upstream-only checks get pruned — never raise it to paper over a
+  # regression.
+  upstream-consistency:
+    name: check-consistency (ratcheted at known baseline)
+    runs-on: ubuntu-latest
+    env:
+      EXPECTED_PROBLEMS: '44'
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq jq
+      - name: Problem count must not exceed the known baseline
+        run: |
+          set -uo pipefail
+          out="$(bash scripts/ci/check-consistency.sh 2>&1 || true)"
+          echo "$out"
+          count="$(printf '%s\n' "$out" | sed -n 's/.*[^0-9]\([0-9]\{1,\}\) problems found.*/\1/p' | tail -1)"
+          if [ -z "$count" ]; then
+            echo "::error::could not parse a problem count — the script's output format changed"
+            exit 1
+          fi
+          echo "problems=$count expected<=$EXPECTED_PROBLEMS"
+          if [ "$count" -gt "$EXPECTED_PROBLEMS" ]; then
+            echo "::error::consistency problems grew from $EXPECTED_PROBLEMS to $count — a real regression is hiding in there"
+            exit 1
+          fi
+          if [ "$count" -lt "$EXPECTED_PROBLEMS" ]; then
+            echo "::notice::problems dropped to $count — lower EXPECTED_PROBLEMS to lock the gain in"
+          fi
