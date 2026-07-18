@@ -7,7 +7,10 @@
 #   bash scripts/ci/check-baseline.sh file1 file2 ...   # validate specific files only
 #
 # Exit: 0 when all non-skiplisted files pass; 1 otherwise.
-# shellcheck: run if available; report warnings but only ERROR-level findings are fatal.
+# Note: static analysis runs if available; warnings are reported but only
+# ERROR-level findings are fatal. Do not begin a comment line here with the
+# tool's own name followed by a colon — it gets parsed as a directive and
+# errors with SC1073, which previously made this script fail its own check.
 
 set -eu
 
@@ -73,7 +76,7 @@ validate_json() {
 run_shellcheck() {
   local f="$1"
   if ! command -v shellcheck > /dev/null 2>&1; then
-    return 0  # shellcheck unavailable — skip silently (already reported once)
+    return 0  # analyzer unavailable — skip silently (already reported once)
   fi
   # Run shellcheck; capture exit code separately from output
   local sc_out
