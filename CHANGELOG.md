@@ -7,6 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.5] - 2026-07-18
+
+Follow-ups from an audit of this plugin against its two upstreams, the Claude Code
+2.1.214 plugin spec, and internal dead weight.
+
+### Added
+
+- `.github/workflows/checks.yml`. There was no `.github/` at all, which is why the broken
+  verification gate below went unnoticed for months. It runs the checks that actually pass
+  here and adds two guards: one asserting the `bin/harness` shim really dispatches (it exits
+  0 with empty stdout when no platform binary is present, which would otherwise fake a pass),
+  and one failing the build when `Plans.md` quotes a marker outside a status column.
+  `check-consistency.sh` is ratcheted at its known count of 44 rather than required, since
+  its remaining assertions target upstream-only assets.
+- `skills/harness-review/references/security-profile.md` — the fresh-context isolation and
+  findings feedback contract for security review.
+
+### Fixed
+
+- **The Lead Pre-cherry-pick Gate was impossible to satisfy.** It required three commands,
+  two of which never existed in this repo (`tests/` holds only `fixtures/`), and
+  `agents/worker.md` hardcoded a `→ PASS` evidence string for one of them. Replaced with the
+  measured-green set. The same dead reference is fixed in `harness-loop/references/flow.md`.
+- **`scripts/ci/check-baseline.sh` failed its own check.** Two of its comments began with
+  the analyzer's name followed by a colon, which shellcheck parses as a directive rather than
+  prose, raising SC1073/SC1072. The script reported `PASS=76 FAIL=1` against itself and took
+  the whole gate down. Latent until CI installed shellcheck, since it is absent locally.
+- **`reviewer` lost its issue #172 mitigation** during the original English port (upstream
+  190 lines vs. our 175). Without it, security findings flowing into the parent context trip
+  the cybersafeguard and the reviewer stalls mid-response. Restored, along with the explicit
+  defensive-review scope declaration.
+- **`Plans.md` reported permanent phantom work.** The binary's counters match
+  `` (?i)`?cc:TODO`? `` as unanchored substrings, so marker names quoted in the legend and in
+  task descriptions counted as open tasks — a standing `WIP 1 / TODO 4` and a stale-WIP drift
+  warning against a plan with zero open tasks. All five sources were isolated by bisecting
+  against `harness hook session-monitor`; the last was a quoted legacy alias, `pm:依頼中`.
+- **`harness sync` silently clobbered `plugin.json`.** `harness.toml` and `plugin.json`
+  disagreed on the author form, so every sync rewrote the manifest. Alignment had to go the
+  URL direction: sync reads only `name`/`url` from `[project.author]` and never emits an
+  `email` key, so a curated email cannot survive a sync. Two consecutive syncs are now
+  byte-identical.
+
+### Changed
+
+- The published author field is now a GitHub URL rather than an email address, across
+  `plugin.json` and both `marketplace.json` surfaces. Commit authorship in git history is
+  unaffected.
+- Sonnet pins moved to `claude-sonnet-5` (currency — `claude-sonnet-4-6` is still Active with
+  no announced retirement).
+- `PROVENANCE.md` records the divergence decision: harness upstream is at v5.2.0 (+469
+  commits), but the divergence is concentrated in `go/`, and its `sync` still copies
+  `hooks.json` into `.claude-plugin/`, still drops unknown manifest fields, and still uses
+  uppercase plus Japanese first-class markers. Re-porting would mean re-applying local
+  patches P1–P6, so this is held as an intentional fork. The component→upstream map is
+  corrected: `breezing`/`ci`/`ui` reattributed to the harness upstream, six ghost entries
+  naming deleted files annotated, `hud` marked locally authored, and the omc baseline
+  advanced to `590fb988` with a scope-limited caveat.
+- `CLAUDE.md` corrections: `.claude-plugin/settings.json` described as the sync-generated
+  mirror it is (not plugin-spec settings), the rotting "~44 scripts" figure removed, monitors
+  noted as interactive-CLI only, and a caution that `doctor`'s PATH line resolves to the
+  installed cache copy by design.
+
 ## [1.3.4] - 2026-07-14
 
 ### Added
@@ -184,7 +246,8 @@ superseded by 1.3.0._
 Earlier releases (v1.0.0 – v1.2.1) predate this changelog; see the
 [GitHub releases](https://github.com/chanp5660/chanpark-harness/releases) and git history.
 
-[Unreleased]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.4...HEAD
+[Unreleased]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.5...HEAD
+[1.3.5]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.4...v1.3.5
 [1.3.4]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.3...v1.3.4
 [1.3.3]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.1...v1.3.2
