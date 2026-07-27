@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.6] - 2026-07-27
+
+Marker counting is now anchored to the table status cell everywhere.
+
+> **Counts will change on upgrade.** Any project whose `Plans.md` mentions a marker in
+> prose, in the marker legend, in a fenced example or in an HTML comment will report a
+> *lower* number after this release — that is the fix, not a regression. Re-read
+> `.claude/state/plans-state.json` before comparing it against a pre-1.3.6 snapshot.
+
+### Fixed
+
+- **`cc:*` markers were counted anywhere in `Plans.md`, not just in a status cell.** The
+  vendored Go binary's `hook plans-watcher` matched the markers as unanchored,
+  case-insensitive substrings, so a single archive sentence —
+  `Phase 22~26 moved to Plans-archive-2026-07-27.md (all cc:done)` — counted as a tenth
+  finished task and `.claude/state/plans-state.json` reported `cc_done: 10` for a nine-row
+  table. Measured on a real project: `cc_done` 10 -> 9, `cc_todo` 6 (unchanged).
+
+  There is no Go source in this repo — `bin/harness-*` is vendored from upstream — so the
+  counter could not be corrected in place. `scripts/hook-handlers/plans-watcher.sh` takes
+  over the handler instead and `hooks/hooks.json` dispatches to it. Behaviour parity with
+  the handler it replaces was measured, not assumed: same trigger condition
+  (`<cwd>/Plans.md` only), same delta rules (`pm:requested` growth outranks `cc:done`
+  growth, everything else is recorded silently), same `pm-notification.md` /
+  `cursor-notification.md` output, same JSON envelope. Opt out with
+  `HARNESS_DISABLE_PLANS_WATCHER=1`.
+
+  **Still unfixed, and unfixable without the Go source**: `harness hook session-init` and
+  `harness hook session-monitor` print their own `Plans.md: todo N / wip N / done N` summary
+  from the same unanchored counter. Those lines are injected context only — nothing reads
+  them back — but they will disagree with `plans-state.json` on a file with prose markers.
+
+- **`hud/statusline.sh` counted the marker legend as open work.** Its anchor required the
+  marker to follow a pipe, which a legend row (`| cc:todo | To do | ... |`) satisfies with
+  its *first* cell. It now reads the same counter as the hook.
+
+- **`scripts/progress-snapshot.sh` dropped most finished tasks — the same disagreement in
+  the opposite direction.** Its single row regex pinned the table to exactly five columns
+  and required the status cell to be a bare marker (plus an optional `[hash]`), so both a
+  six-column table and the very common `cc:done (2026-07-14: measured on hw)` note failed
+  to match and the row vanished from the snapshot entirely. The same real project reported
+  `done: 1` against nine finished tasks; it now reports 9. Rows are split on `|` and the
+  status is the last non-empty cell, and fenced blocks and HTML comments are skipped.
+  **Progress percentages in the harness-progress HTML will move accordingly** (that project:
+  14% → 60%).
+
+### Added
+
+- `scripts/lib/plans-markers.awk` — the canonical marker counter, shared by the
+  plans-watcher hook, the HUD and CI. Emits `todo wip done blocked pm_requested pm_approved`.
+  A marker counts only when the last non-empty cell of a table row starts with it; code
+  spans are stripped inside that cell, and fenced blocks, HTML comments and non-table lines
+  are skipped. `cursor:*` and the legacy Japanese marker forms remain readable as aliases.
+- `check-regression-guard.sh` checks `plans-marker-anchoring` (fixture-driven: a nine-row
+  table plus every false-positive shape must count as `6 0 9 0 0 0`), `plans-watcher-handler`
+  (hooks.json must not fall back to the binary subcommand) and `progress-snapshot-rows`
+  (the snapshot must see all nine rows).
+- `tests/fixtures/plans-prose-marker-inflation.md` — reproduces the incident above.
+
+### Notes
+
+- The v1.3.5 CI step *"Plans.md quotes no live marker tokens outside status columns"*, which
+  forced marker mentions to be escaped as `cc&#58;todo`, was the workaround for this bug. It
+  is left in place: it is now belt-and-braces rather than load-bearing.
+
 ## [1.3.5] - 2026-07-18
 
 Follow-ups from an audit of this plugin against its two upstreams, the Claude Code
