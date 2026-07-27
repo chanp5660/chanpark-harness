@@ -126,17 +126,37 @@ BRANCH="${BRANCH:-}"; SHA="${SHA:-}"; REPO_NAME="${REPO_NAME:-}"
 STAGED="${STAGED:-0}"; MODIFIED="${MODIFIED:-0}"; AHEAD="${AHEAD:-0}"; BEHIND="${BEHIND:-0}"; UNTRACKED="${UNTRACKED:-0}"; STASH="${STASH:-0}"
 
 # --- Plans.md task counts (A2: count only markdown status-column cells, not prose/legend) ---
+# The counting rule lives in scripts/lib/plans-markers.awk so the HUD, the plans-watcher
+# hook and the CI guard cannot drift apart. The former inline rule ("marker immediately
+# after a pipe") also matched a legend row whose FIRST cell is the marker; the canonical
+# rule looks at the status cell (last non-empty) only. The grep fallback below keeps the
+# HUD self-contained when the statusline is copied out of the plugin tree.
 TODO=0; WIP=0; DONE=0; TOTAL=0; WIP_TITLE=""
 PLANS=""
 for p in "${PROJ_DIR:+$PROJ_DIR/Plans.md}" "$PWD/Plans.md"; do [ -f "$p" ] && PLANS="$p" && break; done
 if [ -n "$PLANS" ]; then
-    _cell() { grep -oiE "\|[[:space:]]*cc:$1\b" "$PLANS" 2>/dev/null | wc -l | tr -d ' '; }
-    TODO="$(_cell todo)"; WIP="$(_cell wip)"; DONE="$(_cell done)"
+    _hud_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    _counter="$_hud_dir/../scripts/lib/plans-markers.awk"
+    if [ -r "$_counter" ]; then
+        read -r TODO WIP DONE _ _ _ <<< "$(awk -f "$_counter" "$PLANS" 2>/dev/null)"
+    else
+        _cell() { grep -oiE "\|[[:space:]]*cc:$1\b" "$PLANS" 2>/dev/null | wc -l | tr -d ' '; }
+        TODO="$(_cell todo)"; WIP="$(_cell wip)"; DONE="$(_cell done)"
+    fi
+    TODO="${TODO:-0}"; WIP="${WIP:-0}"; DONE="${DONE:-0}"
     TOTAL=$((TODO + WIP + DONE))
     # A1: active WIP task title (2nd data column of the first cc:wip row)
     if [ "$WIP" -gt 0 ]; then
-        _row="$(grep -iE "\|[[:space:]]*cc:wip\b" "$PLANS" 2>/dev/null | head -1)"
-        WIP_TITLE="$(printf '%s' "$_row" | awk -F'|' '{t=$3; gsub(/^[ \t]+|[ \t]+$/,"",t); print t}')"
+        WIP_TITLE="$(awk '
+            { t=$0; sub(/^[[:space:]]+/,"",t)
+              if (substr(t,1,3)=="```") { f=!f; next }
+              if (f || substr(t,1,4)=="<!--" || $0 !~ /^[[:space:]]*\|/) next
+              n=split($0, c, "|"); s=""
+              for (i=n; i>=1; i--) { v=c[i]; gsub(/^[[:space:]]+|[[:space:]]+$/,"",v)
+                                     if (v!="") { gsub(/`[^`]*`/,"",v); s=tolower(v); break } }
+              sub(/^cursor:/,"cc:",s)
+              if (s ~ /^cc:wip/) { t=c[3]; gsub(/^[ \t]+|[ \t]+$/,"",t); print t; exit } }
+        ' "$PLANS" 2>/dev/null)"
         WIP_TITLE="$(_trunc "$WIP_TITLE" 30)"
     fi
 fi

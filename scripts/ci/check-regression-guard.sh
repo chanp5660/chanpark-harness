@@ -271,6 +271,116 @@ check_template_registry() {
 }
 
 # ---------------------------------------------------------------------------
+# Check: plans-marker-anchoring — markers count ONLY in a table status cell.
+#
+# Regression guard for v1.3.6. The vendored Go binary counted cc:* as unanchored
+# substrings, so one prose sentence ("... moved to the archive (all cc:done)")
+# inflated cc_done from 9 to 10 in .claude/state/plans-state.json. The fixture
+# below carries that sentence plus a legend table, a fenced block, an HTML comment
+# and a description cell quoting a marker; every one of them must be ignored.
+# ---------------------------------------------------------------------------
+check_plans_marker_anchoring() {
+  local counter="scripts/lib/plans-markers.awk"
+  local fixture="tests/fixtures/plans-prose-marker-inflation.md"
+  local mixed="tests/fixtures/plans-mixed-markers.md"
+  local got
+
+  if [ ! -f "$counter" ]; then
+    echo "FAIL: plans-marker-anchoring — $counter missing"
+    return
+  fi
+  if [ ! -f "$fixture" ] || [ ! -f "$mixed" ]; then
+    echo "SKIP: plans-marker-anchoring — fixtures missing"
+    return
+  fi
+
+  # 9 table rows say done, 6 say todo; the prose/legend/fence/comment markers must
+  # not be counted. An unanchored counter reports done=10 on this fixture.
+  got="$(awk -f "$counter" "$fixture" 2> /dev/null)"
+  if [ "$got" != "6 0 9 0 0 0" ]; then
+    echo "FAIL: plans-marker-anchoring — $fixture counted as '$got', expected '6 0 9 0 0 0'"
+    return
+  fi
+
+  # Cross-dialect fixture: 7 table rows (2 todo, 2 wip, 2 done, 1 blocked). Its
+  # checklist lines and prose sentence are not table rows and must not be counted.
+  got="$(awk -f "$counter" "$mixed" 2> /dev/null)"
+  if [ "$got" != "2 2 2 1 0 0" ]; then
+    echo "FAIL: plans-marker-anchoring — $mixed counted as '$got', expected '2 2 2 1 0 0'"
+    return
+  fi
+
+  # The guard is only meaningful while the fixture still contains the trap.
+  if ! grep -q '(all cc:done)' "$fixture" 2> /dev/null; then
+    echo "FAIL: plans-marker-anchoring — $fixture lost its prose marker; the guard proves nothing"
+    return
+  fi
+
+  echo "PASS: plans-marker-anchoring"
+}
+
+# ---------------------------------------------------------------------------
+# Check: plans-watcher-handler — the PostToolUse hook dispatches to the anchored
+# script, not to the vendored binary subcommand whose counter cannot be fixed here.
+# ---------------------------------------------------------------------------
+check_plans_watcher_handler() {
+  local handler="scripts/hook-handlers/plans-watcher.sh"
+
+  if [ ! -x "$handler" ]; then
+    echo "FAIL: plans-watcher-handler — $handler missing or not executable"
+    return
+  fi
+  if grep -q 'hook plans-watcher' hooks/hooks.json 2> /dev/null; then
+    echo "FAIL: plans-watcher-handler — hooks.json still dispatches to the binary subcommand"
+    return
+  fi
+  if ! grep -q 'hook-handlers/plans-watcher.sh' hooks/hooks.json 2> /dev/null; then
+    echo "FAIL: plans-watcher-handler — hooks.json does not reference $handler"
+    return
+  fi
+
+  echo "PASS: plans-watcher-handler"
+}
+
+# ---------------------------------------------------------------------------
+# Check: progress-snapshot-rows — the snapshot sees every task row.
+#
+# Its former single regex pinned the table to five columns and demanded a bare
+# marker in the status cell, so "cc:done (2026-07-14: measured on hw)" dropped the
+# whole row: a nine-done Plans.md was reported as done=1.
+# ---------------------------------------------------------------------------
+check_progress_snapshot_rows() {
+  local script="scripts/progress-snapshot.sh"
+  local fixture="tests/fixtures/plans-prose-marker-inflation.md"
+  local out got
+
+  if [ ! -f "$script" ]; then
+    echo "FAIL: progress-snapshot-rows — $script missing"
+    return
+  fi
+  if [ ! -f "$fixture" ]; then
+    echo "SKIP: progress-snapshot-rows — fixture missing"
+    return
+  fi
+  if ! command -v python3 > /dev/null 2>&1; then
+    echo "SKIP: progress-snapshot-rows — python3 unavailable"
+    return
+  fi
+
+  out="$(bash "$script" --plans "$fixture" --project guard 2> /dev/null)"
+  got="$(printf '%s' "$out" | python3 -c 'import json,sys
+d = json.load(sys.stdin)
+print("%d %d %d %d" % (d["_todo_count"], d["_wip_count"], d["_done_count"], d["_blocked_count"]))' 2> /dev/null)"
+
+  if [ "$got" != "6 0 9 0" ]; then
+    echo "FAIL: progress-snapshot-rows — counted '$got', expected '6 0 9 0'"
+    return
+  fi
+
+  echo "PASS: progress-snapshot-rows"
+}
+
+# ---------------------------------------------------------------------------
 # Run all checks
 # ---------------------------------------------------------------------------
 run_check "identity"   check_identity
@@ -279,6 +389,9 @@ run_check "sync-no-dup" check_sync_no_dup
 run_check "english-only" check_english_only
 run_check "marker-style" check_marker_style
 run_check "template-registry" check_template_registry
+run_check "plans-marker-anchoring" check_plans_marker_anchoring
+run_check "plans-watcher-handler" check_plans_watcher_handler
+run_check "progress-snapshot-rows" check_progress_snapshot_rows
 
 # ---------------------------------------------------------------------------
 # Summary

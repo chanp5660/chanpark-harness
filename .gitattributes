@@ -5,8 +5,10 @@ bin/harness-darwin-arm64   binary
 bin/harness-windows-amd64.exe binary
 
 # Shell dispatcher and scripts: keep LF endings so they stay executable on Unix.
+# awk programs are sourced by those scripts and must not pick up CR bytes either.
 bin/harness        text eol=lf
 *.sh               text eol=lf
+*.awk              text eol=lf
 
 # Windows batch shim: cmd.exe requires CRLF line endings to parse correctly.
 bin/harness.cmd    text eol=crlf

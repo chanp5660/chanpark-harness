@@ -121,14 +121,37 @@ COST_ESTIMATE = to_float(os.environ["COST_ESTIMATE_PY"])
 # Parse Plans.md task rows (v2 pipe-table format):
 #   "| 65.4.1 | <title> | <DoD> | <Depends> | cc:todo |"
 #   "| 65.4.1 | <title> | <DoD> | <Depends> | cc:done [a1b2c3d] |"
+#   "| 27.2   | <title> | <DoD> | <Depends> | cc:done (2026-07-14: measured on hw) |"
 #   "| T001   | <title> | <DoD> | <Depends> | cc:blocked |"
 # ID may be numeric (65.4.1) or alphanumeric with leading letters (T001).
 # Status matching is case-insensitive (uppercase/legacy alias forms are accepted when reading).
 # Use the part of the title up to the first "。" as a one-line summary.
+#
+# The row is split on "|" rather than matched by one regex. The former regex pinned the
+# table to exactly five columns and demanded a bare marker in the status cell, so a
+# six-column table, or the very common "cc:done (why)" note, dropped the whole row from
+# the snapshot: a real nine-done Plans.md reported done=1. Status is now the LAST
+# non-empty cell (code spans stripped inside it), which is the rule in
+# scripts/lib/plans-markers.awk, hud/statusline.sh and the plans-watcher hook.
 
-ROW_RE = re.compile(
-    r"^\|\s*([A-Za-z]*\d+(?:\.\d+)*)\s*\|\s*(.+?)\s*\|\s*.+?\s*\|\s*.+?\s*\|\s*(cc:\S+(?:\s*\[[^\]]+\])?)\s*\|\s*$"
-)
+ID_RE = re.compile(r"^[A-Za-z]*\d+(?:\.\d+)*$")
+CODESPAN_RE = re.compile(r"`[^`]*`")
+
+
+def parse_table_row(line):
+    """-> (id, title, status) for a task row, else None."""
+    if not line.lstrip().startswith("|"):
+        return None
+    cells = [c.strip() for c in line.rstrip("\n").split("|")]
+    while cells and cells[0] == "":
+        cells.pop(0)
+    while cells and cells[-1] == "":
+        cells.pop()
+    if len(cells) < 2 or not ID_RE.match(cells[0]):
+        return None  # header, separator and prose-in-a-table rows have no task ID
+    status = CODESPAN_RE.sub("", cells[-1]).strip()
+    status = re.sub(r"^cursor:", "cc:", status, flags=re.IGNORECASE)
+    return cells[0], cells[1], status
 
 # Parse checklist format (two status-embedding variants):
 #   "- [ ] <title> `cc:todo`"    (marker in backticks)
@@ -147,12 +170,22 @@ def _short(title):
     s = title.split("。")[0]
     return s[:77] + "..." if len(s) > 80 else s
 
+in_fence = False
+
 with open(PLANS_PATH, "r", encoding="utf-8") as f:
     for line in f:
+        # ── skip documentation, not task records ──
+        stripped = line.lstrip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence or stripped.startswith("<!--"):
+            continue
+
         # ── pipe-table row ──
-        m = ROW_RE.match(line)
+        m = parse_table_row(line)
         if m:
-            number, title, status = m.group(1), m.group(2), m.group(3)
+            number, title, status = m
             short_title = _short(title)
             sl = status.lower()
 
