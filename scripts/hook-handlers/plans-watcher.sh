@@ -125,6 +125,30 @@ cat > "$TMP_STATE" << EOF
 EOF
 mv -f "$TMP_STATE" "$STATE_FILE" 2> /dev/null || rm -f "$TMP_STATE" 2> /dev/null
 
+# --- WIP ownership (consumed by wip-guard.sh Path G) ----------------------------
+# The session that edits Plans.md while WIP is present is the session doing the work.
+# Recording it here lets the Stop guard block only that session, instead of locking
+# every session in the project out of ever finishing — including ones that only came
+# to ask a question. When WIP drops to zero the record is removed, so a stale owner
+# can never keep the guard armed.
+GUARD_STATE_DIR="$STATE_DIR/wip-guard"
+OWNER_FILE="$GUARD_STATE_DIR/owner.json"
+SESSION_ID="$(json_field '.session_id // empty' '"session_id"[[:space:]]*:[[:space:]]*"[^"]*"')"
+if [ "${CC_WIP:-0}" -gt 0 ] 2> /dev/null; then
+  if [ -n "$SESSION_ID" ]; then
+    mkdir -p "$GUARD_STATE_DIR" 2> /dev/null
+    TMP_OWNER="$OWNER_FILE.tmp.$$"
+    if printf '{\n  "session_id": "%s",\n  "cc_wip": %s,\n  "timestamp": "%s"\n}\n' \
+      "$SESSION_ID" "$CC_WIP" "$TS" > "$TMP_OWNER" 2> /dev/null; then
+      mv -f "$TMP_OWNER" "$OWNER_FILE" 2> /dev/null || rm -f "$TMP_OWNER" 2> /dev/null
+    else
+      rm -f "$TMP_OWNER" 2> /dev/null
+    fi
+  fi
+else
+  rm -f "$OWNER_FILE" 2> /dev/null
+fi
+
 # --- Delta -> message ----------------------------------------------------------
 HEADLINE=""
 NEXT_STEP=""

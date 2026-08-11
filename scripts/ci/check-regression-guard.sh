@@ -381,6 +381,64 @@ print("%d %d %d %d" % (d["_todo_count"], d["_wip_count"], d["_done_count"], d["_
 }
 
 # ---------------------------------------------------------------------------
+# Check: wip-guard-loop-breaker — the Stop guard can always be escaped.
+#
+# The guard used to rely solely on `stop_hook_active`, a field the HOST supplies.
+# A host that omits it (observed with some third-party clients) left the guard
+# emitting decision:block on every turn with no exit, so the session could never
+# end. Two properties are pinned here:
+#
+#   1. Repeated stop payloads WITHOUT stop_hook_active must stop blocking.
+#   2. A session that does not own the WIP is never blocked at all.
+# ---------------------------------------------------------------------------
+check_wip_guard_loop_breaker() {
+  local guard="scripts/hook-handlers/wip-guard.sh"
+  local tmp out i blocks
+
+  if [ ! -x "$guard" ]; then
+    echo "FAIL: wip-guard-loop-breaker — $guard missing or not executable"
+    return
+  fi
+
+  tmp="$(mktemp -d 2> /dev/null)" || {
+    echo "SKIP: wip-guard-loop-breaker — mktemp unavailable"
+    return
+  }
+  printf '| ID | Task | Status |\n|---|---|---|\n| T1 | x | cc:wip |\n' > "$tmp/Plans.md"
+
+  # 1. Four turns with no host loop flag: at most the first may block.
+  blocks=0
+  for i in 1 2 3 4; do
+    out="$(printf '{"session_id":"guard-loop"}' |
+      CLAUDE_PROJECT_DIR="$tmp" bash "$guard" stop 2> /dev/null)"
+    case "$out" in
+      *'"decision":"block"'*) blocks=$((blocks + 1)) ;;
+    esac
+  done
+  if [ "$blocks" -gt 1 ]; then
+    rm -rf "$tmp"
+    echo "FAIL: wip-guard-loop-breaker — blocked $blocks/4 turns without stop_hook_active; the guard can trap a session"
+    return
+  fi
+
+  # 2. A recorded owner confines the block to that one session.
+  mkdir -p "$tmp/.claude/state/wip-guard"
+  printf '{"session_id":"owner-sess"}\n' > "$tmp/.claude/state/wip-guard/owner.json"
+  rm -f "$tmp/.claude/state/wip-guard/"*.last-block
+  out="$(printf '{"session_id":"visitor-sess"}' |
+    CLAUDE_PROJECT_DIR="$tmp" bash "$guard" stop 2> /dev/null)"
+  rm -rf "$tmp"
+  case "$out" in
+    *'"decision":"block"'*)
+      echo "FAIL: wip-guard-loop-breaker — blocked a session that does not own the WIP"
+      return
+      ;;
+  esac
+
+  echo "PASS: wip-guard-loop-breaker"
+}
+
+# ---------------------------------------------------------------------------
 # Run all checks
 # ---------------------------------------------------------------------------
 run_check "identity"   check_identity
@@ -392,6 +450,7 @@ run_check "template-registry" check_template_registry
 run_check "plans-marker-anchoring" check_plans_marker_anchoring
 run_check "plans-watcher-handler" check_plans_watcher_handler
 run_check "progress-snapshot-rows" check_progress_snapshot_rows
+run_check "wip-guard-loop-breaker" check_wip_guard_loop_breaker
 
 # ---------------------------------------------------------------------------
 # Summary

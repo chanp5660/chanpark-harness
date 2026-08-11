@@ -23,6 +23,34 @@
 #   E. stop_hook_active=true   -> silent allow. Breaks the infinite stop-hook loop
 #                                 that would otherwise occur when Claude Code has
 #                                 already blocked once in this stop cycle.
+#   F. Self-tracked block loop -> silent allow. See "Host-independent loop breaker".
+#   G. Session does not own    -> silent allow. See "Session ownership".
+#      the WIP
+#
+# Host-independent loop breaker (Path F):
+#   Path E relies on `stop_hook_active`, a field the HOST supplies. Claude Code sets
+#   it; a host that does not (observed with some third-party clients) leaves the guard
+#   with no way out, and it blocks every single turn forever — the session can never
+#   end. Path F therefore keeps its own record under
+#   <project>/.claude/state/wip-guard/ and suppresses a repeat block that lands within
+#   HARNESS_WIP_GUARD_COOLDOWN seconds (default 300) of the previous one, whether or
+#   not the host tells us anything. The cooldown, rather than a plain per-session
+#   counter, is what keeps the guard meaningful later in a long session: block once,
+#   let the turn through, and re-arm after the user has moved on.
+#
+# Session ownership (Path G):
+#   A WIP marker means "somebody is mid-task", not "every session in this project is
+#   forbidden to end". plans-watcher.sh records the session that last edited Plans.md
+#   while WIP was present, in .claude/state/wip-guard/owner.json. When that record
+#   exists and names a DIFFERENT session, this one is merely visiting — asking a
+#   question, reading code — and is allowed to stop silently. With no owner recorded
+#   (legacy state, or WIP introduced outside the editor) the guard falls back to its
+#   original project-wide behaviour, bounded by Path F.
+#
+# Modes (HARNESS_WIP_GUARD_MODE, stop mode only):
+#   block  Emit {"decision":"block"} on WIP. Default; preserves prior behaviour.
+#   warn   Emit a systemMessage instead — visible, never traps the session.
+#   off    Same as HARNESS_DISABLE_WIP_GUARD=1.
 #
 # Dialect handling:
 #   - HTML comment lines (<!-- ... -->) are SKIPPED entirely, even when they
@@ -42,14 +70,34 @@
 set +e # never abort the host session
 
 MODE="${1:-stop}"
+GUARD_MODE="${HARNESS_WIP_GUARD_MODE:-block}"
+COOLDOWN="${HARNESS_WIP_GUARD_COOLDOWN:-300}"
 
-if [ "${HARNESS_DISABLE_WIP_GUARD:-0}" = "1" ]; then
-  echo "[chanpark-harness] wip-guard: disabled via HARNESS_DISABLE_WIP_GUARD" >&2
+if [ "${HARNESS_DISABLE_WIP_GUARD:-0}" = "1" ] || [ "$GUARD_MODE" = "off" ]; then
+  echo "[chanpark-harness] wip-guard: disabled (HARNESS_DISABLE_WIP_GUARD / mode=off)" >&2
   exit 0
 fi
 
 PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
 STDIN_JSON="$(cat 2>/dev/null)"
+GUARD_STATE_DIR="$PROJECT_ROOT/.claude/state/wip-guard"
+
+# Read a top-level string field out of the hook payload. jq when available; a sed
+# fallback otherwise, because the guard must work on a bare shell.
+json_field() {
+  local field="$1"
+  if command -v jq > /dev/null 2>&1; then
+    printf '%s' "$STDIN_JSON" | jq -r --arg f "$field" '.[$f] // empty' 2>/dev/null
+  else
+    printf '%s' "$STDIN_JSON" |
+      sed -n "s/.*\"$field\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" | head -1
+  fi
+}
+
+SESSION_ID="$(json_field session_id)"
+[ -z "$SESSION_ID" ] && SESSION_ID="nosession"
+# Filename-safe: the session id reaches us from the host and is never trusted as a path.
+SESSION_KEY="$(printf '%s' "$SESSION_ID" | tr -c '[:alnum:]._-' '_' | cut -c1-64)"
 
 # ---------------------------------------------------------------------------
 # Path E (stop mode only): stop_hook_active loop-breaker.
@@ -101,6 +149,97 @@ json_escape() {
 }
 
 # ---------------------------------------------------------------------------
+# Path F: host-independent loop breaker.
+#
+# Returns 0 ("suppress this block") when the previous block for this session
+# landed less than $COOLDOWN seconds ago, and 1 ("go ahead and block") otherwise,
+# stamping the current time on the way out.
+#
+# This deliberately does NOT depend on stop_hook_active: a host that omits that
+# field would otherwise leave the guard blocking on every turn with no exit.
+# ---------------------------------------------------------------------------
+loop_breaker_should_suppress() {
+  local stamp now prev age
+  stamp="$GUARD_STATE_DIR/$SESSION_KEY.last-block"
+  now="$(date +%s 2> /dev/null)"
+  # No usable clock -> fail OPEN (suppress). A guard that cannot measure its own
+  # cooldown must not be the reason a session can never end.
+  case "$now" in
+    '' | *[!0-9]*)
+      echo "[chanpark-harness] wip-guard: no usable clock; suppressing block to stay safe" >&2
+      return 0
+      ;;
+  esac
+
+  if [ -r "$stamp" ]; then
+    prev="$(cat "$stamp" 2> /dev/null)"
+    case "$prev" in
+      '' | *[!0-9]*) prev="" ;;
+    esac
+    if [ -n "$prev" ]; then
+      age=$((now - prev))
+      if [ "$age" -ge 0 ] && [ "$age" -lt "$COOLDOWN" ]; then
+        echo "[chanpark-harness] wip-guard: repeat block ${age}s < ${COOLDOWN}s cooldown for session ${SESSION_ID}; allowing (loop breaker)" >&2
+        return 0
+      fi
+    fi
+  fi
+
+  mkdir -p "$GUARD_STATE_DIR" 2> /dev/null
+  printf '%s\n' "$now" > "$stamp" 2> /dev/null
+  # Opportunistic housekeeping: stamps older than 7 days belong to dead sessions.
+  find "$GUARD_STATE_DIR" -maxdepth 1 -name '*.last-block' -mtime +7 -delete 2> /dev/null
+  return 1
+}
+
+# ---------------------------------------------------------------------------
+# Path G: session ownership.
+#
+# Returns 0 when a recorded owner exists and is NOT this session — i.e. the WIP
+# belongs to somebody else and this session is only visiting.
+# ---------------------------------------------------------------------------
+another_session_owns_wip() {
+  local owner_file owner
+  owner_file="$GUARD_STATE_DIR/owner.json"
+  [ -r "$owner_file" ] || return 1
+
+  if command -v jq > /dev/null 2>&1; then
+    owner="$(jq -r '.session_id // empty' "$owner_file" 2> /dev/null)"
+  else
+    owner="$(sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$owner_file" | head -1)"
+  fi
+
+  [ -n "$owner" ] || return 1
+  [ "$owner" = "$SESSION_ID" ] && return 1
+
+  echo "[chanpark-harness] wip-guard: WIP owned by session ${owner}, not ${SESSION_ID}; allowing" >&2
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# Emit the stop-mode verdict, honouring GUARD_MODE and the loop breaker.
+# precompact never blocks, so it never routes through here.
+# ---------------------------------------------------------------------------
+emit_stop_verdict() {
+  local msg esc
+  msg="$1"
+  esc="$(json_escape "$msg")"
+
+  if [ "$GUARD_MODE" = "warn" ]; then
+    printf '{"systemMessage":"WIP guard: %s"}\n' "$esc"
+    return
+  fi
+
+  if loop_breaker_should_suppress; then
+    # Still say it once, visibly, so the allow is not silent to the user.
+    printf '{"systemMessage":"WIP guard (not blocking): %s"}\n' "$esc"
+    return
+  fi
+
+  printf '{"decision":"block","reason":"%s"}\n' "$esc"
+}
+
+# ---------------------------------------------------------------------------
 # PreCompact only: harness-loop owns the session -> suppress all WIP output.
 # ---------------------------------------------------------------------------
 if [ "$MODE" = "precompact" ]; then
@@ -135,10 +274,10 @@ fi
 
 if [ -n "$unreadable_reason" ]; then
   msg="Plans.md could not be read: ${unreadable_reason}. WIP status is unknown — resolve before continuing."
-  esc="$(json_escape "$msg")"
   if [ "$MODE" = "stop" ]; then
-    printf '{"decision":"block","reason":"%s"}\n' "$esc"
+    emit_stop_verdict "$msg"
   else
+    esc="$(json_escape "$msg")"
     printf '{"systemMessage":"Warning: %s"}\n' "$esc"
   fi
   exit 0
@@ -261,10 +400,16 @@ if [ -z "$WIP_IDS" ]; then
   exit 0
 fi
 
+# --- Path G: WIP exists, but it belongs to a different session ----------------
+# Checked here rather than earlier so the log line only appears when there is
+# actual WIP to disown.
+if [ "$MODE" = "stop" ] && another_session_owns_wip; then
+  exit 0
+fi
+
 # --- Path D: WIP tasks present ------------------------------------------------
 if [ "$MODE" = "stop" ]; then
-  esc="$(json_escape "WIP tasks remain: ${WIP_LIST}. Consider completing them or marking them blocked before stopping.")"
-  printf '{"decision":"block","reason":"%s"}\n' "$esc"
+  emit_stop_verdict "WIP tasks remain: ${WIP_LIST}. Consider completing them or marking them blocked before stopping."
 else
   esc="$(json_escape "Compacting context with WIP tasks in progress: ${WIP_LIST}. Key context about these tasks may be lost after compaction. Consider completing or checkpointing them first.")"
   printf '{"systemMessage":"Warning: %s"}\n' "$esc"
