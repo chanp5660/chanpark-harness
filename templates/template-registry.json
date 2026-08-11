@@ -15,14 +15,14 @@
     },
     "Plans.md.template": {
       "output": "Plans.md",
-      "templateVersion": "4.4.0",
-      "description": "Task tracking (active set only; table dialect)",
+      "templateVersion": "4.5.0",
+      "description": "Task tracking (active set only; table dialect; 80-line budget)",
       "tracked": true
     },
     "Plans-backlog.md.template": {
       "output": "Plans-backlog.md",
-      "templateVersion": "4.4.0",
-      "description": "Unscheduled capture; carries no cc: markers so no counter can read it",
+      "templateVersion": "4.5.0",
+      "description": "Unscheduled capture; no cc: markers, four dispositions (promote/decline/duplicate/snooze)",
       "tracked": true
     },
     "rules/workflow.md.template": {

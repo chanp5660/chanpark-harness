@@ -190,7 +190,60 @@ elif [ "$CC_DROPPED" -gt "$PREV_DROPPED" ] 2> /dev/null; then
   NOTE_BODY="A task was retired without being implemented (cc:dropped). It still counts toward progress."
 fi
 
-[ -z "$HEADLINE" ] && emit_empty
+# --- Budget advisory: the only containment surface that fires in headless mode ------
+#
+# Every other cap in this design is prose in a skill, and the one mechanical reporter —
+# the SessionStart monitor — does not run under `claude -p` at all. An agent could
+# therefore append fifty rows in a headless run and no surface anywhere would say a
+# word. This hook fires on every write to Plans.md, headless included, so the cap gets
+# an actual voice here.
+#
+# It is NON-BLOCKING by construction: PostToolUse runs after the write, and the payload
+# is additionalContext. It can only tell you; it cannot refuse. That is the same
+# fail-open trade the rest of the design makes, for the same reason — the wip-guard
+# incident in this repo is what a fail-closed plans hook costs.
+toml_int() {
+  grep -E "^[[:space:]]*$1[[:space:]]*=" "$PROJECT_ROOT/harness.toml" 2> /dev/null |
+    head -1 | grep -oE '[0-9]+' | head -1
+}
+HARD_CAP="$(toml_int hard_cap)"; MAX_LINES="$(toml_int max_lines)"
+HARD_CAP="${HARD_CAP:-30}"; MAX_LINES="${MAX_LINES:-80}"
+PLANS_LINES="$(wc -l < "$PLANS" 2> /dev/null | tr -d ' ')"
+PLANS_LINES="${PLANS_LINES:-0}"
+
+BUDGET=""
+if [ "${PLANS_ACTIVE:-0}" -gt "$HARD_CAP" ] 2> /dev/null; then
+  BUDGET="over budget: ${PLANS_ACTIVE} active rows exceed the hard cap of ${HARD_CAP} — capture new work in Plans-backlog.md, not here"
+fi
+if [ "$PLANS_LINES" -gt "$MAX_LINES" ] 2> /dev/null; then
+  BUDGET="${BUDGET}${BUDGET:+
+}over budget: Plans.md is ${PLANS_LINES} lines against a ${MAX_LINES}-line budget — run scripts/plans-sweep.sh and move terminal rows to .claude/memory/archive/"
+fi
+
+# A budget notice alone is worth emitting: growth without a marker delta is exactly the
+# way the file used to get long unnoticed.
+if [ -z "$HEADLINE" ]; then
+  if [ -z "$BUDGET" ]; then
+    emit_empty
+  fi
+  RULE="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  CONTEXT="$RULE
+Plans.md budget advisory
+$RULE
+$BUDGET
+Advisory only — nothing was blocked and nothing was changed.
+$RULE"
+  json_escape() {
+    printf '%s' "$1" | awk '
+      { gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); gsub(/\t/, "\\t")
+        out = out (NR > 1 ? "\\n" : "") $0 }
+      END { printf "%s", out }
+    '
+  }
+  printf '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"%s"}}\n' \
+    "$(json_escape "$CONTEXT")"
+  exit 0
+fi
 
 # --- Notification files (PM handoff surface) -----------------------------------
 NOTE="$(
@@ -232,6 +285,7 @@ Current status:
    cc:dropped     : $CC_DROPPED
    pm:approved    : $PM_CONFIRMED
    progress       : $PLANS_TERMINAL/$PLANS_TOTAL terminal (${PLANS_PCT}%)$( [ "${CC_UNKNOWN:-0}" -gt 0 ] && printf '\n   unrecognised   : %s status cell(s) match no known marker' "$CC_UNKNOWN" )
+   budget         : $PLANS_ACTIVE/$HARD_CAP active rows · $PLANS_LINES/$MAX_LINES lines$( [ -n "$BUDGET" ] && printf '\n%s' "$BUDGET" )
 $RULE
 EOF
 )"

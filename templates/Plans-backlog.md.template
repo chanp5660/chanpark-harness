@@ -1,6 +1,6 @@
 ---
 _harness_template: "Plans-backlog.md.template"
-_harness_version: "4.4.0"
+_harness_version: "4.5.0"
 ---
 
 # Plans-backlog.md — {{PROJECT_NAME}}
@@ -17,13 +17,53 @@ separate from `Plans.md`.
 ## What goes here
 
 Anything worth remembering that you have not committed to doing. Ideas, complaints,
-"we should probably…", links to read. Append freely: this file has no cap and is
-allowed to grow, because nothing reads it on a schedule and nothing counts it.
+"we should probably…", links to read.
 
 ## What does NOT go here
 
 Work in flight. If you are doing it, it belongs in `Plans.md` as a table row with a
 real status marker.
+
+## Format
+
+Plain bullets with a capture date. Not table rows — a second layer of safety, since the
+canonical counter only ever looks at table rows.
+
+```
+- {{DATE}} — Idea, one line, with enough context to be understandable in six months.
+```
+
+The date is load-bearing: `scripts/plans-sweep.sh` reads it. A bullet with no date is
+counted as live and never ages, so it can never be reported.
+
+## Four dispositions — every item has an exit
+
+This file is the default destination for new items, which makes its lifecycle the whole
+question. If the only exit were promotion, it would be a one-way sink and would grow
+without limit — the same failure the terminal drop marker was introduced to close on the
+active side, reappearing one file over. Linear's Triage offers accept / duplicate /
+decline / snooze; these are the same four, written for a text file.
+
+| Disposition | How | Effect |
+|-------------|-----|--------|
+| **Promote** | Rewrite the bullet as a full `Plans.md` row with an ID and a DoD, then delete the bullet | Enters the active set |
+| **Decline** | Strike the bullet through in place and append `declined <YYYY-MM-DD>: <reason>` | Retired, still on the record |
+| **Duplicate** | Decline it, naming the surviving row or bullet in the reason | Retired without losing the trail |
+| **Snooze** | Re-date the bullet to today | Resets its staleness clock, explicitly and visibly |
+
+```
+- ~~2026-02-03 — Add a second progress bar to the dashboard~~ declined {{DATE}}: the
+  existing bar already shows the same ratio.
+```
+
+Deleting a bullet is the only disposition with no record, which is exactly what these
+four exist to replace.
+
+**Declined bullets are inert.** They are excluded from the live count in the session
+monitor, skipped by the staleness report, and never compared by
+`scripts/plans-dupe-check.sh` — a retired idea must not keep flagging its own successor.
+Once they accumulate, move them in bulk to
+`.claude/memory/archive/Plans-<YYYY-MM-DD>.md`, the same place terminal rows go.
 
 ## Promotion is a rewrite, on purpose
 
@@ -38,14 +78,16 @@ grows without limit. Retyping the item as a proper row, with a DoD you have to a
 write, is the substitute for that missing conversation. If an item is not worth
 restating in full, it was not worth doing.
 
-## Format
+## What is swept, and what is not
 
-Plain bullets with a capture date. Not table rows — a second layer of safety, since the
-canonical counter only ever looks at table rows.
+This file has **no row cap and no line budget** — it is capture, and capping capture just
+moves the loss somewhere unrecorded. What it does have is an age report:
+`scripts/plans-sweep.sh` lists live bullets older than `backlog_stale_days`
+(`harness.toml [plans]`) so they surface and get one of the four dispositions. Like every
+other trigger in the sweep, it **only prints**. Nothing edits a bullet on a timer.
 
-```
-- {{DATE}} — Idea, one line, with enough context to be understandable in six months.
-```
+Duplicates: `scripts/plans-dupe-check.sh <description>` compares a proposed item against
+both `Plans.md` rows and the live bullets here. Advisory — it never refuses a write.
 
 ## When the active file is full
 

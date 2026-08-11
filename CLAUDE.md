@@ -47,8 +47,8 @@ debugging, security, docs, tests, search, git, writing, interactive QA).
 | File | Read by counters? | Holds |
 |------|-------------------|-------|
 | `Plans.md` | **yes** | Active rows (`cc:todo`/`cc:wip`/`cc:blocked`) + terminal rows not yet archived |
-| `Plans-backlog.md` | **no** | Unscheduled capture. Plain bullets, **zero `cc:` markers**, no cap |
-| `.claude/memory/archive/Plans-<date>.md` | **no** | Terminal rows after the sweep |
+| `Plans-backlog.md` | **no** | Unscheduled capture. Plain bullets, **zero `cc:` markers**, no cap. Four exits: promote / decline / duplicate / snooze |
+| `.claude/memory/archive/Plans-<date>.md` | **no** | Terminal rows after the sweep, plus declined backlog bullets in bulk |
 
 Separation is by **file boundary**, not by section heading. A heading is not a filter —
 every parser scans the whole file, so a `## Backlog` section would land straight in the
@@ -56,11 +56,30 @@ counts, the denominator and the HUD. That is the v1.3.6 bug one level up. The ba
 carrying no markers at all is the second layer: a counter pointed at it by mistake still
 returns zero. Never introduce a `cc:backlog` state.
 
-Caps live in `harness.toml [plans]`: 25 active rows soft, 30 hard, `cc:wip` ≤ 1.
-Overflow routes to the backlog (recoverable), never to unbounded growth.
-`scripts/plans-sweep.sh` proposes T1 (stale, default **off**) and T2 (archive, default
-**on**) candidates and **never writes** — a markdown file has no activity feed and no
-undo, so a silent rewrite is invisible until someone reads a diff.
+Budgets live in `harness.toml [plans]`. Two of them, bounding different things:
+**rows** — 25 active soft, 30 hard, `cc:wip` ≤ 1; overflow routes to the backlog
+(recoverable), never to unbounded growth. **Length** — `max_lines = 80` over the whole
+file, boilerplate included, because the row caps count active rows only and therefore
+cannot see terminal rows or boilerplate at all (measured: 30 rows = 93 lines under the
+old layout, with nothing complaining). Length overflow is **reported, never refused**;
+the long-form legend was moved to `skills/harness-plan/references/plans-format.md` so a
+full 30-row plan still fits in 80 lines. Reported by `session-monitor.sh` at session
+start **and by `plans-watcher.sh` on every write** — the latter is the only budget
+surface that fires in headless `-p` mode.
+
+`scripts/plans-sweep.sh` proposes T1 (stale rows, default **off**), T2 (**per-row**
+archive candidates, default **on**) and T3 (backlog capture-date staleness, default
+**on**), and **never writes** — a markdown file has no activity feed and no undo, so a
+silent rewrite is invisible until someone reads a diff.
+
+**T2 is per row, never per file.** It once required the entire file to be terminal,
+which let one never-finished `cc:todo` block archiving of everything around it forever
+(reproduced at 120 done rows / 125 lines with the sweep reporting "no candidates").
+Linear's cited rule is per issue. Pinned by `plans-archive-per-row`.
+
+`scripts/plans-dupe-check.sh "<desc>"` is the executable duplicate check: Jaccard ≥ 0.4
+over `Plans.md` rows **and** live backlog bullets, called by `harness-plan` at `add`
+step 2. Advisory — exit 1 means "candidates found", never an error.
 
 ### Marker counting
 
@@ -71,7 +90,7 @@ implementation and **every consumer reads it through `scripts/lib/plans-counts.s
 `hud/statusline.sh`, `scripts/hook-handlers/plans-watcher.sh`,
 `scripts/hook-handlers/session-monitor.sh`, `scripts/hook-handlers/wip-guard.sh` and
 `scripts/progress-snapshot.sh` all follow the same rule, and `check-regression-guard.sh`
-pins it with seven `plans-*` / `wip-guard-*` cases.
+pins it with eleven `plans-*` / `wip-guard-*` cases.
 
 **Closed vocabulary — five `cc:` markers.** `cc:todo` / `cc:wip` / `cc:blocked` are
 active; `cc:done` / `cc:dropped` are **terminal**. Both terminal states stay in the

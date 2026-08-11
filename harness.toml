@@ -156,16 +156,36 @@ allowRead = [
 # zero of them. The claim is "provably destroys nothing observed", not "fitted" —
 # the observed abandonment rate is 0/20, so there is no distribution to fit.
 stale_days = 14                          # T1: cc:todo / cc:blocked untouched this long
-archive_days = 14                        # T2: fully-terminal file unedited this long
+archive_days = 14                        # T2: PER-ROW. A terminal row (cc:done /
+                                         # cc:dropped) untouched this long is an archive
+                                         # candidate on its own. It is NOT a condition on
+                                         # the whole file: gating the archive on "every
+                                         # row is terminal" let one perpetually-open
+                                         # cc:todo suppress archiving forever, which is
+                                         # the unbounded-growth failure this section
+                                         # exists to prevent. Linear's own rule is
+                                         # per-issue, not per-view.
+
+# Plans-backlog.md staleness (T3). Derivation (docs/design/plans-redesign.md §2.2):
+# there is no measured abandonment distribution for captured ideas either, so this is
+# bounded, not fitted. Shape Up's betting cycle is 6 weeks; an idea that survives two
+# full cycles (84 days) without ever being pitched has failed the only selection process
+# the backlog has. Rounded to the quarter boundary a human actually reviews: 90 days.
+# Report only — like every other trigger here, it never edits the file.
+backlog_stale_days = 90
 
 # T1 ships OFF: zero observed abandonments means zero evidence for the threshold.
-# T2 ships ON: it is a pure function of state and time, and replaying it against this
-# repository's history fires on exactly the real condition (a completed ledger left
-# unarchived). Both only ever PRINT candidates — nothing in this repo rewrites a
-# marker on a timer. A markdown file has no activity feed and no undo, so a silent
+# T2 ships ON: it is a pure function of per-row state and time, both directly
+# observable via git blame.
+# T3 ships ON: it reads a capture date the format already requires, so it needs no
+# fitted threshold to be correct — it reports an age, and 90 days only decides when the
+# age is worth printing.
+# All three only ever PRINT candidates — nothing in this repo rewrites a marker or a
+# bullet on a timer. A markdown file has no activity feed and no undo, so a silent
 # retirement is invisible until someone reads a diff.
 stale_sweep_enabled = false
 archive_sweep_enabled = true
+backlog_sweep_enabled = true
 
 # Active-row caps (todo + wip + blocked; terminal rows awaiting archive do not count,
 # or the cap would fight the archive sweep). Weakly derived and deliberately marked as
@@ -175,6 +195,27 @@ archive_sweep_enabled = true
 soft_cap = 25                            # warn, and route new items to the backlog
 hard_cap = 30                            # refuse to add to Plans.md at all
 wip_cap = 1                              # one active bet; wip-guard already enforces it
+
+# Length budget for the ACTIVE file, in lines, including its boilerplate.
+# A row cap alone does not bound the file: 30 rows plus the legend and format notes the
+# file used to carry measured 93 lines, already unreadable in one screen. The two are
+# reconciled by shrinking the boilerplate, not the row cap — the long-form legend and
+# format rules moved to skills/harness-plan/references/plans-format.md, leaving
+# ~20 lines of header so that 30 rows still lands inside the budget.
+#
+# 80 = the conventional one-screen height (80x24 is 24 rows, but an editor viewport at a
+# normal font shows ~80 lines of markdown; it is also the line length every style guide
+# in this repo already uses, so it is the number a reader here already has calibrated).
+# This is a REPORTED budget, not admission control: a write is never refused because a
+# description is well written. §2.5 rejects a byte/line cap as the gate for exactly that
+# reason, and that rejection stands. Overflow behaviour:
+#   <= max_lines      normal.
+#   >  max_lines      session-monitor and the plans-watcher hook both print an over-budget
+#                     notice naming the excess; run the archive sweep and move terminal
+#                     rows out. In THIS repository CI additionally fails
+#                     (check-regression-guard.sh: plans-line-budget), because the repo's
+#                     own Plans.md is the worked example the design is pinned to.
+max_lines = 80
 
 [tdd]
 adopt_todo_list_first = true

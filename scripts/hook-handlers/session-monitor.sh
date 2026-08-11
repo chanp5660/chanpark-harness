@@ -83,17 +83,39 @@ if [ -r "$COUNTS_LIB" ] && [ -f "$PLANS" ]; then
 
     # Caps come from harness.toml [plans]; the defaults here keep the monitor useful
     # in a project that has not configured them.
-    SOFT_CAP="$(grep -E '^[[:space:]]*soft_cap[[:space:]]*=' "$PROJECT_ROOT/harness.toml" 2>/dev/null |
-      head -1 | grep -oE '[0-9]+' | head -1)"
-    HARD_CAP="$(grep -E '^[[:space:]]*hard_cap[[:space:]]*=' "$PROJECT_ROOT/harness.toml" 2>/dev/null |
-      head -1 | grep -oE '[0-9]+' | head -1)"
-    SOFT_CAP="${SOFT_CAP:-25}"; HARD_CAP="${HARD_CAP:-30}"
+    toml_int() {
+      grep -E "^[[:space:]]*$1[[:space:]]*=" "$PROJECT_ROOT/harness.toml" 2>/dev/null |
+        head -1 | grep -oE '[0-9]+' | head -1
+    }
+    SOFT_CAP="$(toml_int soft_cap)"; HARD_CAP="$(toml_int hard_cap)"
+    MAX_LINES="$(toml_int max_lines)"
+    SOFT_CAP="${SOFT_CAP:-25}"; HARD_CAP="${HARD_CAP:-30}"; MAX_LINES="${MAX_LINES:-80}"
+
+    # Two independent budgets, reported together because they bound different things.
+    # The row caps bound how much WORK is in flight; the line budget bounds whether the
+    # file can still be read in one screen. Neither implies the other: at the hard cap
+    # of 30 rows the file measured 93 lines before the long-form legend was moved out to
+    # skills/harness-plan/references/plans-format.md, and terminal rows awaiting archive
+    # add length without touching the row count at all.
+    PLANS_LINES="$(wc -l < "$PLANS" 2>/dev/null | tr -d ' ')"
+    PLANS_LINES="${PLANS_LINES:-0}"
+    printf '   rows %s/%s active (soft %s) · %s/%s lines\n' \
+      "$PLANS_ACTIVE" "$HARD_CAP" "$SOFT_CAP" "$PLANS_LINES" "$MAX_LINES"
+
     if [ "$PLANS_ACTIVE" -gt "$HARD_CAP" ] 2>/dev/null; then
       printf '   !! active rows %s exceed the hard cap of %s — new work must go to Plans-backlog.md\n' \
         "$PLANS_ACTIVE" "$HARD_CAP"
     elif [ "$PLANS_ACTIVE" -gt "$SOFT_CAP" ] 2>/dev/null; then
       printf '   ~ active rows %s exceed the soft cap of %s — route new work to Plans-backlog.md\n' \
         "$PLANS_ACTIVE" "$SOFT_CAP"
+    fi
+    # Length overflow is REPORTED, never refused: refusing a write because a description
+    # is well written would punish good writing, which is why §2.5 rejects a line cap as
+    # admission control. The remedy is always to move terminal rows out, not to write less.
+    if [ "$PLANS_LINES" -gt "$MAX_LINES" ] 2>/dev/null; then
+      printf '   !! Plans.md is %s lines, over the %s-line budget by %s — run the archive sweep and\n' \
+        "$PLANS_LINES" "$MAX_LINES" "$((PLANS_LINES - MAX_LINES))"
+      printf '      move terminal rows to .claude/memory/archive/. Writes are never refused on length.\n'
     fi
     if [ "${PLANS_WIP:-0}" -gt 1 ] 2>/dev/null; then
       printf '   ~ %s tasks are cc:wip; the loop is serial and expects at most one\n' "$PLANS_WIP"
@@ -110,15 +132,25 @@ fi
 if [ -f "$BACKLOG" ]; then
   # Bullets under the "## Captured" heading only, fenced examples excluded — the file's
   # own instructions are written in bullets and a format example lives in a code fence.
-  BACKLOG_N="$(awk '
+  #
+  # LIVE and DECLINED are separated. A struck-through bullet is the backlog's terminal
+  # state (its cc:dropped), and folding it into one number would make declining an idea
+  # look identical to never having decided — which is how the file ends up with no exit
+  # but promotion, and grows forever.
+  BACKLOG_COUNTS="$(awk '
     { t=$0; sub(/^[[:space:]]+/,"",t)
       if (substr(t,1,3)=="```") { f=!f; next }
       if (f) next
       if (t ~ /^## +Captured/) { cap=1; next }
-      if (cap && t ~ /^[-*][[:space:]]+/) n++ }
-    END { print n+0 }' "$BACKLOG" 2>/dev/null)"
-  printf 'Plans-backlog.md: %s captured item(s), unscheduled (no markers, no counts)\n' \
-    "${BACKLOG_N:-0}"
+      if (t ~ /^## /) { cap=0; next }
+      if (!cap) next
+      if (t !~ /^[-*][[:space:]]+/) next
+      b=t; sub(/^[-*][[:space:]]+/,"",b)
+      if (b ~ /^~~/) d++; else n++ }
+    END { printf "%d %d\n", n+0, d+0 }' "$BACKLOG" 2>/dev/null)"
+  BACKLOG_N="${BACKLOG_COUNTS%% *}"; BACKLOG_D="${BACKLOG_COUNTS##* }"
+  printf 'Plans-backlog.md: %s live · %s declined — unscheduled capture (no markers, no counts)\n' \
+    "${BACKLOG_N:-0}" "${BACKLOG_D:-0}"
 fi
 
 # --- Archive: files, not rows ------------------------------------------------------

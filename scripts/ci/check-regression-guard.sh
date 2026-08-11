@@ -676,8 +676,8 @@ check_plans_backlog_inert() {
   fi
 
   # 3. No counter may have learned to read the backlog or the archive.
-  for f in hud/statusline.sh scripts/hook-handlers/plans-watcher.sh \
-    scripts/hook-handlers/wip-guard.sh scripts/progress-snapshot.sh; do
+  for f in hud/statusline.sh scripts/hook-handlers/wip-guard.sh scripts/progress-snapshot.sh \
+    scripts/lib/plans-counts.sh scripts/lib/plans-markers.awk; do
     [ -f "$f" ] || continue
     if grep -nE '^[^#]*(Plans-backlog\.md|memory/archive)' "$f" 2> /dev/null |
       grep -vq '^$'; then
@@ -685,6 +685,38 @@ check_plans_backlog_inert() {
       return
     fi
   done
+
+  # 4. plans-watcher.sh is checked BEHAVIOURALLY rather than textually. Its budget
+  #    advisory legitimately names both destinations in the remedy it prints ("capture
+  #    new work in Plans-backlog.md", "move terminal rows to .claude/memory/archive/"),
+  #    and a grep cannot tell a printed sentence from an opened file. The invariant that
+  #    actually matters is stronger and directly testable: whatever the backlog contains,
+  #    including a full table of markers pasted in by mistake, it must not move a single
+  #    number the handler writes.
+  local tmp state done_n
+  tmp="$(mktemp -d 2> /dev/null)" || {
+    echo "PASS: plans-backlog-inert (behavioural sub-check skipped: mktemp unavailable)"
+    return
+  }
+  printf '| ID | Task | Status |\n|---|---|---|\n| T1 | only real task | cc:todo |\n' > "$tmp/Plans.md"
+  {
+    printf '| ID | Task | Status |\n|---|---|---|\n'
+    printf '| B1 | pasted into the wrong file | cc:done |\n'
+    printf '| B2 | pasted into the wrong file | cc:done |\n'
+    printf '| B3 | pasted into the wrong file | pm:approved |\n'
+  } > "$tmp/Plans-backlog.md"
+  printf '{"cwd":"%s","tool_input":{"file_path":"%s/Plans.md"},"session_id":"inert"}' "$tmp" "$tmp" |
+    bash scripts/hook-handlers/plans-watcher.sh > /dev/null 2>&1
+  state="$tmp/.claude/state/plans-state.json"
+  if [ -f "$state" ]; then
+    done_n="$(grep -o '"cc_done"[[:space:]]*:[[:space:]]*[0-9]\+' "$state" | grep -o '[0-9]\+$')"
+    if [ "${done_n:-0}" != "0" ]; then
+      rm -rf "$tmp"
+      echo "FAIL: plans-backlog-inert — plans-watcher counted ${done_n} done row(s) that exist only in Plans-backlog.md"
+      return
+    fi
+  fi
+  rm -rf "$tmp"
 
   echo "PASS: plans-backlog-inert"
 }
@@ -758,16 +790,327 @@ check_plans_sweep_readonly() {
   }
 
   printf '| ID | Task | Status |\n|---|---|---|\n| T1 | ancient | cc:todo |\n| T2 | shipped | cc:done |\n' > "$tmp/Plans.md"
-  before="$(cat "$tmp/Plans.md")"
-  HARNESS_SWEEP_QUIET=0 bash "$sweep" --root "$tmp" --stale-days 0 --archive-days 0 --enable-stale > /dev/null 2>&1
-  after="$(cat "$tmp/Plans.md")"
+  printf '## Captured\n\n- 2001-01-01 — an ancient captured idea\n' > "$tmp/Plans-backlog.md"
+  before="$(cat "$tmp/Plans.md" "$tmp/Plans-backlog.md")"
+  HARNESS_SWEEP_QUIET=0 bash "$sweep" --root "$tmp" --stale-days 0 --archive-days 0 \
+    --backlog-stale-days 0 --enable-stale > /dev/null 2>&1
+  after="$(cat "$tmp/Plans.md" "$tmp/Plans-backlog.md")"
   rm -rf "$tmp"
 
   if [ "$before" != "$after" ]; then
-    echo "FAIL: plans-sweep-readonly — the sweep modified Plans.md; it must only ever propose"
+    echo "FAIL: plans-sweep-readonly — the sweep modified a plan file; it must only ever propose"
     return
   fi
   echo "PASS: plans-sweep-readonly"
+}
+
+# ---------------------------------------------------------------------------
+# Check: plans-archive-per-row — the T2 archive trigger is a property of the ROW,
+# never of the whole file.
+#
+# The rule it replaced required every row in the file to be terminal. That let ONE
+# perpetually-unfinished cc:todo suppress archiving of an arbitrarily large pile of
+# finished rows, forever, and nothing else in the design could catch it: the row caps
+# count active rows only (there is exactly one), and T1 targets active rows and ships
+# off. Reproduced before the fix at 120 cc:done rows plus one cc:todo — 125 lines, and
+# the sweep printed "no candidates".
+#
+# Linear, which this design cites for "archive must be a pure function of state and
+# time", applies that per ISSUE: closed issues auto-archive after remaining closed and
+# inactive for the period. The row is the thing being archived, so the row is the thing
+# the condition is on.
+#
+# The fixture is many terminal rows plus one active row. If the rule is reverted to the
+# file-level form, PLANS_ACTIVE is 1 and the sweep emits nothing — this check FAILs.
+# ---------------------------------------------------------------------------
+check_plans_archive_per_row() {
+  local sweep="scripts/plans-sweep.sh"
+  local fixture="tests/fixtures/plans-terminal-pile.md"
+  local tmp out
+
+  if [ ! -f "$sweep" ] || [ ! -f "$fixture" ]; then
+    echo "FAIL: plans-archive-per-row — $sweep or $fixture missing"
+    return
+  fi
+  if ! command -v git > /dev/null 2>&1; then
+    echo "SKIP: plans-archive-per-row — git unavailable, per-row ages come from git blame"
+    return
+  fi
+  tmp="$(mktemp -d 2> /dev/null)" || {
+    echo "SKIP: plans-archive-per-row — mktemp unavailable"
+    return
+  }
+
+  cp "$fixture" "$tmp/Plans.md"
+  (
+    cd "$tmp" || exit 1
+    git init -q . > /dev/null 2>&1
+    git config user.email guard@example.invalid
+    git config user.name guard
+    git add Plans.md > /dev/null 2>&1
+    git commit -qm fixture > /dev/null 2>&1
+  )
+  # --archive-days 0: every row is "at least 0 days old", so the age test cannot be the
+  # thing under test here. The only question is whether the presence of the active row
+  # suppresses the report.
+  out="$(HARNESS_SWEEP_QUIET=0 bash "$sweep" --root "$tmp" --archive-days 0 2>&1)"
+  rm -rf "$tmp"
+
+  case "$out" in
+    *"no candidates"*)
+      echo "FAIL: plans-archive-per-row — one active row suppressed the whole archive report; T2 must be per-row"
+      return
+      ;;
+  esac
+  if ! printf '%s' "$out" | grep -q 'T2 archive candidates'; then
+    echo "FAIL: plans-archive-per-row — no per-row T2 candidates reported: $(printf '%s' "$out" | head -1)"
+    return
+  fi
+  # Every terminal row must be named, and the active row must not be.
+  local missing
+  missing=""
+  for id in D1 D8 X1 X4; do
+    printf '%s' "$out" | grep -qE "^[[:space:]]+$id[[:space:]]" || missing="$missing $id"
+  done
+  if [ -n "$missing" ]; then
+    echo "FAIL: plans-archive-per-row — terminal row(s) not offered for archive:$missing"
+    return
+  fi
+  if printf '%s' "$out" | grep -qE '^[[:space:]]+A1[[:space:]]'; then
+    echo "FAIL: plans-archive-per-row — the active row A1 was offered for archive"
+    return
+  fi
+
+  echo "PASS: plans-archive-per-row"
+}
+
+# ---------------------------------------------------------------------------
+# Check: plans-line-budget — the active file is held to a line budget, and the budget
+# is reachable at the hard row cap.
+#
+# A row cap does not bound the file. It counts ACTIVE rows only, so terminal rows
+# awaiting archive add length without moving the number, and the boilerplate is free.
+# Measured on the previous layout: at the hard cap of 30 rows Plans.md came to 93 lines,
+# already past one screen, and no surface anywhere said a word.
+#
+# Three assertions, each pinning a different half of the fix:
+#   1. max_lines exists in harness.toml [plans] and is <= 80.
+#   2. the repo's own Plans.md is within it (the worked example the design is pinned to).
+#   3. the shipped template's boilerplate + hard_cap rows still fits, i.e. the budget is
+#      actually reachable rather than being a number that a full plan cannot satisfy.
+#      This is what forced the legend out to references/plans-format.md.
+# ---------------------------------------------------------------------------
+check_plans_line_budget() {
+  local toml="harness.toml"
+  local plans="Plans.md"
+  local tmpl="templates/Plans.md.template"
+  local max_lines hard_cap n boiler
+
+  if [ ! -f "$toml" ]; then
+    echo "FAIL: plans-line-budget — $toml missing"
+    return
+  fi
+  max_lines="$(grep -E '^[[:space:]]*max_lines[[:space:]]*=' "$toml" 2> /dev/null |
+    head -1 | grep -oE '[0-9]+' | head -1)"
+  hard_cap="$(grep -E '^[[:space:]]*hard_cap[[:space:]]*=' "$toml" 2> /dev/null |
+    head -1 | grep -oE '[0-9]+' | head -1)"
+  if [ -z "$max_lines" ]; then
+    echo "FAIL: plans-line-budget — no max_lines in $toml [plans]; the active file has no length budget"
+    return
+  fi
+  if [ "$max_lines" -gt 80 ]; then
+    echo "FAIL: plans-line-budget — max_lines is $max_lines; the budget must be <= 80 (one screen)"
+    return
+  fi
+  hard_cap="${hard_cap:-30}"
+
+  if [ -f "$plans" ]; then
+    n="$(wc -l < "$plans" | tr -d ' ')"
+    if [ "$n" -gt "$max_lines" ]; then
+      echo "FAIL: plans-line-budget — $plans is $n lines, over the $max_lines-line budget"
+      return
+    fi
+  fi
+
+  # Reachability: template boilerplate (its body minus the one demo row and minus the
+  # 4-line template frontmatter, which is stripped at scaffold time) plus a full hard-cap
+  # plan must still fit. If it does not, the budget is decorative.
+  if [ -f "$tmpl" ]; then
+    n="$(wc -l < "$tmpl" | tr -d ' ')"
+    boiler=$((n - 4 - 1))
+    if [ $((boiler + hard_cap)) -gt "$max_lines" ]; then
+      echo "FAIL: plans-line-budget — template boilerplate $boiler + hard cap $hard_cap = $((boiler + hard_cap)) > $max_lines; the budget is unreachable at a full plan"
+      return
+    fi
+  fi
+
+  # The budget has to be REPORTED somewhere, or it is prose.
+  local reported=0
+  grep -q 'max_lines' scripts/hook-handlers/session-monitor.sh 2> /dev/null && reported=$((reported + 1))
+  grep -q 'max_lines' scripts/hook-handlers/plans-watcher.sh 2> /dev/null && reported=$((reported + 1))
+  if [ "$reported" -lt 2 ]; then
+    echo "FAIL: plans-line-budget — the budget is not reported by both session-monitor.sh and plans-watcher.sh"
+    return
+  fi
+
+  echo "PASS: plans-line-budget"
+}
+
+# ---------------------------------------------------------------------------
+# Check: plans-dupe-check — duplicate detection is an executable with a named call site.
+#
+# It was one prose sentence telling the model to compute Jaccard similarity, with no
+# script, no command and no call site — and it compared against Plans.md rows while
+# harness-plan's own backlog-by-default rule sends new items to Plans-backlog.md, so the
+# one file where duplicates actually accumulate was the one file never compared.
+#
+# Asserted: the script exists and runs; it finds a near-duplicate of a Plans.md row AND
+# of a live backlog bullet; it stays quiet on an unrelated description; it ignores
+# declined bullets; and harness-plan names it as a command.
+# ---------------------------------------------------------------------------
+check_plans_dupe_check() {
+  local script="scripts/plans-dupe-check.sh"
+  local skill="skills/harness-plan/SKILL.md"
+  local tmp out
+
+  if [ ! -f "$script" ]; then
+    echo "FAIL: plans-dupe-check — $script missing; the dedupe claim has no executable form"
+    return
+  fi
+  if [ ! -x "$script" ]; then
+    echo "FAIL: plans-dupe-check — $script is not executable"
+    return
+  fi
+  tmp="$(mktemp -d 2> /dev/null)" || {
+    echo "SKIP: plans-dupe-check — mktemp unavailable"
+    return
+  }
+
+  {
+    printf '| ID | Task | DoD | Depends | Status |\n|----|------|-----|---------|--------|\n'
+    printf '| 1.1 | Make the archive sweep work per row instead of per file [tdd:skip:x] | fires | - | cc:todo |\n'
+  } > "$tmp/Plans.md"
+  {
+    printf '# Plans-backlog.md\n\n## Captured\n\n'
+    printf -- '- 2026-08-01 — Add a line budget to the active plans file so it fits one screen\n'
+    printf -- '- ~~2026-01-01 — Upgrade the continuous integration runner image to a newer ubuntu~~ declined 2026-02-02: done upstream\n'
+  } > "$tmp/Plans-backlog.md"
+
+  # 1. near-duplicate of a Plans.md row
+  out="$(bash "$script" --root "$tmp" "Rewrite the archive sweep to work per row instead of per file" 2>&1)"
+  if ! printf '%s' "$out" | grep -q 'Plans.md:'; then
+    rm -rf "$tmp"
+    echo "FAIL: plans-dupe-check — missed a near-duplicate of a Plans.md row"
+    return
+  fi
+  # 2. near-duplicate of a LIVE backlog bullet — the corpus the old prose never read
+  out="$(bash "$script" --root "$tmp" "Add a line budget to the active plans file so that it fits one screen" 2>&1)"
+  if ! printf '%s' "$out" | grep -q 'Plans-backlog.md:'; then
+    rm -rf "$tmp"
+    echo "FAIL: plans-dupe-check — did not compare against Plans-backlog.md, where new items land by default"
+    return
+  fi
+  # 3. a DECLINED bullet is retired and must not keep flagging its successor
+  out="$(bash "$script" --root "$tmp" "Upgrade the continuous integration runner image to a newer ubuntu" 2>&1)"
+  if printf '%s' "$out" | grep -q 'Plans-backlog.md:'; then
+    rm -rf "$tmp"
+    echo "FAIL: plans-dupe-check — matched a declined (struck-through) backlog bullet"
+    return
+  fi
+  # 4. unrelated description stays quiet
+  out="$(bash "$script" --root "$tmp" "Rotate the signing key used for release tarballs" 2>&1)"
+  if ! printf '%s' "$out" | grep -q 'no candidates'; then
+    rm -rf "$tmp"
+    echo "FAIL: plans-dupe-check — false positive on an unrelated description: $(printf '%s' "$out" | head -1)"
+    return
+  fi
+  rm -rf "$tmp"
+
+  # 5. the skill must call it by name, or it is a script nobody runs
+  if [ -f "$skill" ] && ! grep -q 'plans-dupe-check.sh' "$skill"; then
+    echo "FAIL: plans-dupe-check — $skill does not name the script; the check has no call site"
+    return
+  fi
+
+  echo "PASS: plans-dupe-check"
+}
+
+# ---------------------------------------------------------------------------
+# Check: plans-backlog-lifecycle — the backlog has an exit other than promotion.
+#
+# Plans-backlog.md is the DEFAULT destination for every new item, and it was declared
+# uncapped, never swept, never expired and never cleaned, with promotion as its only
+# exit. That is an unbounded file by construction, and it means an idea can only be
+# retired by deleting it, leaving no record. Markers are banned in the file, so
+# cc:dropped can never reach it — the disposition has to be carried by the text.
+#
+# Asserted: the sweep reports a stale LIVE bullet by its capture date, skips a DECLINED
+# (struck-through) one, and the shipped file plus template document all four
+# dispositions.
+# ---------------------------------------------------------------------------
+check_plans_backlog_lifecycle() {
+  local sweep="scripts/plans-sweep.sh"
+  local fixture="tests/fixtures/plans-backlog-lifecycle.md"
+  local toml="harness.toml"
+  local tmp out f
+
+  if [ ! -f "$sweep" ] || [ ! -f "$fixture" ]; then
+    echo "FAIL: plans-backlog-lifecycle — $sweep or $fixture missing"
+    return
+  fi
+
+  # The trigger must be configured ON in the shipped config, not merely implemented.
+  # A sweep that defaults to true in the script but false in harness.toml reports
+  # nothing in the only project that matters here.
+  if [ -f "$toml" ]; then
+    if ! grep -qE '^[[:space:]]*backlog_stale_days[[:space:]]*=[[:space:]]*[0-9]+' "$toml"; then
+      echo "FAIL: plans-backlog-lifecycle — no backlog_stale_days in $toml [plans]"
+      return
+    fi
+    if ! grep -qE '^[[:space:]]*backlog_sweep_enabled[[:space:]]*=[[:space:]]*true' "$toml"; then
+      echo "FAIL: plans-backlog-lifecycle — backlog_sweep_enabled is not true in $toml; the backlog has no age report"
+      return
+    fi
+  fi
+  tmp="$(mktemp -d 2> /dev/null)" || {
+    echo "SKIP: plans-backlog-lifecycle — mktemp unavailable"
+    return
+  }
+  cp "$fixture" "$tmp/Plans-backlog.md"
+  out="$(HARNESS_SWEEP_QUIET=0 bash "$sweep" --root "$tmp" 2>&1)"
+  rm -rf "$tmp"
+
+  if ! printf '%s' "$out" | grep -q 'T3 backlog staleness'; then
+    echo "FAIL: plans-backlog-lifecycle — no staleness report for the backlog; its only exit is promotion again"
+    return
+  fi
+  if ! printf '%s' "$out" | grep -q '2012-06-15'; then
+    echo "FAIL: plans-backlog-lifecycle — the ancient live bullet was not reported"
+    return
+  fi
+  if printf '%s' "$out" | grep -q '2010-02-02'; then
+    echo "FAIL: plans-backlog-lifecycle — a declined bullet was reported as stale; declining must retire it"
+    return
+  fi
+  if printf '%s' "$out" | grep -q '2099-01-01'; then
+    echo "FAIL: plans-backlog-lifecycle — a future-dated bullet was reported as stale"
+    return
+  fi
+
+  # The disposition has to be documented where the person writing the bullet will see it.
+  for f in Plans-backlog.md templates/Plans-backlog.md.template; do
+    [ -f "$f" ] || continue
+    if ! grep -qi 'declined' "$f"; then
+      echo "FAIL: plans-backlog-lifecycle — $f does not document the declined disposition"
+      return
+    fi
+    if ! grep -qi 'snooze' "$f"; then
+      echo "FAIL: plans-backlog-lifecycle — $f does not document all four dispositions"
+      return
+    fi
+  done
+
+  echo "PASS: plans-backlog-lifecycle"
 }
 
 # ---------------------------------------------------------------------------
@@ -926,6 +1269,10 @@ run_check "plans-backlog-inert" check_plans_backlog_inert
 run_check "plans-watcher-handler" check_plans_watcher_handler
 run_check "session-monitor-handler" check_session_monitor_handler
 run_check "plans-sweep-readonly" check_plans_sweep_readonly
+run_check "plans-archive-per-row" check_plans_archive_per_row
+run_check "plans-line-budget" check_plans_line_budget
+run_check "plans-dupe-check" check_plans_dupe_check
+run_check "plans-backlog-lifecycle" check_plans_backlog_lifecycle
 run_check "progress-snapshot-rows" check_progress_snapshot_rows
 run_check "wip-guard-loop-breaker" check_wip_guard_loop_breaker
 run_check "wip-guard-anchoring" check_wip_guard_anchoring

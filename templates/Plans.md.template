@@ -1,18 +1,20 @@
 ---
 _harness_template: "Plans.md.template"
-_harness_version: "4.4.0"
+_harness_version: "4.5.0"
 ---
 
 # Plans.md — {{PROJECT_NAME}}
 
 > **Active work only.** Terminal rows move to `.claude/memory/archive/`; unscheduled
-> ideas live in `Plans-backlog.md`. This is the file that opens by default, and it is
-> meant to stay short enough that opening it is never a chore.
+> ideas live in `Plans-backlog.md`. This file opens by default and is budgeted to stay
+> readable in one screen.
 
-- **Last updated**: {{DATE}}
-- **Updated by**: Claude Code
-- **Layout**: `Plans.md` (active) · `Plans-backlog.md` (capture, no markers) · `.claude/memory/archive/Plans-<date>.md` (terminal rows)
-- **Caps**: 25 active rows soft / 30 hard / 1 `cc:wip` — configure in `harness.toml [plans]`
+- **Last updated**: {{DATE}} · **Last session owner**: Claude Code
+- **Budgets** (`harness.toml [plans]`): 25 active rows soft / 30 hard · 1 `cc:wip` ·
+  **80 lines** whole-file. Rows over the hard cap are refused into the backlog; length
+  over budget is reported, never refused — archive terminal rows instead.
+- **Format, legend, aliases, dispositions**: `skills/harness-plan/references/plans-format.md`.
+  Executable definition: `scripts/lib/plans-markers.awk`.
 
 ---
 
@@ -24,93 +26,28 @@ _harness_version: "4.4.0"
 
 <!-- Add rows here. Capture unscheduled ideas in Plans-backlog.md instead. -->
 
-**Table dialect is required.** A marker counts as a task **only when it is the status
-cell** — the last non-empty cell of a table row. A checklist (`- [ ] task cc:todo`) is
-not a table row, so the canonical counter scores it zero and the HUD, the plans-watcher
-hook and the progress snapshot all report an empty plan. Earlier versions of this
-template shipped the checklist form and new projects started with a blank HUD as a
-result.
-
-**Columns**: `ID` (any of `1.1`, `T001`), `Task`, `DoD`, `Depends` (`-`, `1.1`, or
-`1.1, 1.2`), `Status`.
-
-**DoD**: one verifiable line, Yes/No evaluable. "Works properly" is not a DoD.
+**Table dialect is required** — a checklist (`- [ ] task cc:todo`) is not a table row and
+scores zero. **DoD**: one verifiable line, Yes/No evaluable.
 
 ---
 
-## Status Marker Legend
+## Markers
 
-The vocabulary is **closed**. Finer distinctions belong in the Task cell, never in a new
-marker. `scripts/lib/plans-markers.awk` is the single definition; every consumer reads
-it through `scripts/lib/plans-counts.sh`.
+`cc:todo` · `cc:wip` · `cc:blocked` (active, in the denominator) — `cc:done` ·
+`cc:dropped` (terminal, both count as progress) — `pm:requested` · `pm:approved`
+(gates, counted separately). The vocabulary is **closed**; an unrecognised status cell
+is reported as `unknown`, never absorbed into a neighbouring bucket.
 
-| Marker | Class | Meaning | In denominator | Counts as progress |
-|--------|-------|---------|----------------|--------------------|
-| `cc:todo` | active | Not started | yes | no |
-| `cc:wip` | active | In progress (at most one at a time) | yes | no |
-| `cc:blocked` | active | Waiting on something — still debt, reason required | yes | no |
-| `cc:done` | terminal | Claude Code completed the task | yes | **yes** |
-| `cc:dropped` | terminal | **Decided against.** Reason required in the Task cell | yes | **yes** |
-| `pm:requested` | gate | PM requested work | counted separately | — |
-| `pm:approved` | gate | PM confirmed completion | counted separately | — |
-
-`progress = (done + dropped) / (todo + wip + blocked + done + dropped)`
-
-Input aliases, normalised on read: `cursor:*` → `cc:*`, uppercase spellings (matching is
-case-insensitive), `cc:cancelled` / `cc:canceled` → `cc:dropped`. Write the canonical
-lowercase form. `dropped` is canonical because it has exactly one spelling, while
-`cancelled`/`canceled` splits in two and a marker that splits in two eventually goes
-uncounted.
-
-**Dropping is progress, not failure.** A task decided against is resolved. If retiring
-work lowered the completion percentage, the rational move would be to never retire
-anything, and this file would grow until nobody opened it. `cc:dropped` is displayed
-separately wherever it appears, so a plan cannot reach 100% by quietly abandoning itself.
-
-A status cell matching nothing above is reported as `unknown` rather than folded into a
-neighbouring bucket — a row that vanishes from the denominator is worse than a row in
-the wrong column.
-
-A trailing note is fine: `cc:done [a1b2c3d]`, `cc:done (2026-06-17: rewrote §4)`,
-`cc:dropped — superseded by 2.4`.
+`progress = (done + dropped) / (todo + wip + blocked + done + dropped)`. Dropping
+**advances** the plan — if retiring work lowered the percentage, the rational move would
+be to never retire anything, and this file would grow until nobody read it.
+**Only the last non-empty cell of a table row is a status.** Prose, this section, fenced
+examples, HTML comments and a Task cell quoting a marker never count.
 
 ---
 
-## The other two files
-
-**`Plans-backlog.md`** — unscheduled capture. Plain bullets with a capture date, and
-**no `cc:` markers at all**. No counter reads it, and the absence of markers means
-there is nothing to find even if one is pointed at it by mistake. Do not add a
-`cc:backlog` state: it would put the backlog back into the progress numbers and undo
-the reason the file is separate. Promotion into `Plans.md` is a manual rewrite as a
-full table row — the friction is deliberate.
-
-**`.claude/memory/archive/Plans-<YYYY-MM-DD>.md`** — where terminal rows land. Never
-scanned by any counter. Physical separation is far cheaper to enforce than teaching
-four separate counters to skip a section, and a single archive *sentence* once inflated
-the done count by one.
-
-Archiving is the job of the sweep (`scripts/plans-sweep.sh`), which **proposes and never
-writes**. Do not hand-move rows out to make the file look tidy: an archive that doubles
-as a hiding place for uncomfortable work stops being a record.
-
----
-
-## Optional Extended Syntax
-
-For larger plans, tag tasks in the Task or DoD cell.
-
-| Syntax | Meaning | Example |
-|--------|---------|---------|
-| `[P]` | Parallelizable with other ready tasks | `Build the product API [P]` |
-| `[tdd:required]` | Write a failing test first | `Auth token refresh [tdd:required]` |
-| `[tdd:skip:<reason>]` | Skip TDD, with a stated reason | `[tdd:skip:docs-only]` |
-
-`<reason>` must not be empty.
-
----
-
-## Last Update
-
-- **Updated at**: {{DATE}}
-- **Last session owner**: Claude Code
+`Plans-backlog.md` holds unscheduled capture — plain dated bullets, **no `cc:` markers
+at all**, four dispositions (promote / decline / duplicate / snooze).
+`.claude/memory/archive/Plans-<YYYY-MM-DD>.md` holds terminal rows and is never scanned.
+Archiving is **per row** and is the job of `scripts/plans-sweep.sh`, which proposes and
+never writes.
