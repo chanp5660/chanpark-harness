@@ -218,7 +218,15 @@ All subsequent `node "${HARNESS_PLUGIN_ROOT}/scripts/..."` / `bash "${HARNESS_PL
    - If the spec is outdated or contradicts the task, update the spec before implementing.
    - For typo / format / dependency bump / docs-only / behavior-preserving refactor tasks, record the skip reason and continue.
    - Include `spec_path` or `spec_skip_reason` in the context passed to Worker / Reviewer.
-2. Update the task to `cc:wip`.
+1.7. **Backlog promotion** (only when the target lives in `Plans-backlog.md`):
+   - Rewrite the backlog bullet as a full `Plans.md` table row: ID, Task, DoD, Depends, `cc:todo`.
+   - Delete the bullet from `Plans-backlog.md` — an item must exist in exactly one file.
+   - Refuse the promotion when it would push active rows (`cc:todo` + `cc:wip` + `cc:blocked`)
+     past the hard cap in `harness.toml [plans]`; archive or drop something first.
+   - There is no automatic promotion. Restating the item in full, with a DoD you have
+     to write, is the deliberate cost of entering the active set.
+2. Update the task to `cc:wip`. **At most one task may be `cc:wip` at a time** — one
+   active bet, matching what `wip-guard` already assumes at Stop.
 3. **TDD Phase** (when `[skip:tdd]` is absent and a test framework is present):
    a. Create the test file first (Red).
    b. Confirm it fails.
@@ -472,7 +480,21 @@ The generated artifact includes the following.
 **Phase C: Post-delegate (integration and reporting)**:
 1. Aggregate the commit logs for all tasks.
 2. Output the **rich completion report** (Breezing template in "Completion Report Format").
-3. Final verification of Plans.md (confirm all tasks are marked `cc:done`).
+3. Final verification of Plans.md (confirm every task reached a **terminal** state:
+   `cc:done` or `cc:dropped`).
+
+### Retiring a task: `cc:dropped`
+
+When work is abandoned rather than finished — superseded, no longer wanted, or shown to
+be a bad idea — set the status to `cc:dropped` and state the reason in the Description
+cell. Do **not** reuse `cc:done` (the ledger would claim work that never happened, and
+no audit could tell the two apart) and do **not** leave it `cc:blocked` (blocked means
+waiting on something; it is still open debt, not an exit).
+
+`cc:dropped` is terminal: it stays in the denominator, it counts toward progress exactly
+like `cc:done`, it satisfies downstream `Depends` so dependents do not deadlock, and it
+is never selected as the "next task". It is reported separately in the HUD and the
+session block, so pruning stays visible and cannot masquerade as delivery.
 
 ## Handling CI Failures
 

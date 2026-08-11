@@ -227,22 +227,78 @@ For product-impacting additions, output `Spec delta` or `Spec skip reason` as we
 
 Tasks are added with the `cc:todo` marker.
 
+#### Where a new item lands: backlog by default
+
+New items go to **`Plans-backlog.md`** unless the user is starting work on them now.
+`Plans.md` is the active set; entering it is an explicit promotion, performed by
+`harness-work`. This keeps `cc:todo` meaning "actually in flight" instead of
+"aspirational", which is the only way the count stays worth reading.
+
+Promotion is a **manual rewrite**: restate the backlog bullet as a full table row with
+an ID and a Definition of Done. There is no automatic promotion. The friction is
+deliberate — it stands in for the colleague you would otherwise have to convince, and
+an item not worth restating in full was not worth doing.
+
+`Plans-backlog.md` carries **no `cc:` markers at all**. No counter reads it, and with
+no markers in it there is nothing for a counter to find even if one is pointed at the
+file by mistake. Do not invent a `cc:backlog` state: it would put the backlog straight
+back into the progress numbers and undo the reason the file is separate.
+
+#### Active-row caps
+
+Counted over active rows only (`cc:todo` + `cc:wip` + `cc:blocked`). Terminal rows
+awaiting archive do not count, or the cap would fight the archive sweep. Values live in
+`harness.toml [plans]`.
+
+| Active rows | Behaviour |
+|-------------|-----------|
+| ≤ 25 (soft) | Normal. Add to `Plans.md`. |
+| 26–30 | **Warn**, and route the new item to `Plans-backlog.md`. `Plans.md` entry requires an explicit promotion. |
+| > 30 (hard) | **Refuse** to add to `Plans.md`. Route to the backlog, print the reason, and suggest running the archive sweep first. |
+
+Overflow fails toward the backlog, which is recoverable, never toward unbounded growth,
+which is not. Never grow the active file silently.
+
+Also enforce `cc:wip` ≤ 1. One active bet at a time; `wip-guard` already treats it as
+the working assumption.
+
+#### Duplicate check — advisory only, never blocking
+
+Before appending, compare the new description against existing rows (Jaccard similarity
+over words, after removing `[tdd:*]` boilerplate). At **≥ 0.4**, show the candidates and
+**continue anyway**.
+
+Never block. A hook that refuses the write fails closed and cannot be recovered from
+mid-flow; a duplicate row fails open and is cheap to fix — you notice it, or the next
+sweep offers it as a drop candidate. On the measured corpus the highest real pairwise
+similarity was 0.21 and no pair exceeded 0.20, so a 0.4 threshold is twice the observed
+noise ceiling and yields no false positives on anything seen so far. `harness-plan`
+already reads `Plans.md` in order to append, so this costs no extra I/O.
+
 ### update — Marker Update
 
 Change the status marker of a task.
 
 ```
-/harness-plan update [task name|task number] [WIP|done|blocked]
+/harness-plan update [task name|task number] [WIP|done|blocked|dropped]
 ```
 
 Marker mapping:
 
-| Command | Marker |
-|---------|--------|
-| `WIP` | `cc:wip` |
-| `done` | `cc:done` |
-| `blocked` | `blocked` |
-| `TODO` | `cc:todo` |
+| Command | Marker | Note |
+|---------|--------|------|
+| `TODO` | `cc:todo` | |
+| `WIP` | `cc:wip` | At most one task may hold this at a time |
+| `blocked` | `cc:blocked` | Reason required. Still debt — this is not an exit |
+| `done` | `cc:done` | |
+| `dropped` | `cc:dropped` | Reason required in the Description cell. Terminal |
+
+`blocked` previously mapped to a bare `blocked`, which is not a marker and matched
+nothing in any counter — the row simply disappeared from the status column.
+
+Use `dropped` rather than `done` when work is abandoned. Recording an abandonment as a
+completion makes the ledger lie and destroys the only signal that would tell you the
+plan was over-scoped.
 
 ### sync — Progress Sync
 
@@ -357,14 +413,40 @@ Reference:
 
 ### Marker Reference
 
-| Marker | Meaning |
-|--------|---------|
-| `pm:requested` | Requested by PM |
-| `cc:todo` | Not started |
-| `cc:wip` | In progress |
-| `cc:done` | Worker work complete |
-| `pm:approved` | PM review complete |
-| `blocked` | Blocked (reason must always be stated) |
+The vocabulary is **closed**. Finer distinctions go in the Description cell, never into
+a new marker. The one definition is `scripts/lib/plans-markers.awk`; every consumer
+reads it through `scripts/lib/plans-counts.sh`.
+
+| Marker | Class | Meaning | In denominator | Counts as progress |
+|--------|-------|---------|----------------|--------------------|
+| `cc:todo` | active | Not started | yes | no |
+| `cc:wip` | active | In progress (at most one at a time) | yes | no |
+| `cc:blocked` | active | Waiting on something — still debt, reason required | yes | no |
+| `cc:done` | terminal | Worker work complete | yes | **yes** |
+| `cc:dropped` | terminal | **Decided against**, reason required in the Description cell | yes | **yes** |
+| `pm:requested` | gate | Requested by PM | counted separately | — |
+| `pm:approved` | gate | PM review complete | counted separately | — |
+
+`progress = (done + dropped) / (todo + wip + blocked + done + dropped)`
+
+Input aliases, normalised on read: `cursor:*` → `cc:*`, `cc:cancelled` / `cc:canceled`
+→ `cc:dropped`. Write the canonical form; `dropped` is canonical because it has exactly
+one spelling, while `cancelled`/`canceled` splits in two and a marker that splits in
+two is a marker that eventually goes uncounted.
+
+Two earlier errors in this table are worth naming so they do not come back: the status
+was written as bare `blocked` (the marker is `cc:blocked`, and a bare word matches
+nothing), and `cc:blocked` was missing from the reference entirely.
+
+**Dropping is progress, not failure.** A task decided against is resolved, and marking
+it so advances the completion ratio exactly like finishing it. If retiring work lowered
+the percentage, the rational move would be to never retire anything — which is precisely
+how a plan file grows until nobody opens it. `cc:dropped` is displayed separately
+everywhere it appears, so a plan cannot reach 100% by quietly abandoning itself.
+
+A status cell matching nothing above counts as `unknown` and is flagged rather than
+folded into a neighbouring bucket. A row that vanishes from the denominator is worse
+than a row in the wrong column.
 
 ## Related Skills
 

@@ -22,6 +22,9 @@
 #   - Emits the framed status block only on a delta:
 #       pm:requested increased -> "New task: request from PM"     (takes precedence)
 #       cc:done increased      -> "Task completed: ready to report to PM"
+#       cc:dropped increased   -> "Task dropped: decided against" (added with the
+#                                 dropped state; retiring work is a decision and must
+#                                 be as visible as finishing it)
 #     Any other change (todo/wip/blocked) is recorded silently.
 #   - Writes pm-notification.md / cursor-notification.md only when a message is emitted.
 #
@@ -35,7 +38,7 @@
 set +e # never abort the host session
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COUNTER_AWK="$SCRIPT_DIR/../lib/plans-markers.awk"
+COUNTS_LIB="$SCRIPT_DIR/../lib/plans-counts.sh"
 
 emit_empty() {
   printf '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":""}}\n'
@@ -79,13 +82,20 @@ PLANS="$PROJECT_ROOT/Plans.md"
 [ -f "$PLANS" ] && [ -r "$PLANS" ] || emit_empty
 
 # --- Count ---------------------------------------------------------------------
-if [ ! -r "$COUNTER_AWK" ]; then
-  echo "[chanpark-harness] plans-watcher: counter not found at $COUNTER_AWK; skipped" >&2
+# Read through the shared loader (scripts/lib/plans-counts.sh) rather than parsing the
+# counter's line here. The counter emits labelled k=v pairs precisely so that adding a
+# state cannot shift a field: the old positional read would have put "0 0" into a JSON
+# number and written a malformed plans-state.json the moment a seventh column appeared.
+if [ ! -r "$COUNTS_LIB" ]; then
+  echo "[chanpark-harness] plans-watcher: count loader not found at $COUNTS_LIB; skipped" >&2
   emit_empty
 fi
-COUNTS="$(awk -f "$COUNTER_AWK" "$PLANS" 2> /dev/null)"
-[ -z "$COUNTS" ] && emit_empty
-read -r CC_TODO CC_WIP CC_DONE CC_BLOCKED PM_PENDING PM_CONFIRMED <<< "$COUNTS"
+# shellcheck source=../lib/plans-counts.sh
+. "$COUNTS_LIB"
+plans_counts_load "$PLANS" || emit_empty
+CC_TODO="$PLANS_TODO"; CC_WIP="$PLANS_WIP"; CC_DONE="$PLANS_DONE"
+CC_BLOCKED="$PLANS_BLOCKED"; CC_DROPPED="$PLANS_DROPPED"; CC_UNKNOWN="$PLANS_UNKNOWN"
+PM_PENDING="$PLANS_PM_REQUESTED"; PM_CONFIRMED="$PLANS_PM_APPROVED"
 
 STATE_DIR="$PROJECT_ROOT/.claude/state"
 STATE_FILE="$STATE_DIR/plans-state.json"
@@ -107,6 +117,7 @@ prev_of() {
   printf '%s' "${v:-0}"
 }
 PREV_DONE="$(prev_of cc_done)"
+PREV_DROPPED="$(prev_of cc_dropped)"
 PREV_PM_PENDING="$(prev_of pm_pending)"
 
 # --- Save state (write-then-rename so a reader never sees a half-written file) ---
@@ -120,6 +131,11 @@ cat > "$TMP_STATE" << EOF
   "cc_wip": $CC_WIP,
   "cc_done": $CC_DONE,
   "cc_blocked": $CC_BLOCKED,
+  "cc_dropped": $CC_DROPPED,
+  "cc_unknown": $CC_UNKNOWN,
+  "active": $PLANS_ACTIVE,
+  "terminal": $PLANS_TERMINAL,
+  "total": $PLANS_TOTAL,
   "pm_confirmed": $PM_CONFIRMED
 }
 EOF
@@ -164,6 +180,14 @@ elif [ "$CC_DONE" -gt "$PREV_DONE" ] 2> /dev/null; then
   NEXT_STEP="   → Report with /handoff-to-pm-claude (or /handoff-to-cursor)"
   NOTE_SECTION="Completed tasks"
   NOTE_BODY="Impl Claude has completed the task. Please review (cc:done)."
+elif [ "$CC_DROPPED" -gt "$PREV_DROPPED" ] 2> /dev/null; then
+  # Dropping is a decision, and a decision deserves the same visibility as a completion.
+  # Left silent, retiring work would feel like a lesser act than finishing it — which is
+  # exactly how a backlog learns to grow forever.
+  HEADLINE="Task dropped: decided against, recorded as terminal"
+  NEXT_STEP="   → Confirm the reason is in the description cell; run the archive sweep when the phase closes"
+  NOTE_SECTION="Dropped tasks"
+  NOTE_BODY="A task was retired without being implemented (cc:dropped). It still counts toward progress."
 fi
 
 [ -z "$HEADLINE" ] && emit_empty
@@ -203,9 +227,11 @@ Current status:
    pm:requested   : $PM_PENDING
    cc:todo        : $CC_TODO
    cc:wip         : $CC_WIP
-   cc:done        : $CC_DONE
    cc:blocked     : $CC_BLOCKED
+   cc:done        : $CC_DONE
+   cc:dropped     : $CC_DROPPED
    pm:approved    : $PM_CONFIRMED
+   progress       : $PLANS_TERMINAL/$PLANS_TOTAL terminal (${PLANS_PCT}%)$( [ "${CC_UNKNOWN:-0}" -gt 0 ] && printf '\n   unrecognised   : %s status cell(s) match no known marker' "$CC_UNKNOWN" )
 $RULE
 EOF
 )"

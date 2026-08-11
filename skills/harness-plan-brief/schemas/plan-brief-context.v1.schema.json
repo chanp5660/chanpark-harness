@@ -114,7 +114,8 @@
           "phase": { "type": "string" },
           "outcome": {
             "type": "string",
-            "enum": ["cc:done", "cc:wip", "cc:todo", "cc:blocked", "skipped", "unknown"]
+            "description": "Terminal outcome of the archived plan. cc:dropped means the plan was deliberately retired; it is a completed decision, not a failure, and the confidence score treats it as terminal alongside cc:done. This enum is the only LOUD failure path in the marker vocabulary — a new state that is not added here fails validation instead of drifting silently.",
+            "enum": ["cc:done", "cc:dropped", "cc:wip", "cc:todo", "cc:blocked", "skipped", "unknown"]
           },
           "relevance": { "type": "string" }
         }

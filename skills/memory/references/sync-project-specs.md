@@ -45,7 +45,7 @@ Aligns project specs/docs (e.g., `Plans.md`, `AGENTS.md`, `.claude/rules/*`) wit
 ### 2. State Transition Documentation
 
 ```
-pm:requested (requested) → cc:WIP → cc:done (done) → pm:approved (confirmed)
+pm:requested (requested) → cc:wip → cc:done (done) → pm:approved (confirmed)
 ```
 
 ### 3. Handoff Routes Addition

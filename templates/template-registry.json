@@ -15,8 +15,14 @@
     },
     "Plans.md.template": {
       "output": "Plans.md",
-      "templateVersion": "4.3.3",
-      "description": "Task tracking",
+      "templateVersion": "4.4.0",
+      "description": "Task tracking (active set only; table dialect)",
+      "tracked": true
+    },
+    "Plans-backlog.md.template": {
+      "output": "Plans-backlog.md",
+      "templateVersion": "4.4.0",
+      "description": "Unscheduled capture; carries no cc: markers so no counter can read it",
       "tracked": true
     },
     "rules/workflow.md.template": {

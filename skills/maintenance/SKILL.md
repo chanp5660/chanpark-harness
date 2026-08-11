@@ -42,7 +42,7 @@ The binary's `hook auto-cleanup` PostToolUse hook detects line-count overflows i
 
 ## Notes
 
-- **Do not move in-progress tasks**: `cc:WIP`, `pm:pending` are excluded from archiving.
+- **Do not move active tasks**: `cc:wip`, `cc:todo`, `cc:blocked` and `pm:requested` are excluded from archiving. Only terminal rows (`cc:done`, `cc:dropped`) may be archived.
 - **Archive destination is fixed**: `.claude/memory/archive/` — confirm with the user before moving files elsewhere.
 - **Backup**: Before editing any file over 200 lines, take a local backup with `cp <file> <file>.bak.$(date +%s)`.
 - **CLAUDE.md: warnings only**: Do not auto-edit it. Only suggest a split.

@@ -121,7 +121,7 @@ echo "  Archive: $ARCHIVE_COUNT"
 
 ## 🔴 In-Progress Tasks
 
-<!-- List cc:WIP tasks here -->
+<!-- List cc:wip tasks here -->
 
 {{TASKS_WIP}}
 
@@ -129,7 +129,7 @@ echo "  Archive: $ARCHIVE_COUNT"
 
 ## 🟡 Pending Tasks
 
-<!-- List cc:TODO, pm:requested tasks here -->
+<!-- List cc:todo, pm:requested tasks here -->
 
 {{TASKS_TODO}}
 
@@ -156,8 +156,8 @@ echo "  Archive: $ARCHIVE_COUNT"
 | Marker | Meaning |
 |---------|------|
 | `pm:requested` | Task requested by PM |
-| `cc:TODO` | Claude Code not started |
-| `cc:WIP` | Claude Code in progress |
+| `cc:todo` | Claude Code not started |
+| `cc:wip` | Claude Code in progress |
 | `cc:done` | Claude Code done (awaiting confirmation) |
 | `pm:approved` | PM confirmed |
 | `blocked` | Blocked (include reason) |
@@ -181,7 +181,7 @@ If a section has no tasks, insert default text:
 ```markdown
 ## 🔴 In-Progress Tasks
 
-<!-- List cc:WIP tasks here -->
+<!-- List cc:wip tasks here -->
 
 (none currently)
 ```

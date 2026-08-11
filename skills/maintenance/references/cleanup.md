@@ -21,7 +21,19 @@ If the user specifies a different threshold in free-form text, that value takes 
 ### Prerequisites
 
 1. If the `.claude/state/.ssot-synced-this-session` flag does not exist → prompt `/memory sync`.
-2. Lines tagged `cc:WIP`, `pm:pending` **must never be moved**.
+2. Lines tagged `cc:wip`, `cc:todo`, `cc:blocked` or `pm:requested` **must never be moved** — only terminal rows (`cc:done`, `cc:dropped`) are archivable.
+3. **Destination**: `.claude/memory/archive/Plans-<YYYY-MM-DD>.md`. Nothing scans that
+   directory, which is the entire point — physical separation is much cheaper to enforce
+   than teaching four separate counters to skip a section, and a single archive
+   *sentence* once inflated the done count by one (v1.3.6).
+4. **Archive from the sweep, not by hand.** `scripts/plans-sweep.sh` reports when a file
+   qualifies (all rows terminal, untouched for `archive_days`); move rows only in
+   response. Archiving must be a pure function of state and time. The moment it becomes
+   a way to make an awkward file look tidy, the archive stops being a record and starts
+   being a hiding place — and the active set stops meaning anything.
+5. `Plans-backlog.md` is **never archived and never cleaned**. It has no cap, nothing
+   reads it on a schedule, and it carries no markers. Its only exit is promotion into
+   `Plans.md`.
 
 ### Steps
 
@@ -31,11 +43,11 @@ cp "$PLANS" "$PLANS.bak.$(date +%s)"
 
 # 1. Measure current state
 wc -l "$PLANS"
-grep -c '\[x\].*pm:confirmed' "$PLANS" || true
+grep -cE '\[x\].*(pm:approved|cc:done|cc:dropped)' "$PLANS" || true
 
 # 2. Extract lines completed 7+ days ago (handle individually with Edit tool)
-#    Target: `- [x] ... (YYYY-MM-DD) ... pm:confirmed`
-#    Exclude: lines containing cc:WIP / pm:pending
+#    Target: `- [x] ... (YYYY-MM-DD) ... pm:approved` / `cc:done` / `cc:dropped`
+#    Exclude: lines containing cc:wip / cc:todo / cc:blocked / pm:requested
 
 # 3. Append extracted lines to the "## 📦 Archive" section
 #    If the archive section does not exist, create it at the end of the file
@@ -48,8 +60,8 @@ grep -c '\[x\].*pm:confirmed' "$PLANS" || true
 
 ### YYYY-MM (grouped by month)
 
-- [x] Old task A (2026-04-05) pm:confirmed
-- [x] Old task B (2026-04-07) pm:confirmed
+- [x] Old task A (2026-04-05) pm:approved
+- [x] Old task B (2026-04-07) cc:dropped
 ```
 
 ### Output When Nothing Is Found

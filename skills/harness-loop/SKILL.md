@@ -100,7 +100,7 @@ wake-up
   │
   ▼
 [Step 1] Read Plans.md first
-  Identify the leading cc:WIP / cc:TODO task (obtain task_id)
+  Identify the leading cc:wip / cc:todo task (obtain task_id)
   Note: no incomplete tasks → loop ends (normal completion)
   │
   ▼

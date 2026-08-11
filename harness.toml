@@ -145,6 +145,37 @@ allowRead = [
   "docs/**",
 ]
 
+# Plans.md lifecycle. Read by scripts/plans-sweep.sh and reported by
+# scripts/hook-handlers/session-monitor.sh. The vendored binary does not read this
+# section; it is shell-side configuration only.
+[plans]
+# Threshold provenance (docs/design/plans-redesign.md §2.3): the measured maximum
+# legitimate dwell from cc:todo to cc:done in this repository is 4.129 days; a x2
+# engineering safety factor gives 8.26 days; rounded up to the weekly boundary a human
+# actually reviews gives 14. Replayed over all 20 historical rows, 14 days retires
+# zero of them. The claim is "provably destroys nothing observed", not "fitted" —
+# the observed abandonment rate is 0/20, so there is no distribution to fit.
+stale_days = 14                          # T1: cc:todo / cc:blocked untouched this long
+archive_days = 14                        # T2: fully-terminal file unedited this long
+
+# T1 ships OFF: zero observed abandonments means zero evidence for the threshold.
+# T2 ships ON: it is a pure function of state and time, and replaying it against this
+# repository's history fires on exactly the real condition (a completed ledger left
+# unarchived). Both only ever PRINT candidates — nothing in this repo rewrites a
+# marker on a timer. A markdown file has no activity feed and no undo, so a silent
+# retirement is invisible until someone reads a diff.
+stale_sweep_enabled = false
+archive_sweep_enabled = true
+
+# Active-row caps (todo + wip + blocked; terminal rows awaiting archive do not count,
+# or the cap would fight the archive sweep). Weakly derived and deliberately marked as
+# such: the largest plan this repo ever carried to completion was 20 rows, so
+# soft = 20 x 1.25 and hard = soft + 20%. Overflow fails toward Plans-backlog.md,
+# which is recoverable, never toward unbounded growth, which is not.
+soft_cap = 25                            # warn, and route new items to the backlog
+hard_cap = 30                            # refuse to add to Plans.md at all
+wip_cap = 1                              # one active bet; wip-guard already enforces it
+
 [tdd]
 adopt_todo_list_first = true
 adopt_triangulation = "guide-only"

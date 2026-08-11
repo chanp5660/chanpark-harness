@@ -9,7 +9,7 @@
 # Role:
 #   Build plan-brief-context.v1 schema-compliant JSON from the user request and
 #   the harness-mem search results. confidence is the sum of these 3 components:
-#     (1) cc:done rate of similar past plans       ... max 40 points
+#     (1) terminal rate of past plans (cc:done + cc:dropped) ... max 40 points
 #     (2) numeric-requirement coverage of DoD/request ... max 30 points
 #     (3) significance of related D/P counts          ... max 30 points
 #   Record the literal numbers behind each component in confidence_evidence (string[]).
@@ -19,7 +19,7 @@
 #     "decisions":     [{"id": "D22", "title": "...", "relevance": "..."}, ...],
 #     "patterns":      [{"id": "P5",  "title": "...", "relevance": "..."}, ...],
 #     "plans_archive": [{"phase": "Phase 41", "archive_path": "...",
-#                         "outcome": "cc:done|cc:wip|cc:todo|cc:blocked|skipped|unknown",
+#                         "outcome": "cc:done|cc:dropped|cc:wip|cc:todo|cc:blocked|skipped|unknown",
 #                         "relevance": "..."}, ...]
 #   }
 # If --mem-results is omitted, all are treated as empty arrays (confidence uses only DoD / D-P components).
@@ -98,12 +98,19 @@ else
   echo '{"decisions":[],"patterns":[],"plans_archive":[]}' > "$NORM_MEM"
 fi
 
-# ---- Component (1): cc:done rate of similar past plans (max 40 points) ----
-# Count cc:done outcomes; also count legacy "cc:完了" for backward-compatible
-# reading of archived plan outcomes written before the EN migration.
+# ---- Component (1): terminal rate of similar past plans (max 40 points) ----
+# Terminal outcomes are cc:done AND cc:dropped. A plan that was deliberately retired
+# REACHED A DECISION — that is evidence the planning loop works, not evidence it
+# failed. Scoring dropped as a miss would make the confidence number punish pruning,
+# and the operator would respond by never pruning; the whole point of naming the state
+# is to make retiring work cheap. Legacy "cc:完了" and the cc:cancelled / cc:canceled
+# spellings are read for archives written before the vocabulary was fixed.
 
 PAST_TOTAL="$(jq '.plans_archive | length' "$NORM_MEM")"
-PAST_DONE="$(jq '[.plans_archive[] | select(.outcome == "cc:done" or .outcome == "cc:完了")] | length' "$NORM_MEM")"
+PAST_DONE="$(jq '[.plans_archive[]
+  | select(.outcome == "cc:done" or .outcome == "cc:完了"
+           or .outcome == "cc:dropped" or .outcome == "cc:cancelled"
+           or .outcome == "cc:canceled")] | length' "$NORM_MEM")"
 
 if [[ "$PAST_TOTAL" -eq 0 ]]; then
   SCORE_PAST=0
@@ -112,7 +119,7 @@ else
   # Round 40 * (PAST_DONE / PAST_TOTAL)
   SCORE_PAST=$(awk -v d="$PAST_DONE" -v t="$PAST_TOTAL" 'BEGIN { printf "%.0f", 40.0 * d / t }')
   RATE=$(awk -v d="$PAST_DONE" -v t="$PAST_TOTAL" 'BEGIN { printf "%.0f", 100.0 * d / t }')
-  EVIDENCE_PAST="${PAST_DONE} of ${PAST_TOTAL} similar past plans (${RATE}%) are cc:done"
+  EVIDENCE_PAST="${PAST_DONE} of ${PAST_TOTAL} similar past plans (${RATE}%) reached a terminal state (cc:done or cc:dropped)"
 fi
 
 # ---- Component (2): numeric-requirement coverage of DoD/request (max 30 points) ----

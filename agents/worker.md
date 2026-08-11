@@ -135,7 +135,7 @@ Confirm the following 7 items before running the validation commands.
   # At preflight, check both unstaged and staged changes (diff against HEAD)
   # Only match status column of markdown table ("| cc:XXX ... |" form)
   # Only match lines where the last column of the markdown table has a cc:STATUS marker
-  # Format: "| ... | cc:TODO |" / "| ... | cc:WIP |" / "| ... | cc:done [hash] |"
+  # Format: "| ... | cc:todo |" / "| ... | cc:wip |" / "| ... | cc:done [hash] |"
   # Cell boundary detected by the next |: permissively allow content before | ([^|]*)
   # This captures all suffix variants including dates, notes, URLs, and hashes
   # Status enum covers the canonical values (todo/wip/done/blocked) plus legacy uppercase TODO/WIP
@@ -144,8 +144,8 @@ Confirm the following 7 items before running the validation commands.
   #   (2) "cc:done [2026-04-18] — in 44.13.1..." → match ✓
   #   (3) "cc:done [d3e5c8c7 — achieved as side effect with same commit as 45.1.1, no separate commit needed]" → match ✓
   #   (4) DoD "cc:done" is blocked by an intermediate | so [^|]*\|\s*$ fails → no match ✓
-  #   (5) "+ cc:TODO state of..." (natural text) → .*\| fails → no match ✓
-  #   (6) "cc:TODO to..." in desc cell → last cell has no cc: → no match ✓
+  #   (5) "+ cc:todo state of..." (natural text) → .*\| fails → no match ✓
+  #   (6) "cc:todo to..." in desc cell → last cell has no cc: → no match ✓
   CC_MARKER_DIFF="$(git diff HEAD -- "$PLANS_PATH" 2>/dev/null \
     | grep -E '^[+-].*\|[[:space:]]*cc:(todo|TODO|wip|WIP|done|blocked)[^|]*\|[[:space:]]*$' || true)"
   ```
@@ -154,7 +154,7 @@ Confirm the following 7 items before running the validation commands.
   { "status": "failed", "escalation_reason": "cc:* marker transitions are Lead-owned in Phase C (breezing mode)" }
   ```
 - If `CC_MARKER_DIFF` is empty (Plans.md was touched but no cc:* markers were changed, e.g., a format migration like `plans-format-migrate.sh`), continue.
-- In breezing, `cc:TODO` / `cc:WIP` / `cc:done` transitions are Lead's Phase C responsibility; Worker must not change these markers.
+- In breezing, `cc:todo` / `cc:wip` / `cc:done` transitions are Lead's Phase C responsibility; Worker must not change these markers.
 - Marker updates are performed by Lead after cherry-pick.
 - Custom Plans path (`config-utils.sh: plans_file` override) is also supported via `get_plans_file_path`.
 
@@ -240,7 +240,7 @@ When a Worker stops responding during a long-running stream, the defense is spli
 
 Lead re-spawns the same task at most once upon observing any of the following. If the 600-second stall recurs after re-spawning, return `status: escalated`.
 
-- `cc:WIP` state exceeds 10 minutes (compared against Plans.md timestamp)
+- `cc:wip` state exceeds 10 minutes (compared against Plans.md timestamp)
 - CC outputs `subagents stalling mid-stream fail after 10 minutes` to the log
 - elicitation-handler.sh returned `decision: deny` but Worker produces no further output for 5 or more minutes
 

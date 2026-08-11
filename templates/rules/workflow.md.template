@@ -22,9 +22,9 @@ The PM role is filled by **PM Claude** (recommended for solo operation).
 - All tasks are managed centrally in `Plans.md`.
 - Track status with markers:
   - `pm:requested` → Requested by PM
-  - `cc:WIP` → Claude Code working
+  - `cc:wip` → Claude Code working
   - `cc:done` → Claude Code completed
-  - `pm:reviewed` → PM review complete
+  - `pm:approved` → PM review complete
 
 ## Handoff Protocol
 
@@ -36,7 +36,7 @@ The PM role is filled by **PM Claude** (recommended for solo operation).
 ### Impl → PM
 1. Apply the `cc:done` marker after completing the work.
 2. Generate the completion report with `/handoff-to-pm-claude`.
-3. Paste into PM and request review (PM applies `pm:reviewed` after reviewing).
+3. Paste into PM and request review (PM applies `pm:approved` after reviewing).
 
 ## Prohibited Actions
 

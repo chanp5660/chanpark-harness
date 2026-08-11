@@ -13,8 +13,11 @@
 #
 # Expected Plans.md format:
 #   | <number> | <title> | <DoD> | <Depends> | <Status> |
-#   Status is cc:todo / cc:wip / cc:done [hash] (legacy cc:TODO / cc:WIP / cc:完了 are also readable)
+#   Status is one of the closed vocabulary: cc:todo / cc:wip / cc:blocked (active) and
+#   cc:done [hash] / cc:dropped (terminal). Legacy cc:TODO / cc:WIP / cc:完了 and the
+#   cc:cancelled / cc:canceled spellings are accepted on input.
 #   pm:* is out of scope for this snapshot
+#   progress_pct = (done + dropped) / (todo + wip + blocked + done + dropped)
 #
 # Optional: --state-file
 #   read elapsed_minutes / cost_so_far_usd etc. from
@@ -137,6 +140,37 @@ COST_ESTIMATE = to_float(os.environ["COST_ESTIMATE_PY"])
 ID_RE = re.compile(r"^[A-Za-z]*\d+(?:\.\d+)*$")
 CODESPAN_RE = re.compile(r"`[^`]*`")
 
+# Closed marker vocabulary, mirroring scripts/lib/plans-markers.awk. Matching is
+# ANCHORED and WORD-BOUNDED, not a startswith() chain: startswith("cc:wip") also
+# swallowed "cc:wip-paused", so an invented state was silently filed under its parent
+# and the operator never learned the state does not exist. A trailing note
+# ("cc:done [a1b2c3d]", "cc:done (2026-07-14: measured on hw)") is still accepted.
+MARKER_ALIASES = {
+    "cc:todo": "todo",
+    "cc:wip": "wip",
+    "cc:done": "done",
+    "cc:完了": "done",
+    "cc:blocked": "blocked",
+    "cc:dropped": "dropped",
+    "cc:cancelled": "dropped",   # industry spelling, accepted on input
+    "cc:canceled": "dropped",    # US variant of the same
+}
+WORD_CHAR_RE = re.compile(r"[A-Za-z0-9_-]")
+
+
+def classify(status):
+    """Status cell -> bucket name, or None when it is not a task status at all,
+    or 'unknown' when it advertises a marker that is not in the vocabulary."""
+    s = re.sub(r"^cursor:", "cc:", status.strip(), flags=re.IGNORECASE).lower()
+    for marker, bucket in MARKER_ALIASES.items():
+        if s.startswith(marker):
+            rest = s[len(marker):]
+            if not rest or not WORD_CHAR_RE.match(rest[0]):
+                return bucket
+    if s.startswith("cc:") or s.startswith("pm:"):
+        return "unknown"
+    return None
+
 
 def parse_table_row(line):
     """-> (id, title, status) for a task row, else None."""
@@ -165,6 +199,8 @@ todo = []
 wip = []
 done = []
 blocked = []
+dropped = []
+unknown = []
 
 def _short(title):
     s = title.split("。")[0]
@@ -187,18 +223,22 @@ with open(PLANS_PATH, "r", encoding="utf-8") as f:
         if m:
             number, title, status = m
             short_title = _short(title)
-            sl = status.lower()
+            bucket = classify(status)
 
-            if sl.startswith("cc:todo"):
+            if bucket == "todo":
                 todo.append({"number": number, "title": short_title})
-            elif sl.startswith("cc:wip"):
+            elif bucket == "wip":
                 wip.append({"number": number, "title": short_title})
-            elif sl.startswith("cc:done") or status.startswith("cc:完了"):
+            elif bucket == "done":
                 commit_match = re.search(r"\[([0-9a-fA-F]{4,})\]", status)
                 commit = commit_match.group(1)[:7] if commit_match else ""
                 done.append({"number": number, "title": short_title, "commit": commit})
-            elif sl.startswith("cc:blocked"):
+            elif bucket == "blocked":
                 blocked.append({"number": number, "title": short_title})
+            elif bucket == "dropped":
+                dropped.append({"number": number, "title": short_title})
+            elif bucket == "unknown":
+                unknown.append({"number": number, "title": short_title, "status": status})
             continue
 
         # ── checklist row ──
@@ -206,22 +246,34 @@ with open(PLANS_PATH, "r", encoding="utf-8") as f:
         if c:
             title = c.group(1).strip()
             short_title = _short(title)
-            cc_status = (c.group(2) or c.group(3) or "").lower()
+            cc_status = c.group(2) or c.group(3) or ""
+            bucket = classify(cc_status)
 
-            if cc_status.startswith("cc:todo"):
+            if bucket == "todo":
                 todo.append({"number": "", "title": short_title})
-            elif cc_status.startswith("cc:wip"):
+            elif bucket == "wip":
                 wip.append({"number": "", "title": short_title})
-            elif cc_status.startswith("cc:done") or cc_status.startswith("cc:完了"):
+            elif bucket == "done":
                 done.append({"number": "", "title": short_title, "commit": ""})
-            elif cc_status.startswith("cc:blocked"):
+            elif bucket == "blocked":
                 blocked.append({"number": "", "title": short_title})
+            elif bucket == "dropped":
+                dropped.append({"number": "", "title": short_title})
+            elif bucket == "unknown":
+                unknown.append({"number": "", "title": short_title, "status": cc_status})
 
-total = len(todo) + len(wip) + len(done) + len(blocked)
+# terminal-complete semantics: done AND dropped are both finished states, and both
+# stay in the denominator. progress is terminal/total, not done/total — if abandoning
+# a task lowered the percentage, nobody would ever abandon one, and the plan would only
+# ever grow. `unknown` is a file defect rather than a state, so it is surfaced as an
+# alert instead of being folded into the ratio.
+active = len(todo) + len(wip) + len(blocked)
+terminal = len(done) + len(dropped)
+total = active + terminal
 if total == 0:
     progress_pct = 0
 else:
-    progress_pct = round(len(done) * 100 / total)
+    progress_pct = round(terminal * 100 / total)
 
 current_task = wip[0]["title"] if wip else ""
 
@@ -241,6 +293,21 @@ alerts = [
         "suggested_action": "Resolve blockers to continue progress.",
     }
     for item in blocked
+] + [
+    {
+        "severity": "warn",
+        "kind": "unknown-marker",
+        "message": (
+            f"Task {item['number']}: status {item['status']!r} matches no known marker."
+            if item["number"]
+            else f"A status cell reads {item['status']!r}, which matches no known marker."
+        ),
+        "suggested_action": (
+            "Use one of cc:todo / cc:wip / cc:blocked / cc:done / cc:dropped. "
+            "The vocabulary is closed; put finer detail in the description cell."
+        ),
+    }
+    for item in unknown
 ]
 
 snapshot = {
@@ -252,6 +319,7 @@ snapshot = {
     "wip_tasks": wip,
     "done_tasks": done,
     "blocked_tasks": blocked,
+    "dropped_tasks": dropped,
     "elapsed_minutes": ELAPSED_MIN,
     "estimated_total_minutes": ESTIMATE_MIN,
     "cost_so_far_usd": COST_SO_FAR,
@@ -263,6 +331,11 @@ snapshot = {
     "_wip_count": len(wip),
     "_done_count": len(done),
     "_blocked_count": len(blocked),
+    "_dropped_count": len(dropped),
+    "_unknown_count": len(unknown),
+    "_active_count": active,
+    "_terminal_count": terminal,
+    "_total_count": total,
 }
 
 print(json.dumps(snapshot, ensure_ascii=False, indent=2))

@@ -65,6 +65,15 @@
 #     from a **bold title** or the leading text before the first backtick.
 #   - All other lines (prose, headings, legend text) are NEVER counted.
 #
+# Marker matching is ANCHORED and word-bounded, matching scripts/lib/plans-markers.awk:
+# the status must START with cc:wip and must not continue into a longer word. Only
+# cc:wip arms this guard. cc:blocked is waiting on something but is not in progress;
+# cc:done and cc:dropped are both terminal — dropping a task releases the Stop guard
+# exactly like finishing it, which is what makes "decide not to do this" a usable exit.
+#
+# This guard reads Plans.md only. Plans-backlog.md holds unstructured capture and carries
+# no cc: markers by design, so no amount of backlog text can ever arm the Stop guard.
+#
 # Opt-out: HARNESS_DISABLE_WIP_GUARD=1 disables the guard entirely.
 
 set +e # never abort the host session
@@ -352,12 +361,17 @@ WIP_IDS="$(awk '
       # marker in its text (e.g. a task about the marker parser itself); only the
       # trailing marker records the state of the task itself.
       # NOTE: no apostrophes in this awk program — it is single-quoted in shell.
+      # The character class includes "-" so that a hyphenated state is captured
+      # WHOLE. With /cc:[A-Za-z]+/ the match stopped at the hyphen, so "cc:wip-paused"
+      # was truncated to "cc:wip" and armed the guard on a task that is explicitly
+      # not in progress — one such row could keep a session from ever ending.
       rest = task_text
       last_marker = ""
-      while (match(rest, /cc:[A-Za-z]+/)) {
+      while (match(rest, /cc:[A-Za-z-]+/)) {
         last_marker = tolower(substr(rest, RSTART, RLENGTH))
         rest = substr(rest, RSTART + RLENGTH)
       }
+      sub(/-+$/, "", last_marker)     # trailing hyphen is punctuation, not the state
 
       if (last_marker == "cc:wip") {
         status = "cc:wip"
@@ -377,7 +391,17 @@ WIP_IDS="$(awk '
     }
     # Prose, headings, legend text, sub-bullets, etc. -> status = "" -> skipped
 
-    if (tolower(status) ~ /cc:wip/) {
+    # ANCHORED match, not a substring search. The old rule was `~ /cc:wip/`, which
+    # matched anywhere in the status cell and matched any longer state that merely
+    # begins with it. Two consequences, both measured:
+    #   - "cc:wip-paused" (an explicitly NOT-in-progress row) blocked Stop forever;
+    #   - a status cell reading "was cc:wip, now cc:done" blocked on the stale mention.
+    # The rule now mirrors scripts/lib/plans-markers.awk: the cell must START with the
+    # marker, and the next character must not continue the word. A trailing note
+    # ("cc:wip [a1b2]", "cc:wip (since Tue)") is still recognised.
+    st = tolower(status)
+    sub(/^cursor:/, "cc:", st)
+    if (index(st, "cc:wip") == 1 && substr(st, 7, 1) !~ /[A-Za-z0-9_-]/) {
       if (id == "") id = "line " NR
       print id
     }

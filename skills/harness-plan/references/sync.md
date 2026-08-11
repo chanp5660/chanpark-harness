@@ -55,8 +55,8 @@ PROJECT=$(tail -1 .claude/state/agent-trace.jsonl 2>/dev/null | \
 
 | Check item | Detection method |
 |------------|-----------------|
-| Already complete but marked `cc:WIP` | Commit history vs. marker |
-| Already started but marked `cc:TODO` | Changed files vs. marker |
+| Already complete but marked `cc:wip` | Commit history vs. marker |
+| Already started but marked `cc:todo` | Changed files vs. marker |
 | Marked `cc:done` but not committed | git status vs. marker |
 
 ### Artifact Hash Backward Compatibility
@@ -79,8 +79,8 @@ Plans.md update required
 
 | Task | Current | Updated | Reason |
 |------|---------|---------|--------|
-| XX   | cc:WIP | cc:done | Already committed |
-| YY   | cc:TODO | cc:WIP | File already edited |
+| XX   | cc:wip | cc:done | Already committed |
+| YY   | cc:todo | cc:wip | File already edited |
 
 Update? (yes / no)
 ```
@@ -94,8 +94,8 @@ Update? (yes / no)
 
 | Status | Count |
 |--------|-------|
-| Not started (cc:TODO) | {{count}} |
-| In progress (cc:WIP) | {{count}} |
+| Not started (cc:todo) | {{count}} |
+| In progress (cc:wip) | {{count}} |
 | Complete (cc:done) | {{count}} |
 | PM reviewed (pm:approved) | {{count}} |
 
@@ -121,7 +121,7 @@ Next steps
 
 | Situation | Warning |
 |-----------|---------|
-| Multiple `cc:WIP` | Multiple tasks are progressing simultaneously |
+| Multiple `cc:wip` | Multiple tasks are progressing simultaneously |
 | `pm:requested` unprocessed | Handle the PM request first |
 | Large discrepancy | Task tracking is not keeping up |
 | WIP with no updates for 3+ days | Check whether it is blocked |

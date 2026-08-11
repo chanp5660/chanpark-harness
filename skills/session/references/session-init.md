@@ -111,9 +111,9 @@ head -50 AGENTS.md 2>/dev/null || echo "AGENTS.md not found"
 
 Extract the following from Plans.md:
 
-- `cc:WIP` - tasks carried over from the previous session
+- `cc:wip` - tasks carried over from the previous session
 - `pm:requested` - newly requested tasks from PM
-- `cc:TODO` - tasks assigned but not yet started
+- `cc:todo` - tasks assigned but not yet started
 
 ### Step 3: Output Status Report
 
@@ -129,10 +129,10 @@ Extract the following from Plans.md:
 ### Today's Tasks
 
 **Priority Tasks**:
-- {{tasks marked pm:requested or cc:WIP}}
+- {{tasks marked pm:requested or cc:wip}}
 
 **Other Tasks**:
-- {{list of cc:TODO tasks}}
+- {{list of cc:todo tasks}}
 
 ---
 
