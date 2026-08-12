@@ -838,7 +838,7 @@ v1.3.6이 정확히 이 교훈이다(아카이브 문장 하나가 `cc_done`을 
 |------|------|
 | `Plans-backlog.md` | **신규** — 마커 없는 캡처 파일 + 규칙을 설명하는 헤더. |
 | `scripts/plans-sweep.sh` | **신규** — T1/T2 제안자. `git blame --line-porcelain`으로 per-row last-touch. **읽기 전용, 후보만 보고.** |
-| `harness.toml` | `[plans]` 섹션: `stale_days = 14`, `archive_days = 14`, `soft_cap = 25`, `hard_cap = 30`, `stale_sweep_enabled = false`, `archive_sweep_enabled = true`. |
+| `harness.toml` | `[plans]` 섹션: `stale_days = 14`, `archive_days = 14`, `soft_cap = 25`, `hard_cap = 30`, `stale_sweep_enabled = true`, `archive_sweep_enabled = true`. |
 | `skills/harness-plan/SKILL.md` + `references/create.md` | 레전드 수정(`cc:blocked` **누락됨**, `blocked`로 오표기 → 수정, `cc:dropped` 추가). Backlog-by-default. 캡 집행. 중복 자문 검사(Jaccard ≥ 0.4). |
 | `skills/harness-work/SKILL.md` + `references/*` | 백로그 → Plans.md 승격 단계. `cc:dropped` 전이(~15개 지점). WIP=1 명시. |
 | `skills/harness-sync/SKILL.md` | `pm:reviewed` → `pm:approved` **수정**(유령 이름). 스윕 후보를 drift 출력에 보고. |

@@ -67,7 +67,8 @@ full 30-row plan still fits in 80 lines. Reported by `session-monitor.sh` at ses
 start **and by `plans-watcher.sh` on every write** — the latter is the only budget
 surface that fires in headless `-p` mode.
 
-`scripts/plans-sweep.sh` proposes T1 (stale rows, default **off**), T2 (**per-row**
+`scripts/plans-sweep.sh` proposes T1 (stale rows, default **on** — see `harness.toml`
+for why it ships on a bound rather than on evidence), T2 (**per-row**
 archive candidates, default **on**) and T3 (backlog capture-date staleness, default
 **on**), and **never writes** — a markdown file has no activity feed and no undo, so a
 silent rewrite is invisible until someone reads a diff.

@@ -7,7 +7,8 @@ untouched for `archive_days`. This fixture is the counter-example that rule cann
 handle — 12 finished rows held hostage by a single `cc:todo` that nobody will ever
 close. Under the file-level rule the sweep reports "no candidates" forever, the active
 row caps never trip (they count active rows only, and there is exactly one), and T1
-cannot see it either (T1 targets active rows and ships off). The file grows without
+cannot see it either — T1 targets ACTIVE rows, so even with T1 on it reports A1 and
+says nothing about the 12 finished rows piling up behind it. The file grows without
 bound in the one file that opens by default.
 
 Expected under the per-row rule: all 12 terminal rows are reported as archive

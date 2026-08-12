@@ -174,7 +174,16 @@ archive_days = 14                        # T2: PER-ROW. A terminal row (cc:done 
 # Report only — like every other trigger here, it never edits the file.
 backlog_stale_days = 90
 
-# T1 ships OFF: zero observed abandonments means zero evidence for the threshold.
+# T1 ships ON, on an asymmetry rather than on evidence. There is still no measured
+# abandonment distribution here (0 of 20 historical rows were abandoned), so 14 days is
+# a bound, not a fitted threshold — that much of the original reasoning stands. What
+# changed is the comparison. T1 only PRINTS, so a false positive costs one unwanted line
+# of output; a false negative costs exactly the failure this whole redesign exists to
+# fix — an old cc:todo sitting in the active file with nothing anywhere saying so. With
+# T1 off, 20 rows untouched for 103 days produced "no candidates": under the hard cap of
+# 30 and under the 80-line budget, so neither of the other two guards said a word
+# either. Silence in precisely the case the user reported is worse than an occasional
+# nudge about a row that is merely slow.
 # T2 ships ON: it is a pure function of per-row state and time, both directly
 # observable via git blame.
 # T3 ships ON: it reads a capture date the format already requires, so it needs no
@@ -182,8 +191,10 @@ backlog_stale_days = 90
 # age is worth printing.
 # All three only ever PRINT candidates — nothing in this repo rewrites a marker or a
 # bullet on a timer. A markdown file has no activity feed and no undo, so a silent
-# retirement is invisible until someone reads a diff.
-stale_sweep_enabled = false
+# retirement is invisible until someone reads a diff. That property is what makes
+# shipping T1 on a bound rather than on evidence acceptable: set it back to false if the
+# nudges prove noisy.
+stale_sweep_enabled = true
 archive_sweep_enabled = true
 backlog_sweep_enabled = true
 

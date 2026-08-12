@@ -540,7 +540,7 @@ than a row in the wrong column.
 | Script | Called at | Contract |
 |--------|-----------|----------|
 | `scripts/plans-dupe-check.sh "<desc>"` | `add` step 2, before choosing a destination | prints candidates at Jaccard ≥ 0.4 across `Plans.md` rows and live backlog bullets; exit 1 = candidates found, never an error |
-| `scripts/plans-sweep.sh` | whenever a budget is over, and on request | prints T1 stale rows (off by default), T2 per-row archive candidates, T3 stale backlog bullets. Proposes; never writes |
+| `scripts/plans-sweep.sh` | whenever a budget is over, and on request | prints T1 stale rows, T2 per-row archive candidates, T3 stale backlog bullets — all three on by default. Proposes; never writes |
 | `scripts/lib/plans-counts.sh` | any time a count is needed | the one parse point for marker counts |
 
 Full format reference: `references/plans-format.md`.
