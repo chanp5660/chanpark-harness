@@ -227,22 +227,165 @@ For product-impacting additions, output `Spec delta` or `Spec skip reason` as we
 
 Tasks are added with the `cc:todo` marker.
 
+#### Ordered steps for `add` (follow in this order)
+
+1. **Read the budgets** from `harness.toml [plans]`: `soft_cap`, `hard_cap`, `max_lines`.
+2. **Run the duplicate check** — literally this command, not a mental estimate:
+
+   ```bash
+   bash scripts/plans-dupe-check.sh "<the new task description>"
+   ```
+
+   It compares against `Plans.md` rows **and** live `Plans-backlog.md` bullets, and
+   prints anything at Jaccard >= 0.4. Exit status 1 means "candidates found", not
+   "error". Show the output to the user verbatim and **continue either way** — see
+   "Duplicate check" below.
+3. **Choose the destination** by the routing rule in "Where a new item lands".
+4. **Write** the bullet (backlog) or the row (`Plans.md`).
+5. **Report the budget** after the write: active rows against `hard_cap`, and
+   `wc -l Plans.md` against `max_lines`. If either is over, say so and point at
+   `scripts/plans-sweep.sh`.
+
+#### Where a new item lands: backlog by default
+
+New items go to **`Plans-backlog.md`** unless the user is starting work on them now.
+`Plans.md` is the active set; entering it is an explicit promotion, performed by
+`harness-work`. This keeps `cc:todo` meaning "actually in flight" instead of
+"aspirational", which is the only way the count stays worth reading.
+
+Promotion is a **manual rewrite**: restate the backlog bullet as a full table row with
+an ID and a Definition of Done. There is no automatic promotion. The friction is
+deliberate — it stands in for the colleague you would otherwise have to convince, and
+an item not worth restating in full was not worth doing.
+
+`Plans-backlog.md` carries **no `cc:` markers at all**. No counter reads it, and with
+no markers in it there is nothing for a counter to find even if one is pointed at the
+file by mistake. Do not invent a `cc:backlog` state: it would put the backlog straight
+back into the progress numbers and undo the reason the file is separate.
+
+#### The backlog has four exits, not one
+
+Because the backlog is the default sink, it needs a way to retire an idea that is
+neither promotion nor silent deletion — otherwise it is a one-way list that only grows,
+which is the failure `cc:dropped` closed on the active side. Markers are banned here, so
+the disposition is carried by the text of the bullet:
+
+| Disposition | Written as | Reported as |
+|-------------|-----------|-------------|
+| Promote | rewritten as a `Plans.md` row, bullet deleted | leaves the backlog |
+| Decline | `- ~~<original bullet>~~ declined <YYYY-MM-DD>: <reason>` | declined, inert |
+| Duplicate | declined, naming the survivor in the reason | declined, inert |
+| Snooze | bullet re-dated to today | live, clock reset |
+
+Declining is the backlog's terminal state. Struck-through bullets are excluded from the
+live count, from the T3 staleness report and from `plans-dupe-check.sh`'s corpus.
+**Never delete a bullet to make it go away** — decline it, so the decision survives.
+
+`scripts/plans-sweep.sh` reports live bullets older than `backlog_stale_days`
+(90 days) so that they surface and get one of these four. It only prints.
+
+#### Active-row caps
+
+Counted over active rows only (`cc:todo` + `cc:wip` + `cc:blocked`). Terminal rows
+awaiting archive do not count, or the cap would fight the archive sweep. Values live in
+`harness.toml [plans]`.
+
+| Active rows | Behaviour |
+|-------------|-----------|
+| ≤ 25 (soft) | Normal. Add to `Plans.md`. |
+| 26–30 | **Warn**, and route the new item to `Plans-backlog.md`. `Plans.md` entry requires an explicit promotion. |
+| > 30 (hard) | **Refuse** to add to `Plans.md`. Route to the backlog, print the reason, and suggest running the archive sweep first. |
+
+Overflow fails toward the backlog, which is recoverable, never toward unbounded growth,
+which is not. Never grow the active file silently.
+
+Also enforce `cc:wip` ≤ 1. One active bet at a time; `wip-guard` already treats it as
+the working assumption.
+
+#### Line budget — `max_lines`, default 80
+
+The row caps do **not** bound the file. They count active rows only, so terminal rows
+awaiting archive add length without moving the number, and the boilerplate is free.
+Measured: at the hard cap of 30 rows the old file layout came to 93 lines, already past
+one screen, with no surface complaining. The two budgets are therefore independent and
+both are checked.
+
+| `wc -l Plans.md` | Behaviour |
+|------------------|-----------|
+| ≤ `max_lines` (80) | Normal. |
+| > `max_lines` | **Report and continue.** Name the excess, and point at `scripts/plans-sweep.sh` to move terminal rows into `.claude/memory/archive/`. Never refuse the write. |
+
+Length is reported, never refused — the opposite of the row cap, deliberately. Refusing
+a write because a description is well written punishes good writing, which is why a line
+cap was rejected as admission control; reporting one costs nothing and catches the case
+the row cap structurally cannot see. The remedy is always to archive, never to write
+less.
+
+Reported by `scripts/hook-handlers/session-monitor.sh` at session start and by
+`scripts/hook-handlers/plans-watcher.sh` on every write to `Plans.md`. The second is the
+one that matters in headless `-p` runs, where the session monitor does not fire at all.
+
+To keep 30 rows reachable inside 80 lines, the long-form legend and format rules were
+moved out of `Plans.md` into `skills/harness-plan/references/plans-format.md`. The
+shipped template's boilerplate is 48 lines, so a full 30-row plan lands at 78.
+
+#### Duplicate check — executable, advisory, never blocking
+
+**Run the script. Do not estimate similarity by reading.**
+
+```bash
+bash scripts/plans-dupe-check.sh "<the new task description>"
+# optional: --root <dir>  --threshold 0.4  [corpus files...]
+```
+
+| | |
+|---|---|
+| Compared | the proposed description |
+| Against | every `Plans.md` row's Task cell **and** every live `Plans-backlog.md` bullet |
+| Metric | Jaccard over unique words, after stripping `[tdd:*]`, `[P]` and code spans |
+| Threshold | 0.4 (`--threshold` to override) |
+| Exit 0 | nothing reached the threshold |
+| Exit 1 | candidates found — **this is not an error** |
+| Called at | step 2 of "Ordered steps for `add`", before choosing a destination |
+
+Show the output and **continue either way**. Never block: a hook that refuses the write
+fails closed and cannot be recovered from mid-flow — this repo already has that scar,
+where one `cc:wip-paused` row locked every session out of stopping. A duplicate row
+fails open and is cheap: you see it, or the next sweep offers one of the pair as a drop
+candidate.
+
+Both files are in the corpus because `harness-plan` routes new items to the backlog by
+default, so the backlog is where near-duplicates actually pile up. A dedupe that read
+only `Plans.md` would never look at the file it is meant to protect.
+
+Threshold provenance: on the measured corpus the highest real pairwise similarity was
+0.21 and no pair of 190 exceeded 0.20, so 0.4 is twice the observed noise ceiling and
+yields zero false positives on anything seen so far.
+
 ### update — Marker Update
 
 Change the status marker of a task.
 
 ```
-/harness-plan update [task name|task number] [WIP|done|blocked]
+/harness-plan update [task name|task number] [WIP|done|blocked|dropped]
 ```
 
 Marker mapping:
 
-| Command | Marker |
-|---------|--------|
-| `WIP` | `cc:wip` |
-| `done` | `cc:done` |
-| `blocked` | `blocked` |
-| `TODO` | `cc:todo` |
+| Command | Marker | Note |
+|---------|--------|------|
+| `TODO` | `cc:todo` | |
+| `WIP` | `cc:wip` | At most one task may hold this at a time |
+| `blocked` | `cc:blocked` | Reason required. Still debt — this is not an exit |
+| `done` | `cc:done` | |
+| `dropped` | `cc:dropped` | Reason required in the Description cell. Terminal |
+
+`blocked` previously mapped to a bare `blocked`, which is not a marker and matched
+nothing in any counter — the row simply disappeared from the status column.
+
+Use `dropped` rather than `done` when work is abandoned. Recording an abandonment as a
+completion makes the ledger lie and destroys the only signal that would tell you the
+plan was over-scoped.
 
 ### sync — Progress Sync
 
@@ -357,14 +500,50 @@ Reference:
 
 ### Marker Reference
 
-| Marker | Meaning |
-|--------|---------|
-| `pm:requested` | Requested by PM |
-| `cc:todo` | Not started |
-| `cc:wip` | In progress |
-| `cc:done` | Worker work complete |
-| `pm:approved` | PM review complete |
-| `blocked` | Blocked (reason must always be stated) |
+The vocabulary is **closed**. Finer distinctions go in the Description cell, never into
+a new marker. The one definition is `scripts/lib/plans-markers.awk`; every consumer
+reads it through `scripts/lib/plans-counts.sh`.
+
+| Marker | Class | Meaning | In denominator | Counts as progress |
+|--------|-------|---------|----------------|--------------------|
+| `cc:todo` | active | Not started | yes | no |
+| `cc:wip` | active | In progress (at most one at a time) | yes | no |
+| `cc:blocked` | active | Waiting on something — still debt, reason required | yes | no |
+| `cc:done` | terminal | Worker work complete | yes | **yes** |
+| `cc:dropped` | terminal | **Decided against**, reason required in the Description cell | yes | **yes** |
+| `pm:requested` | gate | Requested by PM | counted separately | — |
+| `pm:approved` | gate | PM review complete | counted separately | — |
+
+`progress = (done + dropped) / (todo + wip + blocked + done + dropped)`
+
+Input aliases, normalised on read: `cursor:*` → `cc:*`, `cc:cancelled` / `cc:canceled`
+→ `cc:dropped`. Write the canonical form; `dropped` is canonical because it has exactly
+one spelling, while `cancelled`/`canceled` splits in two and a marker that splits in
+two is a marker that eventually goes uncounted.
+
+Two earlier errors in this table are worth naming so they do not come back: the status
+was written as bare `blocked` (the marker is `cc:blocked`, and a bare word matches
+nothing), and `cc:blocked` was missing from the reference entirely.
+
+**Dropping is progress, not failure.** A task decided against is resolved, and marking
+it so advances the completion ratio exactly like finishing it. If retiring work lowered
+the percentage, the rational move would be to never retire anything — which is precisely
+how a plan file grows until nobody opens it. `cc:dropped` is displayed separately
+everywhere it appears, so a plan cannot reach 100% by quietly abandoning itself.
+
+A status cell matching nothing above counts as `unknown` and is flagged rather than
+folded into a neighbouring bucket. A row that vanishes from the denominator is worse
+than a row in the wrong column.
+
+## Executable helpers this skill calls by name
+
+| Script | Called at | Contract |
+|--------|-----------|----------|
+| `scripts/plans-dupe-check.sh "<desc>"` | `add` step 2, before choosing a destination | prints candidates at Jaccard ≥ 0.4 across `Plans.md` rows and live backlog bullets; exit 1 = candidates found, never an error |
+| `scripts/plans-sweep.sh` | whenever a budget is over, and on request | prints T1 stale rows, T2 per-row archive candidates, T3 stale backlog bullets — all three on by default. Proposes; never writes |
+| `scripts/lib/plans-counts.sh` | any time a count is needed | the one parse point for marker counts |
+
+Full format reference: `references/plans-format.md`.
 
 ## Related Skills
 

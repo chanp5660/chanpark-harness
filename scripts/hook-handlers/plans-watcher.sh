@@ -22,6 +22,9 @@
 #   - Emits the framed status block only on a delta:
 #       pm:requested increased -> "New task: request from PM"     (takes precedence)
 #       cc:done increased      -> "Task completed: ready to report to PM"
+#       cc:dropped increased   -> "Task dropped: decided against" (added with the
+#                                 dropped state; retiring work is a decision and must
+#                                 be as visible as finishing it)
 #     Any other change (todo/wip/blocked) is recorded silently.
 #   - Writes pm-notification.md / cursor-notification.md only when a message is emitted.
 #
@@ -35,7 +38,7 @@
 set +e # never abort the host session
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COUNTER_AWK="$SCRIPT_DIR/../lib/plans-markers.awk"
+COUNTS_LIB="$SCRIPT_DIR/../lib/plans-counts.sh"
 
 emit_empty() {
   printf '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":""}}\n'
@@ -79,13 +82,20 @@ PLANS="$PROJECT_ROOT/Plans.md"
 [ -f "$PLANS" ] && [ -r "$PLANS" ] || emit_empty
 
 # --- Count ---------------------------------------------------------------------
-if [ ! -r "$COUNTER_AWK" ]; then
-  echo "[chanpark-harness] plans-watcher: counter not found at $COUNTER_AWK; skipped" >&2
+# Read through the shared loader (scripts/lib/plans-counts.sh) rather than parsing the
+# counter's line here. The counter emits labelled k=v pairs precisely so that adding a
+# state cannot shift a field: the old positional read would have put "0 0" into a JSON
+# number and written a malformed plans-state.json the moment a seventh column appeared.
+if [ ! -r "$COUNTS_LIB" ]; then
+  echo "[chanpark-harness] plans-watcher: count loader not found at $COUNTS_LIB; skipped" >&2
   emit_empty
 fi
-COUNTS="$(awk -f "$COUNTER_AWK" "$PLANS" 2> /dev/null)"
-[ -z "$COUNTS" ] && emit_empty
-read -r CC_TODO CC_WIP CC_DONE CC_BLOCKED PM_PENDING PM_CONFIRMED <<< "$COUNTS"
+# shellcheck source=../lib/plans-counts.sh
+. "$COUNTS_LIB"
+plans_counts_load "$PLANS" || emit_empty
+CC_TODO="$PLANS_TODO"; CC_WIP="$PLANS_WIP"; CC_DONE="$PLANS_DONE"
+CC_BLOCKED="$PLANS_BLOCKED"; CC_DROPPED="$PLANS_DROPPED"; CC_UNKNOWN="$PLANS_UNKNOWN"
+PM_PENDING="$PLANS_PM_REQUESTED"; PM_CONFIRMED="$PLANS_PM_APPROVED"
 
 STATE_DIR="$PROJECT_ROOT/.claude/state"
 STATE_FILE="$STATE_DIR/plans-state.json"
@@ -107,6 +117,7 @@ prev_of() {
   printf '%s' "${v:-0}"
 }
 PREV_DONE="$(prev_of cc_done)"
+PREV_DROPPED="$(prev_of cc_dropped)"
 PREV_PM_PENDING="$(prev_of pm_pending)"
 
 # --- Save state (write-then-rename so a reader never sees a half-written file) ---
@@ -120,10 +131,39 @@ cat > "$TMP_STATE" << EOF
   "cc_wip": $CC_WIP,
   "cc_done": $CC_DONE,
   "cc_blocked": $CC_BLOCKED,
+  "cc_dropped": $CC_DROPPED,
+  "cc_unknown": $CC_UNKNOWN,
+  "active": $PLANS_ACTIVE,
+  "terminal": $PLANS_TERMINAL,
+  "total": $PLANS_TOTAL,
   "pm_confirmed": $PM_CONFIRMED
 }
 EOF
 mv -f "$TMP_STATE" "$STATE_FILE" 2> /dev/null || rm -f "$TMP_STATE" 2> /dev/null
+
+# --- WIP ownership (consumed by wip-guard.sh Path G) ----------------------------
+# The session that edits Plans.md while WIP is present is the session doing the work.
+# Recording it here lets the Stop guard block only that session, instead of locking
+# every session in the project out of ever finishing — including ones that only came
+# to ask a question. When WIP drops to zero the record is removed, so a stale owner
+# can never keep the guard armed.
+GUARD_STATE_DIR="$STATE_DIR/wip-guard"
+OWNER_FILE="$GUARD_STATE_DIR/owner.json"
+SESSION_ID="$(json_field '.session_id // empty' '"session_id"[[:space:]]*:[[:space:]]*"[^"]*"')"
+if [ "${CC_WIP:-0}" -gt 0 ] 2> /dev/null; then
+  if [ -n "$SESSION_ID" ]; then
+    mkdir -p "$GUARD_STATE_DIR" 2> /dev/null
+    TMP_OWNER="$OWNER_FILE.tmp.$$"
+    if printf '{\n  "session_id": "%s",\n  "cc_wip": %s,\n  "timestamp": "%s"\n}\n' \
+      "$SESSION_ID" "$CC_WIP" "$TS" > "$TMP_OWNER" 2> /dev/null; then
+      mv -f "$TMP_OWNER" "$OWNER_FILE" 2> /dev/null || rm -f "$TMP_OWNER" 2> /dev/null
+    else
+      rm -f "$TMP_OWNER" 2> /dev/null
+    fi
+  fi
+else
+  rm -f "$OWNER_FILE" 2> /dev/null
+fi
 
 # --- Delta -> message ----------------------------------------------------------
 HEADLINE=""
@@ -140,9 +180,70 @@ elif [ "$CC_DONE" -gt "$PREV_DONE" ] 2> /dev/null; then
   NEXT_STEP="   → Report with /handoff-to-pm-claude (or /handoff-to-cursor)"
   NOTE_SECTION="Completed tasks"
   NOTE_BODY="Impl Claude has completed the task. Please review (cc:done)."
+elif [ "$CC_DROPPED" -gt "$PREV_DROPPED" ] 2> /dev/null; then
+  # Dropping is a decision, and a decision deserves the same visibility as a completion.
+  # Left silent, retiring work would feel like a lesser act than finishing it — which is
+  # exactly how a backlog learns to grow forever.
+  HEADLINE="Task dropped: decided against, recorded as terminal"
+  NEXT_STEP="   → Confirm the reason is in the description cell; run the archive sweep when the phase closes"
+  NOTE_SECTION="Dropped tasks"
+  NOTE_BODY="A task was retired without being implemented (cc:dropped). It still counts toward progress."
 fi
 
-[ -z "$HEADLINE" ] && emit_empty
+# --- Budget advisory: the only containment surface that fires in headless mode ------
+#
+# Every other cap in this design is prose in a skill, and the one mechanical reporter —
+# the SessionStart monitor — does not run under `claude -p` at all. An agent could
+# therefore append fifty rows in a headless run and no surface anywhere would say a
+# word. This hook fires on every write to Plans.md, headless included, so the cap gets
+# an actual voice here.
+#
+# It is NON-BLOCKING by construction: PostToolUse runs after the write, and the payload
+# is additionalContext. It can only tell you; it cannot refuse. That is the same
+# fail-open trade the rest of the design makes, for the same reason — the wip-guard
+# incident in this repo is what a fail-closed plans hook costs.
+toml_int() {
+  grep -E "^[[:space:]]*$1[[:space:]]*=" "$PROJECT_ROOT/harness.toml" 2> /dev/null |
+    head -1 | grep -oE '[0-9]+' | head -1
+}
+HARD_CAP="$(toml_int hard_cap)"; MAX_LINES="$(toml_int max_lines)"
+HARD_CAP="${HARD_CAP:-30}"; MAX_LINES="${MAX_LINES:-80}"
+PLANS_LINES="$(wc -l < "$PLANS" 2> /dev/null | tr -d ' ')"
+PLANS_LINES="${PLANS_LINES:-0}"
+
+BUDGET=""
+if [ "${PLANS_ACTIVE:-0}" -gt "$HARD_CAP" ] 2> /dev/null; then
+  BUDGET="over budget: ${PLANS_ACTIVE} active rows exceed the hard cap of ${HARD_CAP} — capture new work in Plans-backlog.md, not here"
+fi
+if [ "$PLANS_LINES" -gt "$MAX_LINES" ] 2> /dev/null; then
+  BUDGET="${BUDGET}${BUDGET:+
+}over budget: Plans.md is ${PLANS_LINES} lines against a ${MAX_LINES}-line budget — run scripts/plans-sweep.sh and move terminal rows to .claude/memory/archive/"
+fi
+
+# A budget notice alone is worth emitting: growth without a marker delta is exactly the
+# way the file used to get long unnoticed.
+if [ -z "$HEADLINE" ]; then
+  if [ -z "$BUDGET" ]; then
+    emit_empty
+  fi
+  RULE="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  CONTEXT="$RULE
+Plans.md budget advisory
+$RULE
+$BUDGET
+Advisory only — nothing was blocked and nothing was changed.
+$RULE"
+  json_escape() {
+    printf '%s' "$1" | awk '
+      { gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); gsub(/\t/, "\\t")
+        out = out (NR > 1 ? "\\n" : "") $0 }
+      END { printf "%s", out }
+    '
+  }
+  printf '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"%s"}}\n' \
+    "$(json_escape "$CONTEXT")"
+  exit 0
+fi
 
 # --- Notification files (PM handoff surface) -----------------------------------
 NOTE="$(
@@ -179,9 +280,12 @@ Current status:
    pm:requested   : $PM_PENDING
    cc:todo        : $CC_TODO
    cc:wip         : $CC_WIP
-   cc:done        : $CC_DONE
    cc:blocked     : $CC_BLOCKED
+   cc:done        : $CC_DONE
+   cc:dropped     : $CC_DROPPED
    pm:approved    : $PM_CONFIRMED
+   progress       : $PLANS_TERMINAL/$PLANS_TOTAL terminal (${PLANS_PCT}%)$( [ "${CC_UNKNOWN:-0}" -gt 0 ] && printf '\n   unrecognised   : %s status cell(s) match no known marker' "$CC_UNKNOWN" )
+   budget         : $PLANS_ACTIVE/$HARD_CAP active rows · $PLANS_LINES/$MAX_LINES lines$( [ -n "$BUDGET" ] && printf '\n%s' "$BUDGET" )
 $RULE
 EOF
 )"

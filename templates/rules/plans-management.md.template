@@ -24,7 +24,7 @@ _harness_version: "2.5.27"
 | `cc:todo` | Claude Code | Not started |
 | `cc:wip` | Claude Code | In progress |
 | `cc:done` | Claude Code | Completed |
-| `pm:reviewed` | PM (PM Claude) | Review complete |
+| `pm:approved` | PM (PM Claude) | Review complete |
 
 ## Section Structure
 
@@ -36,7 +36,7 @@ _harness_version: "2.5.27"
 (Tasks with cc:todo, pm:requested)
 
 ## 🟢 Completed
-(Tasks with cc:done, pm:reviewed)
+(Tasks with cc:done, cc:dropped, pm:approved)
 
 ## 📦 Archive
 (Older completed tasks)

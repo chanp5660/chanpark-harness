@@ -31,13 +31,13 @@
     },
     "current_task": {
       "type": "string",
-      "description": "One-line summary of the currently in-progress task (first cc:WIP item). Empty string if no WIP task exists."
+      "description": "One-line summary of the currently in-progress task (first cc:wip item). Empty string if no WIP task exists."
     },
     "progress_pct": {
       "type": "integer",
       "minimum": 0,
       "maximum": 100,
-      "description": "Completion rate (cc:DONE ÷ (TODO+WIP+DONE) × 100, rounded to nearest integer)"
+      "description": "Completion rate: terminal ÷ total × 100, rounded to nearest integer, where terminal = done + dropped and total = todo + wip + blocked + done + dropped. Dropped counts as progress on purpose — a task decided against is resolved, and penalising the decision would teach the operator never to retire anything."
     },
     "todo_tasks": {
       "type": "array",
@@ -72,7 +72,33 @@
         "properties": {
           "number": {"type": "string"},
           "title": {"type": "string"},
-          "commit": {"type": "string", "description": "The hash portion of cc:DONE [hash] (7 chars)"}
+          "commit": {"type": "string", "description": "The hash portion of cc:done [hash] (7 chars)"}
+        }
+      }
+    },
+    "blocked_tasks": {
+      "type": "array",
+      "description": "Active tasks waiting on something (cc:blocked). Still debt: counted in the denominator, never in progress. Emitted since the checklist-parser fix; the schema was simply missing it.",
+      "items": {
+        "type": "object",
+        "required": ["number", "title"],
+        "additionalProperties": false,
+        "properties": {
+          "number": {"type": "string"},
+          "title": {"type": "string"}
+        }
+      }
+    },
+    "dropped_tasks": {
+      "type": "array",
+      "description": "Tasks retired without being implemented (cc:dropped). Terminal: stays in the denominator and counts toward progress exactly like done, but is reported separately so pruning can never masquerade as delivery.",
+      "items": {
+        "type": "object",
+        "required": ["number", "title"],
+        "additionalProperties": false,
+        "properties": {
+          "number": {"type": "string"},
+          "title": {"type": "string"}
         }
       }
     },
@@ -120,6 +146,15 @@
     },
     "_todo_count": {"type": "integer"},
     "_wip_count": {"type": "integer"},
-    "_done_count": {"type": "integer"}
+    "_done_count": {"type": "integer"},
+    "_blocked_count": {"type": "integer"},
+    "_dropped_count": {"type": "integer"},
+    "_unknown_count": {
+      "type": "integer",
+      "description": "Status cells that advertise a marker (cc:* / pm:*) but match nothing in the closed vocabulary. Not a state — a defect in the file. Reported so a typo is visible instead of silently vanishing from the denominator."
+    },
+    "_active_count": {"type": "integer", "description": "todo + wip + blocked"},
+    "_terminal_count": {"type": "integer", "description": "done + dropped"},
+    "_total_count": {"type": "integer", "description": "active + terminal (the progress denominator)"}
   }
 }

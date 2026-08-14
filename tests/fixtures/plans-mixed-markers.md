@@ -7,7 +7,18 @@
 #   cc:wip    → 1 (row)  +  cc:WIP   → 1 (row)  = 2 table rows with wip-status
 #   cc:done   → 1 (row)  +  cc:Done  → 1 (row)  = 2 table rows with done-status
 #   cc:blocked → 1 (row)
-#   Total v2 table rows: 7
+#   cc:dropped → 1 (row) + cc:cancelled → 1 (row, alias) = 2 table rows with dropped-status
+#   cc:wip-paused → 1 (row) counted as UNKNOWN, never as wip
+#   Total v2 table rows: 10
+#
+# The last two lines are the load-bearing ones:
+#   - cc:cancelled is an INPUT ALIAS of cc:dropped. `dropped` is canonical because it
+#     has a single spelling; `cancelled`/`canceled` is the industry word and splits in
+#     two, and a marker that splits in two is a marker that silently vanishes.
+#   - cc:wip-paused must NOT be absorbed by cc:wip. Under the old prefix match it was,
+#     and because wip-guard shares this vocabulary a single such row blocked Stop
+#     forever: the session could never end. It is now reported as `unknown`, which is
+#     visible, keeps the denominator honest, and does not arm any guard.
 #
 # Checklist lines (separate format — NOT table rows):
 #   - [ ] cc:todo  → 1
@@ -29,6 +40,9 @@
 | T005 | Update README               | Reflect new CI scripts in documentation    | README updated, links valid              | T002    | cc:done                  |
 | T006 | Bump version                | Increment plugin.json + harness.toml       | Version fields in sync                   | T005    | cc:Done [abc1234]        |
 | T007 | Freeze binary paths         | Audit all hook paths for hardcoded /usr/   | Zero /usr/bin refs outside bin/          | T003    | cc:blocked               |
+| T008 | Rewrite the HUD in Node     | Port statusline.sh to a compiled renderer  | Rejected: repo forbids a build step      | —       | cc:dropped               |
+| T009 | Vendor a second marketplace | Mirror the catalog to a backup host        | Rejected: no second host exists          | —       | cc:cancelled             |
+| T010 | Await the upstream Go source| Blocked on a release that may never happen | n/a — state is not in the vocabulary     | T003    | cc:wip-paused            |
 
 ## Checklist Format (legacy / alternate)
 

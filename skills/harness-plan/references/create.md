@@ -207,8 +207,8 @@ Automatically attach `[needs-spike]` to High Impact × High Risk tasks.
 Tasks with `[needs-spike]` automatically get a **spike (technical verification) task** placed before them:
 
 ```markdown
-| N.X-spike | [spike] Technical verification for {{task name}} | Verification result report created | - | cc:TODO |
-| N.X       | {{task name}} [needs-spike] | {{DoD}} | N.X-spike | cc:TODO |
+| N.X-spike | [spike] Technical verification for {{task name}} | Verification result report created | - | cc:todo |
+| N.X       | {{task name}} [needs-spike] | {{DoD}} | N.X-spike | cc:todo |
 ```
 
 The completion condition for a spike task is "leave a verification result report (feasible / not feasible / requires design change)."
@@ -255,7 +255,7 @@ Attach commit hash to Status when a task completes:
 | Task | Description | DoD | Depends | Status |
 |------|-------------|-----|---------|--------|
 | 1.1  | ... | ... | - | cc:done [a1b2c3d] |
-| 1.2  | ... | ... | 1.1 | cc:TODO |
+| 1.2  | ... | ... | 1.1 | cc:todo |
 ```
 
 - **Format**: `cc:done [7-char hash]`
@@ -364,8 +364,8 @@ Purpose: [Phase purpose (optional)]
 
 | Task | Description | DoD | Depends | Status |
 |------|-------------|-----|---------|--------|
-| 1.1  | [Task description] [feature:security] | [Verifiable completion condition] | - | cc:TODO |
-| 1.2  | [Task description] | [Verifiable completion condition] | 1.1 | cc:TODO |
+| 1.1  | [Task description] [feature:security] | [Verifiable completion condition] | - | cc:todo |
+| 1.2  | [Task description] | [Verifiable completion condition] | 1.1 | cc:todo |
 ```
 
 **Purpose line**:
@@ -444,6 +444,6 @@ Next step:
 No intake questions. Use existing Plans.md as-is and only decompose tasks.
 
 1. Load Plans.md
-2. List cc:TODO tasks in priority order
+2. List cc:todo tasks in priority order
 3. Attach `[P]` mark to tasks that can run in parallel
 4. Propose the next task to execute

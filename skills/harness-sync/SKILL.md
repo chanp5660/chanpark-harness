@@ -92,8 +92,8 @@ PROJECT=$(tail -1 .claude/state/agent-trace.jsonl 2>/dev/null | \
 
 | Check Item | Detection Method |
 |------------|-----------------|
-| Completed but still `cc:WIP` | Commit history vs marker |
-| Started but still `cc:TODO` | Changed files vs marker |
+| Completed but still `cc:wip` | Commit history vs marker |
+| Started but still `cc:todo` | Changed files vs marker |
 | `cc:done` but not yet committed | git status vs marker |
 
 ## Step 3: Propose Plans.md Updates
@@ -105,8 +105,8 @@ Plans.md update needed
 
 | Task | Current | After | Reason |
 |------|---------|-------|--------|
-| XX   | cc:WIP | cc:done | Already committed |
-| YY   | cc:TODO | cc:WIP | File already edited |
+| XX   | cc:wip | cc:done | Already committed |
+| YY   | cc:todo | cc:wip | File already edited |
 
 Apply updates? (yes / no)
 ```
@@ -118,14 +118,23 @@ Apply updates? (yes / no)
 
 **Project**: {{project_name}}
 
-| Status | Count |
-|--------|-------|
-| Not started (cc:TODO) | {{count}} |
-| In progress (cc:WIP) | {{count}} |
-| Done (cc:done) | {{count}} |
-| PM reviewed (pm:reviewed) | {{count}} |
+| Status | Class | Count |
+|--------|-------|-------|
+| Not started (`cc:todo`) | active | {{count}} |
+| In progress (`cc:wip`) | active | {{count}} |
+| Blocked (`cc:blocked`) | active | {{count}} |
+| Done (`cc:done`) | terminal | {{count}} |
+| Dropped (`cc:dropped`) | terminal | {{count}} |
+| PM approved (`pm:approved`) | gate | {{count}} |
+| Unrecognised marker | defect | {{count}} |
 
-**Progress**: {{percent}}%
+**Progress**: {{percent}}% — `(done + dropped) / (todo + wip + blocked + done + dropped)`
+
+Read these from `scripts/lib/plans-counts.sh` rather than counting by hand; it is the
+one parser, and hand-rolled greps are what let `pm:reviewed`, `pm:pending` and
+`pm:confirmed` — three names this system has never written — end up in shipped docs.
+A non-zero "unrecognised" count is a defect in Plans.md, not a state: some status cell
+is outside the closed vocabulary and is being excluded from the denominator.
 
 ### Recently Edited Files (Agent Trace)
 - {{file1}}
@@ -198,8 +207,11 @@ Next steps
 
 | Situation | Warning |
 |-----------|---------|
-| Multiple `cc:WIP` markers | Multiple tasks progressing simultaneously |
-| `pm:pending` unhandled | Handle the PM request first |
+| Multiple `cc:wip` markers | Multiple tasks progressing simultaneously (the cap is 1) |
+| `pm:requested` unhandled | Handle the PM request first |
+| Unrecognised status cell | Outside the closed vocabulary; the row is missing from the denominator |
+| Stale `cc:todo` / `cc:blocked` | Run `bash scripts/plans-sweep.sh --enable-stale` for `cc:dropped` candidates |
+| All rows terminal, file untouched | Archive sweep is due; see `scripts/plans-sweep.sh` |
 | Large discrepancy | Task tracking is falling behind |
 | WIP not updated for 3+ days | Check if blocked |
 
@@ -211,8 +223,12 @@ Can be explicitly skipped with `--no-retro`.
 ### Step R1: Collect Completed Tasks
 
 ```bash
-# Extract cc:done / pm:reviewed tasks from Plans.md
-grep -E 'cc:done|pm:reviewed' Plans.md
+# Extract terminal tasks from Plans.md. Both cc:done and cc:dropped are terminal:
+# a retrospective that ignores what was abandoned learns nothing about over-scoping.
+grep -E 'cc:done|cc:dropped|pm:approved' Plans.md
+
+# Sweep candidates (read-only; proposes, never rewrites)
+bash scripts/plans-sweep.sh
 
 # Recent completion commit history
 git log --oneline --since="7 days ago"

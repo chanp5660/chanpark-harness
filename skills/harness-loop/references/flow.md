@@ -106,12 +106,12 @@ fi
 ### Step 1: Read Plans.md First
 
 ```bash
-# Extract cc:WIP / cc:TODO tasks and identify the leading task's task_id
+# Extract cc:wip / cc:todo tasks and identify the leading task's task_id
 grep -E "cc:(WIP|TODO)" Plans.md | head -1
 ```
 
-- If a `cc:WIP` task remains: possibly interrupted in the previous cycle → obtain task_id and continue
-- If a `cc:TODO` task exists: obtain task_id as the next target task
+- If a `cc:wip` task remains: possibly interrupted in the previous cycle → obtain task_id and continue
+- If a `cc:todo` task exists: obtain task_id as the next target task
 - If neither: **all tasks complete** → loop ends normally
 
 > Read Plans.md directly; flock-based protection via a watcher script is no longer used.

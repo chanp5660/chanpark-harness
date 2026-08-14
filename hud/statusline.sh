@@ -126,26 +126,37 @@ BRANCH="${BRANCH:-}"; SHA="${SHA:-}"; REPO_NAME="${REPO_NAME:-}"
 STAGED="${STAGED:-0}"; MODIFIED="${MODIFIED:-0}"; AHEAD="${AHEAD:-0}"; BEHIND="${BEHIND:-0}"; UNTRACKED="${UNTRACKED:-0}"; STASH="${STASH:-0}"
 
 # --- Plans.md task counts (A2: count only markdown status-column cells, not prose/legend) ---
-# The counting rule lives in scripts/lib/plans-markers.awk so the HUD, the plans-watcher
-# hook and the CI guard cannot drift apart. The former inline rule ("marker immediately
-# after a pipe") also matched a legend row whose FIRST cell is the marker; the canonical
-# rule looks at the status cell (last non-empty) only. The grep fallback below keeps the
-# HUD self-contained when the statusline is copied out of the plugin tree.
-TODO=0; WIP=0; DONE=0; TOTAL=0; WIP_TITLE=""
+# Counting lives in scripts/lib/plans-markers.awk, loaded through scripts/lib/plans-counts.sh,
+# so the HUD, the plans-watcher hook, the snapshot and the CI guard cannot drift apart.
+#
+# Two things changed here on purpose:
+#   1. TOTAL now includes blocked and dropped. It used to be todo+wip+done, which left
+#      blocked rows out of the denominator and overstated completion on any plan with one.
+#      DONE shown over TOTAL is the terminal count (done + dropped): a dropped task is a
+#      decision that has been made, and hiding it from progress teaches you never to drop.
+#   2. The grep fallback is gone. It implemented the pre-v1.3.6 unanchored rule and had
+#      zero CI coverage, so a HUD copied out of the plugin tree silently reported inflated
+#      counts. Showing nothing beats showing a wrong number confidently.
+#
+# Plans-backlog.md and .claude/memory/archive/** are deliberately NOT read: backlog capture
+# and archived rows contribute to no count anywhere in the system.
+TODO=0; WIP=0; DONE=0; DROPPED=0; BLOCKED=0; UNKNOWN=0; TERMINAL=0; TOTAL=0; WIP_TITLE=""
 PLANS=""
 for p in "${PROJ_DIR:+$PROJ_DIR/Plans.md}" "$PWD/Plans.md"; do [ -f "$p" ] && PLANS="$p" && break; done
 if [ -n "$PLANS" ]; then
     _hud_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    _counter="$_hud_dir/../scripts/lib/plans-markers.awk"
-    if [ -r "$_counter" ]; then
-        read -r TODO WIP DONE _ _ _ <<< "$(awk -f "$_counter" "$PLANS" 2>/dev/null)"
-    else
-        _cell() { grep -oiE "\|[[:space:]]*cc:$1\b" "$PLANS" 2>/dev/null | wc -l | tr -d ' '; }
-        TODO="$(_cell todo)"; WIP="$(_cell wip)"; DONE="$(_cell done)"
+    _loader="$_hud_dir/../scripts/lib/plans-counts.sh"
+    if [ -r "$_loader" ]; then
+        # shellcheck source=../scripts/lib/plans-counts.sh
+        . "$_loader"
+        if plans_counts_load "$PLANS"; then
+            TODO="$PLANS_TODO"; WIP="$PLANS_WIP"; DONE="$PLANS_DONE"
+            BLOCKED="$PLANS_BLOCKED"; DROPPED="$PLANS_DROPPED"; UNKNOWN="$PLANS_UNKNOWN"
+            TERMINAL="$PLANS_TERMINAL"; TOTAL="$PLANS_TOTAL"
+        fi
     fi
-    TODO="${TODO:-0}"; WIP="${WIP:-0}"; DONE="${DONE:-0}"
-    TOTAL=$((TODO + WIP + DONE))
-    # A1: active WIP task title (2nd data column of the first cc:wip row)
+    # A1: active WIP task title (2nd data column of the first cc:wip row).
+    # Word-boundary match, same rule as the counter: cc:wip-paused is NOT wip.
     if [ "$WIP" -gt 0 ]; then
         WIP_TITLE="$(awk '
             { t=$0; sub(/^[[:space:]]+/,"",t)
@@ -155,7 +166,8 @@ if [ -n "$PLANS" ]; then
               for (i=n; i>=1; i--) { v=c[i]; gsub(/^[[:space:]]+|[[:space:]]+$/,"",v)
                                      if (v!="") { gsub(/`[^`]*`/,"",v); s=tolower(v); break } }
               sub(/^cursor:/,"cc:",s)
-              if (s ~ /^cc:wip/) { t=c[3]; gsub(/^[ \t]+|[ \t]+$/,"",t); print t; exit } }
+              if (index(s,"cc:wip")==1 && substr(s,7,1) !~ /[A-Za-z0-9_-]/) {
+                  t=c[3]; gsub(/^[ \t]+|[ \t]+$/,"",t); print t; exit } }
         ' "$PLANS" 2>/dev/null)"
         WIP_TITLE="$(_trunc "$WIP_TITLE" 30)"
     fi
@@ -204,12 +216,22 @@ tasks_badge() {  # $1: "short" | "full" (counts only; WIP title appended by call
     # WIP>1 is a smell in a serialized plan->work->review loop → warn in yellow
     local wipc="$WIP"; local many=0
     [ "${WIP:-0}" -gt 1 ] 2>/dev/null && { wipc="${YELLOW}${WIP}${RESET}"; many=1; }
+    # Dropped is shown SEPARATELY and never folded into done. It contributes to the
+    # ratio (it is terminal) but must stay visible, so a plan cannot reach 100% by
+    # quietly abandoning everything.
+    local drop=""
+    [ "${DROPPED:-0}" -gt 0 ] 2>/dev/null && drop=" ${DIM}drop:${DROPPED}${RESET}"
+    local blk=""
+    [ "${BLOCKED:-0}" -gt 0 ] 2>/dev/null && blk=" ${YELLOW}blk:${BLOCKED}${RESET}"
+    # An unrecognised marker is a defect in the file, not a state — flag it loudly.
+    local unk=""
+    [ "${UNKNOWN:-0}" -gt 0 ] 2>/dev/null && unk=" ${RED}?${UNKNOWN}${RESET}"
     if [ "$1" = "full" ]; then
-        printf '%stasks%s todo:%s wip:%s done:%s/%s' "$DIM" "$RESET" "$TODO" "$wipc" "$DONE" "$TOTAL"
+        printf '%stasks%s todo:%s wip:%s done:%s/%s%s%s%s' "$DIM" "$RESET" "$TODO" "$wipc" "$TERMINAL" "$TOTAL" "$drop" "$blk" "$unk"
     elif [ "$many" -eq 1 ]; then
-        printf '%stasks%s wip:%s %s/%s' "$DIM" "$RESET" "$wipc" "$DONE" "$TOTAL"
+        printf '%stasks%s wip:%s %s/%s%s%s' "$DIM" "$RESET" "$wipc" "$TERMINAL" "$TOTAL" "$drop" "$unk"
     else
-        printf '%stasks%s %s/%s' "$DIM" "$RESET" "$DONE" "$TOTAL"
+        printf '%stasks%s %s/%s%s%s' "$DIM" "$RESET" "$TERMINAL" "$TOTAL" "$drop" "$unk"
     fi
 }
 wip_badge() { [ -n "$WIP_TITLE" ] && printf ' %s>%s %s' "$CYAN" "$RESET" "$WIP_TITLE"; }

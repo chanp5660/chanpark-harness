@@ -6,13 +6,27 @@ Detailed execution steps, thresholds, and archive destinations for each `/mainte
 
 | Variable | Default | Source |
 |----------|---------|--------|
-| `PLANS_MAX_LINES` | 200 | binary `hook auto-cleanup` |
-| `SESSION_LOG_MAX_LINES` | 500 | same |
+| `SESSION_LOG_MAX_LINES` | 500 | binary `hook auto-cleanup` |
 | `CLAUDE_MD_MAX_LINES` | 100 | same |
-| `ARCHIVE_AFTER_DAYS` | 7 | Age threshold for completed tasks in Plans.md |
 | `LOGS_RETAIN_DAYS` | 30 | Retention period for files in `.claude/logs/` |
 
 If the user specifies a different threshold in free-form text, that value takes priority.
+
+**Plans.md thresholds do not live here.** They live in `harness.toml [plans]` and are
+read by `scripts/plans-sweep.sh`, `scripts/hook-handlers/session-monitor.sh` and
+`scripts/hook-handlers/plans-watcher.sh`:
+
+| Key | Default | Bounds |
+|-----|---------|--------|
+| `soft_cap` / `hard_cap` | 25 / 30 | active rows (`cc:todo` + `cc:wip` + `cc:blocked`) |
+| `max_lines` | 80 | the whole active file, boilerplate included — **reported, never refused** |
+| `wip_cap` | 1 | `cc:wip` rows |
+| `archive_days` | 14 | per-row: age of a terminal row before it is an archive candidate |
+| `backlog_stale_days` | 90 | age of a live `Plans-backlog.md` bullet before it is reported |
+
+The old `PLANS_MAX_LINES=200` and `ARCHIVE_AFTER_DAYS=7` entries were removed: 200 lines
+is two and a half times the budget the file is now held to, and the archive trigger is
+`archive_days` per row, not a file-wide age.
 
 ---
 
@@ -21,7 +35,35 @@ If the user specifies a different threshold in free-form text, that value takes 
 ### Prerequisites
 
 1. If the `.claude/state/.ssot-synced-this-session` flag does not exist → prompt `/memory sync`.
-2. Lines tagged `cc:WIP`, `pm:pending` **must never be moved**.
+2. Lines tagged `cc:wip`, `cc:todo`, `cc:blocked` or `pm:requested` **must never be moved** — only terminal rows (`cc:done`, `cc:dropped`) are archivable.
+3. **Destination**: `.claude/memory/archive/Plans-<YYYY-MM-DD>.md`. Nothing scans that
+   directory, which is the entire point — physical separation is much cheaper to enforce
+   than teaching four separate counters to skip a section, and a single archive
+   *sentence* once inflated the done count by one (v1.3.6).
+4. **Archive from the sweep, not by hand.** `scripts/plans-sweep.sh` reports which
+   **rows** qualify — any terminal row whose git-blame author-time is older than
+   `archive_days` — and you move exactly those. Archiving must be a pure function of
+   state and time. The moment it becomes a way to make an awkward file look tidy, the
+   archive stops being a record and starts being a hiding place.
+
+   The rule is **per row, not per file**. It used to require the whole file to be
+   terminal, and that turned one never-finished `cc:todo` into a permanent block on
+   archiving everything around it — measured at 120 done rows and 125 lines with the
+   sweep still reporting "no candidates". Linear's own rule is per issue, and the row is
+   the thing being archived, so the row is the thing the condition is on.
+
+   Because the trigger is per row, running the sweep is always available: an over-budget
+   file (`max_lines`) is never stuck. If the sweep genuinely offers no candidates and the
+   file is still over budget, the rows are all young and the answer is to shorten the
+   descriptions, not to move rows out early.
+5. `Plans-backlog.md` is **never counted and never auto-cleaned**, but it is not
+   lifecycle-free. It has four dispositions — promote, decline, duplicate, snooze — and
+   `scripts/plans-sweep.sh` (T3) reports live bullets older than `backlog_stale_days` so
+   they get one. Declining is written in the file as a struck-through bullet plus
+   `declined <date>: <reason>`; declined bullets are inert everywhere and may be moved in
+   bulk to `.claude/memory/archive/Plans-<YYYY-MM-DD>.md` alongside terminal rows.
+   **Never delete a bullet to retire it** — deletion is the one disposition that leaves
+   no record.
 
 ### Steps
 
@@ -31,11 +73,11 @@ cp "$PLANS" "$PLANS.bak.$(date +%s)"
 
 # 1. Measure current state
 wc -l "$PLANS"
-grep -c '\[x\].*pm:confirmed' "$PLANS" || true
+grep -cE '\[x\].*(pm:approved|cc:done|cc:dropped)' "$PLANS" || true
 
 # 2. Extract lines completed 7+ days ago (handle individually with Edit tool)
-#    Target: `- [x] ... (YYYY-MM-DD) ... pm:confirmed`
-#    Exclude: lines containing cc:WIP / pm:pending
+#    Target: `- [x] ... (YYYY-MM-DD) ... pm:approved` / `cc:done` / `cc:dropped`
+#    Exclude: lines containing cc:wip / cc:todo / cc:blocked / pm:requested
 
 # 3. Append extracted lines to the "## 📦 Archive" section
 #    If the archive section does not exist, create it at the end of the file
@@ -48,8 +90,8 @@ grep -c '\[x\].*pm:confirmed' "$PLANS" || true
 
 ### YYYY-MM (grouped by month)
 
-- [x] Old task A (2026-04-05) pm:confirmed
-- [x] Old task B (2026-04-07) pm:confirmed
+- [x] Old task A (2026-04-05) pm:approved
+- [x] Old task B (2026-04-07) cc:dropped
 ```
 
 ### Output When Nothing Is Found
@@ -200,7 +242,8 @@ Backup: Plans.md.bak.1712900000
 | "also delete old archives" | Additionally delete items in `.claude/memory/archive/` older than N days |
 | "dry-run" | Replace all deletions/moves with `echo`; only list what would be removed |
 | "keep this file" | Exclude the specified file from the target list before running |
-| "raise the threshold to 300 lines" | Temporarily override env vars such as `PLANS_MAX_LINES=300` |
+| "raise the session-log threshold to 900 lines" | Temporarily override env vars such as `SESSION_LOG_MAX_LINES=900` |
+| "raise the Plans.md line budget" | Edit `max_lines` in `harness.toml [plans]`, and say what it now costs to read the file. It is not an env var, because a budget you can raise per-invocation is not a budget |
 
 ---
 

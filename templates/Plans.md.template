@@ -1,91 +1,53 @@
 ---
 _harness_template: "Plans.md.template"
-_harness_version: "4.3.3"
+_harness_version: "4.5.0"
 ---
 
-# Plans.md - Task Tracking
+# Plans.md — {{PROJECT_NAME}}
 
-> **Project**: {{PROJECT_NAME}}
-> **Last updated**: {{DATE}}
-> **Updated by**: Claude Code
+> **Active work only.** Terminal rows move to `.claude/memory/archive/`; unscheduled
+> ideas live in `Plans-backlog.md`. This file opens by default and is budgeted to stay
+> readable in one screen.
 
----
-
-## In Progress
-
-<!-- Add tasks with cc:wip here. -->
-
-(none)
-
----
-
-## Not Started
-
-<!-- Add tasks with cc:todo or pm:requested here. -->
-
-- [ ] Initial project setup `cc:todo`
-  - Create the basic directory structure
-  - Install dependencies
+- **Last updated**: {{DATE}} · **Last session owner**: Claude Code
+- **Budgets** (`harness.toml [plans]`): 25 active rows soft / 30 hard · 1 `cc:wip` ·
+  **80 lines** whole-file. Rows over the hard cap are refused into the backlog; length
+  over budget is reported, never refused — archive terminal rows instead.
+- **Format, legend, aliases, dispositions**: `skills/harness-plan/references/plans-format.md`.
+  Executable definition: `scripts/lib/plans-markers.awk`.
 
 ---
 
-## Completed
+## Active
 
-<!-- Add tasks with cc:done or pm:approved here. -->
+| ID | Task | DoD | Depends | Status |
+|----|------|-----|---------|--------|
+| 1.1 | Initial project setup: create the directory structure and install dependencies | `npm install` succeeds and the app boots | - | cc:todo |
 
-- [x] Introduce the PM / Claude Code workflow `pm:approved` ({{DATE}})
+<!-- Add rows here. Capture unscheduled ideas in Plans-backlog.md instead. -->
 
----
-
-## Archive
-
-<!-- Move older completed tasks here. -->
-
----
-
-## Status Marker Legend
-
-These markers are protocol values used by Harness tooling. Keep them unchanged
-unless the project has tested parser aliases.
-
-| Marker | Meaning |
-|--------|---------|
-| `pm:requested` | PM requested work |
-| `cc:todo` | Not started by Claude Code |
-| `cc:wip` | Claude Code is working |
-| `cc:done` | Claude Code completed the task and is awaiting confirmation |
-| `pm:approved` | PM confirmed completion |
-| `cc:TODO` | Compatibility alias for `cc:todo` |
-| `cc:WIP` | Compatibility alias for `cc:wip` |
-| `blocked` | Blocked; include the reason next to the task |
+**Table dialect is required** — a checklist (`- [ ] task cc:todo`) is not a table row and
+scores zero. **DoD**: one verifiable line, Yes/No evaluable.
 
 ---
 
-## Optional Extended Syntax
+## Markers
 
-For larger plans, you may add task IDs, dependencies, and parallel markers.
+`cc:todo` · `cc:wip` · `cc:blocked` (active, in the denominator) — `cc:done` ·
+`cc:dropped` (terminal, both count as progress) — `pm:requested` · `pm:approved`
+(gates, counted separately). The vocabulary is **closed**; an unrecognised status cell
+is reported as `unknown`, never absorbed into a neighbouring bucket.
 
-### Task ID / Dependency / Parallel Marker
-
-```markdown
-- [ ] T001: Authentication `cc:todo`
-- [ ] T002: User API `cc:todo` depends:T001
-- [ ] T003: Product API `cc:todo` [P]
-- [ ] T004: Order API `cc:todo` depends:T001,T003
-```
-
-| Syntax | Meaning | Example |
-|--------|---------|---------|
-| `T001:` | Optional task ID | Used for references and dependencies |
-| `depends:ID` | Dependency task | `depends:T001,T002` |
-| `[P]` | Parallelizable | Can run at the same time as other ready tasks |
-
-**Note**: Extended syntax is optional. The plain checklist format still works.
+`progress = (done + dropped) / (todo + wip + blocked + done + dropped)`. Dropping
+**advances** the plan — if retiring work lowered the percentage, the rational move would
+be to never retire anything, and this file would grow until nobody read it.
+**Only the last non-empty cell of a table row is a status.** Prose, this section, fenced
+examples, HTML comments and a Task cell quoting a marker never count.
 
 ---
 
-## Last Update
-
-- **Updated at**: {{DATE}}
-- **Last session owner**: Claude Code
-- **Branch**: main
+`Plans-backlog.md` holds unscheduled capture — plain dated bullets, **no `cc:` markers
+at all**, four dispositions (promote / decline / duplicate / snooze).
+`.claude/memory/archive/Plans-<YYYY-MM-DD>.md` holds terminal rows and is never scanned.
+Archiving is **per row** and is the job of `scripts/plans-sweep.sh`, which proposes and
+never writes.
