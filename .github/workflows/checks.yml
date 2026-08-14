@@ -69,25 +69,25 @@ jobs:
           fi
           echo "clean"
 
-      # Plans.md marker counters match `?cc:TODO`? / `?cc:WIP`? as unanchored,
-      # case-insensitive substrings. Marker names quoted as prose or in the
-      # legend get counted as open work and raise a false drift alert, so they
-      # must be escaped (cc&#58;todo). Real status columns are unaffected.
-      - name: Plans.md quotes no live marker tokens outside status columns
-        run: |
-          set -uo pipefail
-          # Blank the trailing status cell first, then look at what remains. A
-          # row may legitimately carry a real marker in its status column while
-          # also quoting one in its description — filtering whole lines would
-          # miss exactly that case.
-          bad="$(sed -E 's/\|[[:space:]]*(cc:(todo|wip|done|blocked))[[:space:]]*(\[[0-9a-f]+\])?[[:space:]]*\|[[:space:]]*$/| |/I' Plans.md \
-                 | grep -nEi '`?cc:(todo|wip)`?|pm:(requested|依頼中)' || true)"
-          if [ -n "$bad" ]; then
-            echo "::error::Plans.md quotes marker tokens outside a status column — escape the colon as &#58;"
-            echo "$bad"
-            exit 1
-          fi
-          echo "clean"
+      # REMOVED in v1.4.0 — "Plans.md quotes no live marker tokens outside status
+      # columns". The step required every marker named in prose or in the legend to
+      # be escaped as cc&#58;todo, because the counters used to match cc:* as
+      # unanchored substrings. Since v1.3.6 the shell-side counter is anchored to the
+      # status cell (the last non-empty cell of a table row) and v1.4.0 moved the
+      # remaining consumer, session-monitor, onto that same counter — so a quoted
+      # marker is inert and the escaping requirement now forbids the legend that
+      # templates/Plans.md.template itself ships.
+      #
+      # Nothing is lost: both directions are pinned by check-regression-guard.sh,
+      # which already runs above.
+      #   plans-marker-anchoring    — prose/legend/fence/comment markers must NOT count
+      #                               (tests/fixtures/plans-prose-marker-inflation.md)
+      #   plans-status-cell-entity  — an escaped marker in a real status cell must be
+      #                               caught (tests/fixtures/plans-status-cell-entity.md)
+      #
+      # The only surface still counting unanchored is the vendored binary's
+      # `harness hook session-init` banner, whose numbers are injected context that
+      # nothing reads back. Do not restore this step to protect a display string.
 
   # check-consistency.sh is an unported upstream script that exits 1 by design in
   # this fork: ~44 of its assertions target upstream-only assets (ja locales,

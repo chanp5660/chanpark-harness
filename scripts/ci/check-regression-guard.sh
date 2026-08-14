@@ -870,7 +870,7 @@ check_plans_archive_per_row() {
   local missing
   missing=""
   for id in D1 D8 X1 X4; do
-    printf '%s' "$out" | grep -qE "^[[:space:]]+$id[[:space:]]" || missing="$missing $id"
+    printf '%s' "$out" | grep -qE "^[[:space:]]+${id}[[:space:]]" || missing="$missing $id"
   done
   if [ -n "$missing" ]; then
     echo "FAIL: plans-archive-per-row — terminal row(s) not offered for archive:$missing"

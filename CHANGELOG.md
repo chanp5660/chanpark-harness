@@ -7,6 +7,167 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-08-14
+
+`Plans.md` gains an exit. The Stop guard stops trapping sessions it does not own.
+
+> **Upgrade notes.** Two behaviour changes land together and both are visible on first
+> run.
+>
+> 1. **The marker counter's output format changed** from six positional integers to
+>    labelled `k=v` pairs, and `scripts/lib/plans-counts.sh` is now the single parse
+>    point. Everything shipped here was migrated in the same commit; if you read
+>    `scripts/lib/plans-markers.awk` directly from your own script, source
+>    `plans-counts.sh` instead of `read -r`-ing the columns.
+> 2. **Progress percentages will move.** `cc:dropped` counts as complete, and blocked
+>    rows now appear in the HUD denominator. Both were wrong before in opposite
+>    directions.
+>
+> No migration is required for existing `Plans.md` files: the four old markers keep
+> their meaning, `Plans-backlog.md` is created on demand, and every sweep only ever
+> prints candidates.
+
+### Added
+
+- **`cc:dropped` — a terminal marker for "decided against".** The four-marker
+  vocabulary had no way to say a task was abandoned, so nothing ever was: 0 of 20
+  historical rows in this repository were ever retired and the file only grew. Dropped
+  rows stay in the denominator **and** count toward progress, exactly like `cc:done`.
+  That half is load-bearing: if retiring work lowered the percentage, the rational move
+  is to never retire anything, which is the failure being fixed.
+
+- **Three-file layout.** `Plans.md` (active work), `Plans-backlog.md` (capture; carries
+  no markers at all and is read by no counter), and `.claude/memory/archive/` for
+  retired rows. The separation is by *file* boundary, not by heading — a `## Backlog`
+  section is not a filter, because every parser scans the whole file.
+
+- **`scripts/lib/plans-counts.sh`** — one shared counter loader over
+  `plans-markers.awk`, exporting `PLANS_TODO` / `WIP` / `DONE` / `BLOCKED` / `DROPPED` /
+  `UNKNOWN` / `ACTIVE` / `PM_*`. The HUD, the plans-watcher hook, the session monitor
+  and the progress snapshot all read it, so the next marker state is a one-file change.
+
+- **`scripts/plans-sweep.sh`** — three read-only sweeps that **propose and never
+  write**: T1 stale active rows (`stale_days`, default 14), T2 per-row terminal archive
+  (`archive_days`, default 14), T3 backlog capture-date staleness
+  (`backlog_stale_days`, default 90). All three ship enabled. Markdown has no activity
+  feed and no undo, so a silent auto-retire would be invisible until someone read a
+  diff.
+
+- **`scripts/plans-dupe-check.sh`** — an executable duplicate check (Jaccard >= 0.4)
+  across both `Plans.md` and `Plans-backlog.md`, called by name at a stated step in
+  `harness-plan`. The previous "check for duplicates" was one sentence of skill prose
+  with no script and no call site, and it compared against `Plans.md` while new items
+  were being written to `Plans-backlog.md` — it could not have worked.
+
+- **`harness.toml [plans]`** — `stale_days`, `archive_days`, `backlog_stale_days`, the
+  three `*_sweep_enabled` switches, `soft_cap` (25) / `hard_cap` (30) / `wip_cap` (1),
+  and `max_lines` (80) for the active file. Each value carries its derivation inline;
+  the caps are marked weakly derived on purpose. Shell-side only — the vendored binary
+  does not read this section.
+
+- **`HARNESS_WIP_GUARD_MODE=warn|off`** downgrades the Stop guard's block to a
+  `systemMessage`, or disables it outright. `HARNESS_WIP_GUARD_COOLDOWN` (default 300s)
+  tunes the new loop breaker.
+
+- **`scripts/hook-handlers/session-monitor.sh`** and `templates/Plans-backlog.md.template`.
+
+- **`docs/design/plans-redesign.md`** — the full design with threshold provenance, and
+  `prompts/oneshot-plans-md-redesign.md`, the research prompt behind it. Benchmarked
+  against Linear's issue hygiene (fixed state model including Canceled, auto-close,
+  auto-archive, split backlog view) and Shape Up's bets-not-backlogs. An independent
+  critic scored round 1 at 68/100 and named four routes by which the backlog still
+  grew; all four are closed here.
+
+### Fixed
+
+- **The Stop guard could trap a session that had nothing to do with the work in
+  progress.** `wip-guard.sh` blocked whenever `Plans.md` held any `cc:wip`, and its only
+  escape was `stop_hook_active` — a field the *host* supplies. A client that omits it
+  (observed with some third-party clients) left the guard with no exit at all: it
+  emitted `decision:block` on every turn and the session could never end. Two fixes:
+  a host-independent loop breaker that records its own last-block time per session
+  under `.claude/state/wip-guard/` and suppresses a repeat inside the cooldown, and
+  per-session WIP ownership — `plans-watcher.sh` records which session edited
+  `Plans.md` while WIP was present, and every other session may stop silently. With no
+  usable clock the guard fails **open**: an unmeasurable guard must not be the reason a
+  session cannot end.
+
+- **`cc:wip-paused` — a state explicitly meaning *not* in progress — triggered the WIP
+  guard.** Matching was an unanchored substring in one dialect and a `/cc:[A-Za-z]+/`
+  that truncated at the hyphen in the other. Both are now word-bounded.
+
+- **A silent 20% undercount in this repository's own `Plans.md`.** Commit `598f4a11`
+  escaped `cc:` to `cc&#58;` line-wide while neutralising markers quoted in description
+  cells, and hit four *status* cells too. They render as ordinary `cc:done` and count as
+  nothing, so a 20-row all-done ledger reported 16. Fixed in the escaping step rather
+  than the counter — decoding the entity there would also decode the deliberately
+  escaped legend.
+
+- **An unrecognised marker corrupted the denominator.** It vanished from every bucket
+  *and* from the total, so the plan silently shrank. Unknown markers are now counted as
+  `unknown` and surfaced.
+
+- **The HUD denominator omitted `cc:blocked`,** overstating completion on any plan
+  carrying one. Its grep fallback, which implemented the pre-1.3.6 unanchored rule with
+  zero CI coverage, is removed — showing nothing beats confidently showing a wrong
+  number.
+
+- **`Plans.md.template` shipped the checklist dialect,** which the canonical counter
+  scores zero, so every new project started with a blank HUD. It now ships the table
+  dialect.
+
+- **Ghost marker names in shipped docs** — `pm:reviewed` / `pm:pending` /
+  `pm:confirmed`, three names this system has never written — and `cc:blocked` missing
+  from `harness-plan`'s legend, where it was mis-documented as a bare `blocked` that
+  matches nothing.
+
+- **The archive could be blocked forever.** `plans-sweep.sh` gated the T2 archive on the
+  active count being zero, so a single perpetually-unfinished `cc:todo` suppressed
+  archiving of the entire file. The trigger is now per row.
+
+- **The backlog was the default destination for every new item and was simultaneously
+  uncapped, never swept and never expired** — containment had merely moved house. It now
+  gets a capture-date staleness report and a documented `declined` disposition, both
+  read-only.
+
+### Changed
+
+- **The marker counter's ABI**: `plans-markers.awk` now prints labelled `k=v` pairs
+  instead of six bare integers read positionally, and `scripts/lib/plans-counts.sh` is
+  the single parse point. Appending a seventh column to the old format would have
+  shifted every field and made `plans-watcher.sh` write `"0 0"` into a JSON number.
+
+- **`monitors/monitors.json` dispatches `scripts/hook-handlers/session-monitor.sh`**
+  instead of `harness hook session-monitor`, following the `plans-watcher.sh` precedent
+  from 1.3.6. The vendored binary counts markers unanchored and carries a compiled-in
+  six-row legend; there is no Go source in this repository to teach it `cc:dropped`.
+  Binary sanity was verified rather than assumed: `doctor`, `validate` and
+  `hook session-init` all still pass with an unknown marker present, and `sync` leaves
+  `monitors.json` and `harness.toml [plans]` untouched.
+
+- **`skills/harness-plan`** gains the plans-format reference, the dupe-check step and the
+  cap rules; the long-form legend and format notes moved out of `Plans.md` itself into
+  `skills/harness-plan/references/plans-format.md` so 30 rows still fit the 80-line
+  budget.
+
+- **`scripts/ci/check-regression-guard.sh`: 10 cases -> 21.** Each new case was verified
+  by disabling the rule it pins, confirming a FAIL, then restoring and confirming a
+  PASS. (`$id[` in the `plans-archive-per-row` case tripped shellcheck SC1087, which
+  `check-baseline.sh` grades as a hard failure — braced.)
+
+- **Removed the `Plans.md quotes no live marker tokens outside status columns` CI
+  step.** It required every marker named in prose or in the legend to be escaped as
+  `cc&#58;todo`, which was correct only while the counters matched unanchored
+  substrings. With the counter anchored it forbids exactly the legend
+  `templates/Plans.md.template` now ships. Both directions are already pinned by
+  `check-regression-guard.sh` (`plans-marker-anchoring` and `plans-status-cell-entity`),
+  so no coverage is lost.
+
+- Applied to this repository: the four broken status cells were repaired (16 -> 20) and
+  the T2 sweep fired on its first run exactly as designed — all 20 rows were fully
+  terminal and untouched for 33 days, so they moved to
+  `.claude/memory/archive/Plans-2026-08-11.md` and `Plans.md` is now an empty active set.
+
 ## [1.3.6] - 2026-07-27
 
 Marker counting is now anchored to the table status cell everywhere.
@@ -311,7 +472,9 @@ superseded by 1.3.0._
 Earlier releases (v1.0.0 – v1.2.1) predate this changelog; see the
 [GitHub releases](https://github.com/chanp5660/chanpark-harness/releases) and git history.
 
-[Unreleased]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.5...HEAD
+[Unreleased]: https://github.com/chanp5660/chanpark-harness/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.6...v1.4.0
+[1.3.6]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.5...v1.3.6
 [1.3.5]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.4...v1.3.5
 [1.3.4]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.3...v1.3.4
 [1.3.3]: https://github.com/chanp5660/chanpark-harness/compare/v1.3.2...v1.3.3
